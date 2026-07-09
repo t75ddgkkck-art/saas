@@ -59,13 +59,8 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Cache long pour les assets statiques immuables générés par Next
-      {
-        source: "/_next/static/(.*)",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
+      // (Next 16 gère déjà /_next/static/* en immutable — pas d'override manuel)
+
       // Cache long pour les images/icons (contenu déjà versionné dans le nom)
       {
         source: "/icons/(.*)",

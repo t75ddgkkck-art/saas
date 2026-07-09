@@ -42,6 +42,35 @@ export function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * Génère un slug SEO-friendly à partir d'un texte, en évitant les collisions
+ * via un callback async `isTaken(slug)`.
+ *
+ * Stratégie :
+ *  1. Slug de base propre → "plomberie-dupont"
+ *  2. Si pris, on tente "plomberie-dupont-2", "plomberie-dupont-3"... (max 20)
+ *  3. Si toujours pris, on ajoute un suffixe court aléatoire (fallback rare)
+ *
+ * Résultat : la vaste majorité des vitrines auront un slug propre sans
+ * suffixe hasardeux (mieux pour le SEO + partage social).
+ */
+export async function generateUniqueSlug(
+  base: string,
+  isTaken: (slug: string) => Promise<boolean>
+): Promise<string> {
+  const rootSlug = slugify(base) || "vitrine";
+
+  if (!(await isTaken(rootSlug))) return rootSlug;
+
+  for (let i = 2; i <= 20; i++) {
+    const candidate = `${rootSlug}-${i}`;
+    if (!(await isTaken(candidate))) return candidate;
+  }
+
+  // Fallback ultra-rare : suffixe court aléatoire (4 chars base36)
+  return `${rootSlug}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
 export const CATEGORIES = [
   { id: "plombier", name: "Plombier", icon: "🔧" },
   { id: "electricien", name: "Électricien", icon: "⚡" },

@@ -15,6 +15,7 @@ import { notFound } from "next/navigation";
 import { PublicPage } from "./PublicPage";
 
 import type { Metadata } from "next";
+import { buildBusinessTitle, buildBusinessDescription } from "@/lib/seo";
 
 /**
  * Rendu ISR : la page est générée puis mise en cache 5 minutes.
@@ -54,43 +55,91 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const result = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
   const business = result[0];
 
-  if (!business) return { title: "Page non trouvée | Vitrix" };
+  if (!business) {
+    return { title: "Page non trouvée", robots: { index: false, follow: false } };
+  }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const reviewResult = await db.select().from(reviews)
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr").replace(/\/$/, "");
+  const canonical = `${appUrl}/${business.slug}`;
+
+  // Note moyenne (utilisée dans la description pour améliorer le CTR)
+  const reviewResult = await db
+    .select({ rating: reviews.rating })
+    .from(reviews)
     .where(and(eq(reviews.businessId, business.id), eq(reviews.isPublished, true)))
-    .limit(10);
-  const avgRating = reviewResult.length > 0
-    ? reviewResult.reduce((sum, r) => sum + r.rating, 0) / reviewResult.length
-    : 0;
+    .limit(200);
+  const avgRating =
+    reviewResult.length > 0
+      ? reviewResult.reduce((s, r) => s + r.rating, 0) / reviewResult.length
+      : undefined;
+
+  const title = buildBusinessTitle({
+    name: business.name,
+    category: business.category,
+    city: business.city,
+  });
+
+  const description = buildBusinessDescription({
+    name: business.name,
+    description: business.description,
+    category: business.category,
+    city: business.city,
+    avgRating,
+    reviewsCount: reviewResult.length,
+  });
+
+  // Bien : og:image utilise notre route dynamique `opengraph-image.tsx`
+  // qui génère un PNG personnalisé (nom + note + ville) pour Facebook/LinkedIn.
+  const ogImageUrl = `${canonical}/opengraph-image`;
+
+  // hreflang : la vitrine peut être en fr/en/es/de selon `business.language`.
+  // On déclare fr par défaut + x-default = URL canonique.
+  // Note : on n'a pas de vraies traductions par URL séparée pour l'instant,
+  // donc hreflang pointe partout vers la même URL — c'est correct pour Google.
+  const languages: Record<string, string> = { "x-default": canonical, fr: canonical };
+  if (business.language && ["en", "es", "de"].includes(business.language)) {
+    languages[business.language] = canonical;
+  }
 
   return {
-    title: `${business.name} - ${business.category} à ${business.city || "France"}`,
-    description: business.description || `${business.name} - ${business.category} professionnel à ${business.city || "France"}. Prenez rendez-vous en ligne et demandez un devis gratuit.`,
+    title,
+    description,
+    keywords: [
+      business.category,
+      business.city || "France",
+      `${business.category} ${business.city || ""}`.trim(),
+      "artisan",
+      "prendre rendez-vous",
+      "devis gratuit",
+    ],
+    alternates: {
+      canonical,
+      languages,
+    },
     openGraph: {
-      title: `${business.name} - ${business.category}`,
-      description: business.description || `Professionnel ${business.category} à ${business.city || "France"}`,
+      title,
+      description,
       type: "website",
-      url: `${appUrl}/${business.slug}`,
-      images: business.coverImage
-        ? [{ url: business.coverImage, width: 1200, height: 630, alt: business.name }]
-        : [{ url: `${appUrl}/og-default.jpg`, width: 1200, height: 630, alt: "Vitrix" }],
+      url: canonical,
       siteName: "Vitrix",
-      locale: "fr_FR",
+      locale: business.language === "en" ? "en_US" : business.language === "es" ? "es_ES" : business.language === "de" ? "de_DE" : "fr_FR",
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: business.name }],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${business.name} - ${business.category}`,
-      description: business.description || `Professionnel ${business.category}`,
-      images: business.coverImage ? [business.coverImage] : [],
+      title,
+      description,
+      images: [ogImageUrl],
     },
     robots: {
       index: true,
       follow: true,
-      googleBot: { index: true, follow: true },
-    },
-    alternates: {
-      canonical: `${appUrl}/${business.slug}`,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
     },
   };
 }

@@ -268,10 +268,15 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
     <div className={`min-h-screen ${tpl.style.pageBg}`} style={{ fontFamily: tpl.style.fontFamily }}>
       {/* JSON-LD Structured Data for SEO */}
       <BusinessStructuredData
-        business={business}
+        business={{
+          ...business,
+          slug: business.slug,
+        }}
         reviews={reviews}
         avgRating={avgRating}
-        url={typeof window !== "undefined" ? window.location.href : ""}
+        url={`${process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"}/${business.slug}`}
+        hours={hours}
+        socials={socials}
       />
 
       {/* Cover Image */}

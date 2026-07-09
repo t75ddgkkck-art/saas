@@ -31,7 +31,15 @@ export const metadata: Metadata = {
     "devis en ligne plombier", "site web artisan gratuit", "visibilité artisan",
     "trouver des clients artisan", "plombier", "électricien", "coiffeur", "peintre",
   ],
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+    // Vitrix étant francophone-first, on déclare fr comme langue principale
+    // et x-default pour indiquer aux crawlers qu'il n'y a pas d'URL par langue.
+    languages: {
+      "x-default": "/",
+      fr: "/",
+    },
+  },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,

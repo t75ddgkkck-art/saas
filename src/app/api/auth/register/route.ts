@@ -5,7 +5,7 @@ import { users, businesses, workingHours, faqs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth";
 import { verifySiret } from "@/lib/siret";
-import { slugify } from "@/lib/utils";
+import { generateUniqueSlug } from "@/lib/utils";
 import { createSessionToken } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { badRequest, conflict, handleApiError } from "@/lib/api-error";
@@ -100,8 +100,16 @@ export async function POST(request: NextRequest) {
         })
         .returning();
 
-      const baseSlug = slugify(data.businessName);
-      const slug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+      // Slug SEO-friendly : "plomberie-dupont" en priorité, fallback "-2/-3..."
+      // uniquement si vraiment pris. Le suffixe hasardeux devient rarissime.
+      const slug = await generateUniqueSlug(data.businessName, async (candidate) => {
+        const [taken] = await tx
+          .select({ id: businesses.id })
+          .from(businesses)
+          .where(eq(businesses.slug, candidate))
+          .limit(1);
+        return Boolean(taken);
+      });
 
       const [business] = await tx
         .insert(businesses)
