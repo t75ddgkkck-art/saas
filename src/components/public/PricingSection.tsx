@@ -1,0 +1,131 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { Check } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+
+const PLANS = [
+  {
+    id: "free",
+    name: "Gratuit",
+    monthly: 0,
+    yearly: 0,
+    tagline: "Pour démarrer votre présence en ligne",
+    features: ["Page vitrine personnalisée", "Boutons contact & WhatsApp", "Galerie photos", "QR Code imprimable", "3 articles de blog SEO", "FAQ personnalisable"],
+    cta: "Commencer gratuitement",
+    highlight: false,
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    monthly: 29,
+    yearly: 278,
+    tagline: "Pour développer votre activité",
+    features: ["Tout du Gratuit", "Réservation en ligne 24/7", "Devis & signature électronique", "Paiements Stripe / Apple Pay", "CRM clients complet", "4 templates de vitrine", "Blog illimité", "Rappels email automatiques"],
+    cta: "Essayer Pro",
+    highlight: true,
+  },
+  {
+    id: "premium",
+    name: "Premium",
+    monthly: 79,
+    yearly: 758,
+    tagline: "L'expérience complète, sans limite",
+    features: ["Tout du Pro", "Assistant IA 24/7", "Programme de fidélité clients", "Marque blanche (sans logo Vitrix)", "7 templates dont 3 exclusifs", "Rappels SMS & WhatsApp", "Statistiques avancées", "Support prioritaire"],
+    cta: "Essayer Premium",
+    highlight: false,
+  },
+];
+
+export function PricingSection() {
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+
+  return (
+    <section id="pricing" className="py-24 lg:py-32">
+      <div className="mx-auto max-w-7xl px-4 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl lg:text-5xl">
+            Des tarifs simples et transparents
+          </h2>
+          <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">
+            Commencez gratuitement, évoluez selon vos besoins.
+          </p>
+
+          {/* Toggle mensuel / annuel */}
+          <div className="mt-8 inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-slate-800">
+            <button
+              onClick={() => setBilling("monthly")}
+              className={`rounded-xl px-6 py-2.5 text-sm font-medium transition-all ${
+                billing === "monthly" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              Mensuel
+            </button>
+            <button
+              onClick={() => setBilling("yearly")}
+              className={`flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-medium transition-all ${
+                billing === "yearly" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              Annuel
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">-20%</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-14 grid gap-6 lg:grid-cols-3">
+          {PLANS.map((plan) => {
+            const price = billing === "monthly" ? plan.monthly : plan.yearly;
+            const suffix = plan.monthly === 0 ? "" : billing === "monthly" ? "/mois" : "/an";
+            return (
+              <div
+                key={plan.id}
+                className={`relative rounded-2xl bg-white p-8 dark:bg-slate-900 ${
+                  plan.highlight
+                    ? "border-2 border-slate-900 shadow-xl dark:border-white"
+                    : "border border-slate-200/60 dark:border-slate-800"
+                }`}
+              >
+                {plan.highlight && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white dark:bg-white dark:text-slate-900">
+                    Le plus populaire
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{plan.name}</h3>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{plan.tagline}</p>
+                <div className="mt-6">
+                  <span className="text-4xl font-bold text-slate-900 dark:text-slate-100">
+                    {price === 0 ? "0€" : `${price}€`}
+                  </span>
+                  <span className="text-slate-500 dark:text-slate-400">{suffix}</span>
+                  {billing === "yearly" && plan.monthly > 0 && (
+                    <p className="mt-1 text-xs font-medium text-emerald-600">
+                      soit {(plan.yearly / 12).toFixed(2)}€/mois — {plan.monthly * 12 - plan.yearly}€ d'économie
+                    </p>
+                  )}
+                </div>
+                <ul className="mt-8 space-y-3">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+                      <Check className="h-4 w-4 flex-shrink-0 text-emerald-500" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register">
+                  <Button variant={plan.highlight ? "primary" : "outline"} className="mt-8 w-full">
+                    {plan.cta}
+                  </Button>
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-8 text-center text-sm text-slate-400">
+          Paiement sécurisé par Stripe · Sans engagement · Résiliable à tout moment
+        </p>
+      </div>
+    </section>
+  );
+}

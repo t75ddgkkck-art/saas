@@ -1,0 +1,740 @@
+import {
+  pgTable,
+  text,
+  varchar,
+  integer,
+  boolean,
+  timestamp,
+  decimal,
+  jsonb,
+  uuid,
+  pgEnum,
+} from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+// ============== ENUMS ==============
+
+export const roleEnum = pgEnum("role", ["admin", "professional", "employee", "assistant"]);
+export const subscriptionEnum = pgEnum("subscription", ["free", "pro", "premium"]);
+export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "confirmed", "cancelled", "completed"]);
+export const quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "accepted", "rejected", "signed", "expired"]);
+export const paymentStatusEnum = pgEnum("payment_status", ["pending", "completed", "failed", "refunded"]);
+export const paymentTypeEnum = pgEnum("payment_type", ["deposit", "full", "subscription"]);
+export const reminderTypeEnum = pgEnum("reminder_type", ["email", "sms", "whatsapp"]);
+export const clientSourceEnum = pgEnum("client_source", ["website", "google", "referral", "social", "other"]);
+
+// ============== USERS ==============
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  phone: varchar("phone", { length: 20 }),
+  role: roleEnum("role").default("professional").notNull(),
+  subscription: subscriptionEnum("subscription").default("free").notNull(),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [users.id],
+    references: [businesses.ownerId],
+  }),
+  appointments: many(appointments, { relationName: "createdBy" }),
+  quotes: many(quotes, { relationName: "createdBy" }),
+  clients: many(clients),
+  notes: many(notes),
+}));
+
+// ============== BUSINESSES ==============
+
+export const businesses = pgTable("businesses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }).notNull(),
+  logo: text("logo"),
+  coverImage: text("cover_image"),
+  profileImage: text("profile_image"),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  postalCode: varchar("postal_code", { length: 20 }),
+  country: varchar("country", { length: 50 }).default("France"),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  serviceArea: text("service_area"),
+  phone: varchar("phone", { length: 20 }),
+  whatsapp: varchar("whatsapp", { length: 20 }),
+  email: varchar("email", { length: 255 }),
+  website: varchar("website", { length: 255 }),
+  emergencyPhone: varchar("emergency_phone", { length: 20 }),
+  showEmergency: boolean("show_emergency").default(false),
+  taxNumber: varchar("tax_number", { length: 50 }),
+  siret: varchar("siret", { length: 20 }),
+  // Personnalisation vitrine
+  primaryColor: varchar("primary_color", { length: 20 }).default("#0f172a"),
+  hideBranding: boolean("hide_branding").default(false),
+  language: varchar("language", { length: 5 }).default("fr"),
+  template: varchar("template", { length: 30 }).default("classique"),
+  showQrOnPage: boolean("show_qr_on_page").default(true),
+  customDomain: varchar("custom_domain", { length: 255 }),
+  publicChatEnabled: boolean("public_chat_enabled").default(false),
+  autoReviewRequest: boolean("auto_review_request").default(false),
+  // Contrôle de l'affichage des avis sur la vitrine
+  showReviewsOnPage: boolean("show_reviews_on_page").default(true),
+  // Badges / avantages personnalisables de la vitrine
+  highlightsEnabled: boolean("highlights_enabled").default(true),
+  highlightsData: jsonb("highlights_data"), // [{ icon: "⚡", title: "Intervention rapide", subtitle: "Sous 2h" }]
+  iban: varchar("iban", { length: 50 }),
+  bic: varchar("bic", { length: 20 }),
+  visitsResetAt: timestamp("visits_reset_at"),
+  googlePlaceId: varchar("google_place_id", { length: 200 }),
+  reminderSmsEnabled: boolean("reminder_sms_enabled").default(false),
+  reminderWhatsappEnabled: boolean("reminder_whatsapp_enabled").default(false),
+  menuData: jsonb("menu_data"), // Pour les restaurants: [{category: "Plats", items: [...]}]
+  // Paiements
+  enableStripe: boolean("enable_stripe").default(false),
+  stripeAccountId: varchar("stripe_account_id", { length: 255 }),
+  acceptCash: boolean("accept_cash").default(true),
+  acceptApplePay: boolean("accept_apple_pay").default(false),
+  // Programme de fidélité (Premium)
+  loyaltyEnabled: boolean("loyalty_enabled").default(false),
+  loyaltyPointsPerEuro: integer("loyalty_points_per_euro").default(1),
+  loyaltyReward: text("loyalty_reward"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Points de fidélité par client
+export const loyaltyPoints = pgTable("loyalty_points", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  points: integer("points").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Membres d'équipe (Premium) : secrétaire, employé avec accès limité
+export const teamMembers = pgTable("team_members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }),
+  memberRole: varchar("member_role", { length: 30 }).default("assistant").notNull(), // assistant, employee
+  invitedAt: timestamp("invited_at").defaultNow().notNull(),
+  active: boolean("active").default(true).notNull(),
+});
+
+// Demandes d'avis envoyées après un RDV terminé
+export const reviewRequests = pgTable("review_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  channel: varchar("channel", { length: 20 }).default("email"),
+});
+
+// Visites réelles des vitrines (une ligne par visite)
+export const pageVisits = pgTable("page_visits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  source: varchar("source", { length: 100 }).default("direct"), // direct, google, facebook, instagram, qr, other
+  device: varchar("device", { length: 20 }).default("desktop"), // mobile, desktop, tablet
+  path: varchar("path", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Services et tarifs du pro
+export const services = pgTable("services", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  price: varchar("price", { length: 50 }), // ex: "50€", "Sur devis"
+  sortOrder: integer("sort_order").default(0).notNull(),
+});
+
+// Champs personnalisés pour le formulaire de devis
+export const quoteFormFields = pgTable("quote_form_fields", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  label: varchar("label", { length: 200 }).notNull(),
+  type: varchar("type", { length: 20 }).default("text").notNull(), // text, select, number
+  options: text("options"), // pour les select, séparés par des virgules
+  required: boolean("required").default(false).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+});
+
+// Historique des points de fidélité (gains et utilisations)
+export const loyaltyTransactions = pgTable("loyalty_transactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  points: integer("points").notNull(), // positif = gain, négatif = utilisation
+  reason: varchar("reason", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const businessesRelations = relations(businesses, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [businesses.ownerId],
+    references: [users.id],
+  }),
+  workingHours: many(workingHours),
+  appointments: many(appointments),
+  quotes: many(quotes),
+  galleryItems: many(galleryItems),
+  reviews: many(reviews),
+  faqs: many(faqs),
+  socialLinks: many(socialLinks),
+  payments: many(payments),
+  analytics: many(analytics),
+}));
+
+// ============== WORKING HOURS ==============
+
+export const workingHours = pgTable("working_hours", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 6=Saturday
+  startTime: varchar("start_time", { length: 5 }), // HH:MM
+  endTime: varchar("end_time", { length: 5 }),
+  isClosed: boolean("is_closed").default(false).notNull(),
+});
+
+export const workingHoursRelations = relations(workingHours, ({ one }) => ({
+  business: one(businesses, {
+    fields: [workingHours.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== SOCIAL LINKS ==============
+
+export const socialLinks = pgTable("social_links", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  platform: varchar("platform", { length: 50 }).notNull(), // facebook, instagram, linkedin, tiktok, youtube
+  url: varchar("url", { length: 500 }).notNull(),
+});
+
+export const socialLinksRelations = relations(socialLinks, ({ one }) => ({
+  business: one(businesses, {
+    fields: [socialLinks.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== GALLERY ==============
+
+export const galleryItems = pgTable("gallery_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 20 }).notNull(), // image, video
+  url: varchar("url", { length: 500 }).notNull(),
+  thumbnailUrl: varchar("thumbnail_url", { length: 500 }),
+  title: varchar("title", { length: 200 }),
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const galleryItemsRelations = relations(galleryItems, ({ one }) => ({
+  business: one(businesses, {
+    fields: [galleryItems.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== AVAILABILITY SLOTS ==============
+
+export const availabilitySlots = pgTable("availability_slots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  isBooked: boolean("is_booked").default(false).notNull(),
+  isBlocked: boolean("is_blocked").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const availabilitySlotsRelations = relations(availabilitySlots, ({ one }) => ({
+  business: one(businesses, {
+    fields: [availabilitySlots.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== APPOINTMENTS ==============
+
+export const appointments = pgTable("appointments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").references(() => users.id),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  date: varchar("date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  status: appointmentStatusEnum("status").default("pending").notNull(),
+  googleCalendarId: varchar("google_calendar_id", { length: 500 }),
+  outlookCalendarId: varchar("outlook_calendar_id", { length: 500 }),
+  reminderSent: boolean("reminder_sent").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const appointmentsRelations = relations(appointments, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [appointments.businessId],
+    references: [businesses.id],
+  }),
+  client: one(clients, {
+    fields: [appointments.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [appointments.createdBy],
+    references: [users.id],
+  }),
+  reminders: many(reminders),
+}));
+
+// ============== CLIENTS (CRM) ==============
+
+export const clients = pgTable("clients", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  address: text("address"),
+  notes: text("notes"),
+  source: clientSourceEnum("source").default("other"),
+  totalSpent: decimal("total_spent", { precision: 10, scale: 2 }).default("0"),
+  appointmentsCount: integer("appointments_count").default(0),
+  quotesCount: integer("quotes_count").default(0),
+  lastContact: timestamp("last_contact"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [clients.businessId],
+    references: [businesses.id],
+  }),
+  appointments: many(appointments),
+  quotes: many(quotes),
+  payments: many(payments),
+  notes: many(notes),
+}));
+
+// ============== QUOTES ==============
+
+export const quotes = pgTable("quotes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  createdBy: uuid("created_by").references(() => users.id),
+  quoteNumber: varchar("quote_number", { length: 50 }).notNull().unique(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).default("0"),
+  tax: decimal("tax", { precision: 10, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 10, scale: 2 }).default("0"),
+  depositAmount: decimal("deposit_amount", { precision: 10, scale: 2 }),
+  status: quoteStatusEnum("status").default("draft").notNull(),
+  validUntil: varchar("valid_until", { length: 10 }),
+  signedAt: timestamp("signed_at"),
+  signature: text("signature"),
+  termsAndConditions: text("terms_and_conditions"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const quotesRelations = relations(quotes, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [quotes.businessId],
+    references: [businesses.id],
+  }),
+  client: one(clients, {
+    fields: [quotes.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [quotes.createdBy],
+    references: [users.id],
+  }),
+  items: many(quoteItems),
+  attachments: many(quoteAttachments),
+  payments: many(payments),
+}));
+
+export const quoteItems = pgTable("quote_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  quoteId: uuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  description: varchar("description", { length: 500 }).notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+});
+
+export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteItems.quoteId],
+    references: [quotes.id],
+  }),
+}));
+
+export const quoteAttachments = pgTable("quote_attachments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  quoteId: uuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 20 }).notNull(), // photo, video, document
+  url: varchar("url", { length: 500 }).notNull(),
+  name: varchar("name", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const quoteAttachmentsRelations = relations(quoteAttachments, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteAttachments.quoteId],
+    references: [quotes.id],
+  }),
+}));
+
+// ============== PAYMENTS ==============
+
+export const payments = pgTable("payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  quoteId: uuid("quote_id").references(() => quotes.id, { onDelete: "set null" }),
+  stripePaymentId: varchar("stripe_payment_id", { length: 255 }),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("EUR"),
+  type: paymentTypeEnum("type").notNull(),
+  status: paymentStatusEnum("status").default("pending").notNull(),
+  invoiceGenerated: boolean("invoice_generated").default(false),
+  invoiceUrl: varchar("invoice_url", { length: 500 }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  business: one(businesses, {
+    fields: [payments.businessId],
+    references: [businesses.id],
+  }),
+  client: one(clients, {
+    fields: [payments.clientId],
+    references: [clients.id],
+  }),
+  quote: one(quotes, {
+    fields: [payments.quoteId],
+    references: [quotes.id],
+  }),
+}));
+
+// ============== REVIEWS ==============
+
+export const reviews = pgTable("reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  clientName: varchar("client_name", { length: 200 }).notNull(),
+  clientEmail: varchar("client_email", { length: 255 }),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  source: varchar("source", { length: 50 }).default("platform"), // platform, google
+  googleReviewId: varchar("google_review_id", { length: 255 }),
+  isPublished: boolean("is_published").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  business: one(businesses, {
+    fields: [reviews.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== FAQ ==============
+
+export const faqs = pgTable("faqs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  question: varchar("question", { length: 500 }).notNull(),
+  answer: text("answer").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isPublished: boolean("is_published").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const faqsRelations = relations(faqs, ({ one }) => ({
+  business: one(businesses, {
+    fields: [faqs.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== NOTES ==============
+
+export const notes = pgTable("notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const notesRelations = relations(notes, ({ one }) => ({
+  business: one(businesses, {
+    fields: [notes.businessId],
+    references: [businesses.id],
+  }),
+  client: one(clients, {
+    fields: [notes.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [notes.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// ============== REMINDERS ==============
+
+export const reminders = pgTable("reminders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id, { onDelete: "cascade" }),
+  type: reminderTypeEnum("type").notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  status: varchar("status", { length: 20 }).default("pending"),
+  message: text("message"),
+});
+
+export const remindersRelations = relations(reminders, ({ one }) => ({
+  appointment: one(appointments, {
+    fields: [reminders.appointmentId],
+    references: [appointments.id],
+  }),
+}));
+
+// ============== ANALYTICS ==============
+
+export const analytics = pgTable("analytics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  visitors: integer("visitors").default(0),
+  pageViews: integer("page_views").default(0),
+  uniqueVisitors: integer("unique_visitors").default(0),
+  referrals: integer("referrals").default(0),
+  date: varchar("date", { length: 10 }).notNull(),
+  source: varchar("source", { length: 50 }).default("direct"),
+  country: varchar("country", { length: 50 }),
+  device: varchar("device", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const analyticsRelations = relations(analytics, ({ one }) => ({
+  business: one(businesses, {
+    fields: [analytics.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== SUBSCRIPTIONS ==============
+
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+  plan: subscriptionEnum("plan").default("free").notNull(),
+  status: varchar("status", { length: 20 }).default("active"),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+  business: one(businesses, {
+    fields: [subscriptions.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== CATALOGS ==============
+
+export const catalogs = pgTable("catalogs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 200 }).notNull(),
+  fileUrl: varchar("file_url", { length: 500 }).notNull(),
+  fileSize: integer("file_size"),
+  downloads: integer("downloads").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const catalogsRelations = relations(catalogs, ({ one }) => ({
+  business: one(businesses, {
+    fields: [catalogs.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== CHAT MESSAGES (AI) ==============
+
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  sessionId: varchar("session_id", { length: 100 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull(), // user, assistant, system
+  content: text("content").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  business: one(businesses, {
+    fields: [chatMessages.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== PAGE THEMES ==============
+
+export const pageThemes = pgTable("page_themes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  primaryColor: varchar("primary_color", { length: 20 }).default("#000000"),
+  secondaryColor: varchar("secondary_color", { length: 20 }).default("#ffffff"),
+  fontFamily: varchar("font_family", { length: 50 }).default("inter"),
+  borderRadius: varchar("border_radius", { length: 10 }).default("md"),
+  layout: varchar("layout", { length: 20 }).default("modern"),
+  showSections: jsonb("show_sections"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const pageThemesRelations = relations(pageThemes, ({ one }) => ({
+  business: one(businesses, {
+    fields: [pageThemes.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== BLOG POSTS ==============
+
+export const blogPosts = pgTable("blog_posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 300 }).notNull(),
+  slug: varchar("slug", { length: 300 }).notNull(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(),
+  coverImage: text("cover_image"),
+  authorName: varchar("author_name", { length: 200 }),
+  isPublished: boolean("is_published").default(false).notNull(),
+  publishedAt: timestamp("published_at"),
+  views: integer("views").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const blogPostsRelations = relations(blogPosts, ({ one }) => ({
+  business: one(businesses, {
+    fields: [blogPosts.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== NOTIFICATIONS ==============
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 50 }).notNull(), // new_appointment, new_quote_request, new_review, quote_accepted
+  title: varchar("title", { length: 200 }).notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").default(false).notNull(),
+  data: jsonb("data"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  business: one(businesses, {
+    fields: [notifications.businessId],
+    references: [businesses.id],
+  }),
+}));
+
+// ============== PUSH SUBSCRIPTIONS ==============
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  endpoint: varchar("endpoint", { length: 500 }).notNull(),
+  p256dh: varchar("p256dh", { length: 500 }).notNull(),
+  auth: varchar("auth", { length: 200 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
+    references: [users.id],
+  }),
+}));
+
+// Exceptions de planning (jours fériés, congés)
+export const scheduleExceptions = pgTable("schedule_exceptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  date: varchar("date", { length: 10 }).notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // holiday, vacation, custom
+  isClosed: boolean("is_closed").default(true),
+  customStartTime: varchar("custom_start_time", { length: 5 }),
+  customEndTime: varchar("custom_end_time", { length: 5 }),
+  reason: varchar("reason", { length: 200 }),
+});
+
+// Types de services avec durée
+export const serviceTypes = pgTable("service_types", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  duration: integer("duration").default(60), // en minutes
+  bufferBefore: integer("buffer_before").default(0), // minutes avant
+  bufferAfter: integer("buffer_after").default(0), // minutes après
+  price: decimal("price", { precision: 10, scale: 2 }),
+});
+
+// Statuts de rendez-vous étendus
+export const appointmentStatuses = pgEnum("appointment_status", ["pending", "confirmed", "in_progress", "completed", "cancelled", "no_show"]);

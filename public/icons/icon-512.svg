@@ -1,0 +1,5 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'>
+  <rect width='512' height='512' fill='#0f172a' rx='100'/>
+  <text x='256' y='290' text-anchor='middle' font-size='200' fill='white' font-family='system-ui'>🏪</text>
+  <text x='256' y='410' text-anchor='middle' font-size='42' fill='rgba(255,255,255,0.8)' font-family='system-ui' font-weight='600'>ArtisanPro</text>
+</svg>
