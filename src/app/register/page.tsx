@@ -147,10 +147,8 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur d'inscription");
 
-      // Cookies set server-side (httpOnly). Store user for client-side UI.
-      if (data.user) {
-        localStorage.setItem("auth_user", JSON.stringify(data.user));
-      }
+      // ⚠️  Ne PAS stocker l'utilisateur en localStorage : ce serait manipulable.
+      // Le AuthContext ré-hydrate via GET /api/auth/session (cookie httpOnly signé).
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message || "Erreur lors de l'inscription");

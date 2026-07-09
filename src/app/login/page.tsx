@@ -27,11 +27,10 @@ export default function LoginPage() {
 
       if (!res.ok) throw new Error(data.error || "Erreur de connexion");
 
-      // Cookies are set server-side (httpOnly). Store user for client-side UI.
-      if (data.user) {
-        localStorage.setItem("auth_user", JSON.stringify(data.user));
-      }
-      // Full navigation so the auth cookie is picked up by the middleware.
+      // ⚠️  Ne PAS stocker l'utilisateur en localStorage : le rôle/plan y serait
+      // manipulable. Le AuthContext ré-hydrate via GET /api/auth/session
+      // (source de vérité = cookie httpOnly signé).
+      // Full navigation pour que le cookie soit pris en compte par le middleware.
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message || "Erreur de connexion");

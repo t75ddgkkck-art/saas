@@ -46,7 +46,9 @@ Thumbs.db
 next-env.d.ts
 
 # Drizzle
-drizzle/meta/
+# NB: drizzle/meta/ DOIT être commit pour que les migrations soient reproductibles.
+# On garde uniquement l'ignore des artefacts éphémères.
+drizzle/*.tmp
 
 # Divers
 *.log
