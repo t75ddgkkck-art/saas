@@ -24,8 +24,13 @@ export function PWAInstallBanner() {
               Installez l&apos;application et activez les notifications pour ne rien manquer.
             </p>
           </div>
-          <button onClick={() => setDismissed(true)} className="p-1 text-slate-400 hover:text-slate-600">
-            <X className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            aria-label="Fermer la bannière d'installation"
+            className="rounded p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <div className="mt-3 flex gap-2">

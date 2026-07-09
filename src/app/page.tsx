@@ -93,6 +93,8 @@ export default function Home() {
         </div>
       </nav>
 
+      {/* Main content — cible du skip link */}
+      <main id="main-content" tabIndex={-1} className="focus:outline-none">
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-32 pb-20 lg:pt-44 lg:pb-32">
         {/* Background gradient */}
@@ -317,6 +319,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="border-t border-slate-200/60 py-12 dark:border-slate-800">

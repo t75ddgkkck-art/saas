@@ -299,8 +299,12 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
 
       </div>
 
-      {/* Content */}
-      <div className="mx-auto -mt-20 relative max-w-2xl px-4 pb-12">
+      {/* Content — cible du skip link, landmark principal */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto -mt-20 relative max-w-2xl px-4 pb-12 focus:outline-none"
+      >
         {/* Profile */}
         <div className="mb-6 flex justify-center">
           <div className={`flex h-32 w-32 items-center justify-center ${tpl.style.avatarRadius} border-4 border-white bg-slate-900 text-5xl shadow-2xl dark:border-slate-950`}>
@@ -626,18 +630,27 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
                   className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
                 >
                   <button
-                    className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
+                    type="button"
+                    aria-expanded={activeFaq === index}
+                    aria-controls={`faq-answer-${index}`}
+                    id={`faq-question-${index}`}
+                    className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                     onClick={() => setActiveFaq(activeFaq === index ? null : index)}
                   >
                     <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{faq.question}</span>
                     {activeFaq === index ? (
-                      <ChevronUp className="h-4 w-4 flex-shrink-0 text-slate-500" />
+                      <ChevronUp className="h-4 w-4 flex-shrink-0 text-slate-500" aria-hidden="true" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-500" />
+                      <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-500" aria-hidden="true" />
                     )}
                   </button>
                   {activeFaq === index && (
-                    <div className="border-t border-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-400">
+                    <div
+                      id={`faq-answer-${index}`}
+                      role="region"
+                      aria-labelledby={`faq-question-${index}`}
+                      className="border-t border-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-400"
+                    >
                       {faq.answer}
                     </div>
                   )}
@@ -694,7 +707,7 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
           siret={business.siret}
           lang={lang as never}
         />
-      </div>
+      </main>
 
       {/* Booking Modal */}
       {showBooking && (
@@ -708,7 +721,19 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
                   {bookingStep === 0 ? "Choisissez un créneau" : bookingStep === 1 ? "Vos informations" : "Confirmation"}
                 </p>
               </div>
-              <button onClick={() => { setShowBooking(false); setBookingStep(0); setSelectedSlot(null); setBookingSuccess(false); }} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
+              <button
+                type="button"
+                aria-label="Fermer"
+                onClick={() => {
+                  setShowBooking(false);
+                  setBookingStep(0);
+                  setSelectedSlot(null);
+                  setBookingSuccess(false);
+                }}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <span aria-hidden="true">✕</span>
+              </button>
             </div>
 
             {bookingSuccess ? (
@@ -818,8 +843,13 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
           <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 dark:bg-slate-900 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Laisser un avis</h3>
-              <button onClick={() => setShowReviewForm(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X className="h-5 w-5" />
+              <button
+                type="button"
+                aria-label="Fermer la fenêtre"
+                onClick={() => setShowReviewForm(false)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <div className="space-y-4">
@@ -867,8 +897,13 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
           <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 dark:bg-slate-900 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Paiement sécurisé</h3>
-              <button onClick={() => setShowPayment(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X className="h-5 w-5" />
+              <button
+                type="button"
+                aria-label="Fermer la fenêtre de paiement"
+                onClick={() => setShowPayment(false)}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">

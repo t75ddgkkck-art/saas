@@ -1,28 +1,38 @@
 "use client";
 
-import { SelectHTMLAttributes, forwardRef } from "react";
+import { forwardRef, useId, type SelectHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
+  helperText?: string;
   options: { value: string; label: string }[];
   placeholder?: string;
 }
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, options, placeholder, id, ...props }, ref) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
+  ({ className, label, error, helperText, options, placeholder, id, ...props }, ref) => {
+    const generated = useId();
+    const inputId = id || `select-${generated}`;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const helperId = helperText && !error ? `${inputId}-helper` : undefined;
+
     return (
       <div className="w-full space-y-2">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label
+            htmlFor={inputId}
+            className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+          >
             {label}
           </label>
         )}
         <select
           id={inputId}
           ref={ref}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={errorId ?? helperId}
           className={cn(
             "flex h-11 w-full rounded-xl border bg-white px-4 py-2 text-sm text-slate-900",
             "transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-1",
@@ -40,7 +50,16 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && (
+          <p id={errorId} role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
+        {helperText && !error && (
+          <p id={helperId} className="text-xs text-slate-500 dark:text-slate-400">
+            {helperText}
+          </p>
+        )}
       </div>
     );
   }

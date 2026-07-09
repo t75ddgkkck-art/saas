@@ -4,7 +4,10 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Base styles */
+/* -----------------------------------------------------------------------------
+ * Base
+ * ---------------------------------------------------------------------------*/
+
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -14,7 +17,39 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
+/* Respecte la préférence "réduction de mouvement" (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+ * Contrastes WCAG AA — rehausse les gris trop clairs quand ils portent du texte.
+ * On applique via cascade sans toucher les 250+ occurrences de text-slate-400,
+ * mais en override uniquement la couleur effective au niveau du root.
+ * ---------------------------------------------------------------------------*/
+
+:root {
+  /* slate-400 est en ~#94a3b8 (ratio ~3.1:1 sur blanc, FAIL AA texte)
+     On force à slate-500 (#64748b, ratio ~4.6:1) qui passe AA. */
+  --tw-slate-400: #64748b;
+}
+
+/* Ligne de sécurité pour le texte de body générique */
+body {
+  color-scheme: light dark;
+}
+
+/* -----------------------------------------------------------------------------
+ * Scrollbar
+ * ---------------------------------------------------------------------------*/
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -25,23 +60,26 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(215.4 16.3% 80%);
+  background: hsl(215.4 16.3% 70%);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(215.4 16.3% 60%);
+  background: hsl(215.4 16.3% 55%);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: hsl(215 20% 30%);
+  background: hsl(215 20% 32%);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(215 20% 40%);
+  background: hsl(215 20% 42%);
 }
 
-/* Animation utilities */
+/* -----------------------------------------------------------------------------
+ * Animations
+ * ---------------------------------------------------------------------------*/
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -57,26 +95,37 @@ html {
   to { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-slide-up { animation: slideUp 0.3s ease-out; }
+.animate-slide-in { animation: slideIn 0.3s ease-out; }
 
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out;
-}
+/* -----------------------------------------------------------------------------
+ * Focus visible — WCAG 2.4.7
+ * Applique un anneau de focus VISIBLE sur tout élément interactif atteint au
+ * clavier, y compris les liens (souvent oubliés).
+ * ---------------------------------------------------------------------------*/
 
-.animate-slide-in {
-  animation: slideIn 0.3s ease-out;
-}
-
-/* Focus visible styles */
 :focus-visible {
-  outline: 2px solid hsl(0 0% 0%);
+  outline: 2px solid #1d4ed8;      /* blue-700 : bon contraste light + dark */
   outline-offset: 2px;
+  border-radius: 4px;
+}
+.dark :focus-visible {
+  outline-color: #93c5fd;          /* blue-300 en dark */
 }
 
-/* Selection */
+/* Certains composants ont déjà leur propre focus-ring Tailwind :
+   on les laisse gagner (ils désactivent l'outline via focus-visible:outline-none). */
+
+/* -----------------------------------------------------------------------------
+ * Selection
+ * ---------------------------------------------------------------------------*/
+
 ::selection {
-  background-color: hsl(0 0% 0%);
+  background-color: #1d4ed8;
   color: white;
+}
+.dark ::selection {
+  background-color: #93c5fd;
+  color: #0f172a;
 }

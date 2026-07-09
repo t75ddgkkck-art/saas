@@ -28,14 +28,25 @@ export function NotificationBell() {
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+        aria-label={
+          unreadCount > 0
+            ? `Notifications, ${unreadCount} non lue${unreadCount > 1 ? "s" : ""}`
+            : "Notifications"
+        }
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
       >
-        <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+        <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" aria-hidden="true" />
         {unreadCount > 0 && (
-          <div className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          <span
+            className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+            aria-hidden="true"
+          >
             {unreadCount}
-          </div>
+          </span>
         )}
       </button>
 

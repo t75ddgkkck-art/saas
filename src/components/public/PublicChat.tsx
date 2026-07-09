@@ -70,8 +70,13 @@ export function PublicChat({ businessId, businessName }: { businessId: string; b
                 </p>
               </div>
             </div>
-            <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 hover:bg-white/10">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Fermer le chat"
+              className="rounded-lg p-1.5 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
 
@@ -100,14 +105,23 @@ export function PublicChat({ businessId, businessName }: { businessId: string; b
 
           {/* Input */}
           <form onSubmit={e => { e.preventDefault(); send(); }} className="flex gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
+            <label htmlFor="public-chat-input" className="sr-only">
+              Votre question
+            </label>
             <input
+              id="public-chat-input"
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Votre question..."
               className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
-            <button type="submit" disabled={!input.trim() || loading} className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white disabled:opacity-40 dark:bg-white dark:text-slate-900">
-              <Send className="h-4 w-4" />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading}
+              aria-label="Envoyer le message"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white disabled:opacity-40 dark:bg-white dark:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
             </button>
           </form>
         </div>

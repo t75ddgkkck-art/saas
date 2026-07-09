@@ -51,17 +51,31 @@ export function Sidebar() {
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setIsOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
       )}
 
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed left-4 top-4 z-50 rounded-xl bg-white p-2 shadow-lg lg:hidden dark:bg-slate-900"
+        aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+        aria-expanded={isOpen}
+        aria-controls="dashboard-sidebar"
+        className="fixed left-4 top-4 z-50 rounded-xl bg-white p-2 shadow-lg lg:hidden dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
       >
-        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        {isOpen ? (
+          <X className="h-5 w-5" aria-hidden="true" />
+        ) : (
+          <Menu className="h-5 w-5" aria-hidden="true" />
+        )}
       </button>
 
       <aside
+        id="dashboard-sidebar"
+        aria-label="Navigation principale"
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200/60 bg-white dark:border-slate-800 dark:bg-slate-950 transition-transform duration-300 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
@@ -70,7 +84,10 @@ export function Sidebar() {
         {/* Logo + Notifications */}
         <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200/60 px-6 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+              aria-hidden="true"
+            >
               <Store className="h-5 w-5" />
             </div>
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">Vitrix</span>
@@ -87,7 +104,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+        <nav aria-label="Sections du tableau de bord" className="flex-1 space-y-1 overflow-y-auto p-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -95,14 +112,15 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
                   isActive
                     ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 )}
               >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
+                <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
                 {td(item.labelKey)}
               </Link>
             );
@@ -128,7 +146,7 @@ export function Sidebar() {
             className="w-full justify-start gap-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
             onClick={logout}
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4" aria-hidden="true" />
             {td("logout")}
           </Button>
         </div>

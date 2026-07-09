@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider, THEME_INIT_SCRIPT } from "@/contexts/ThemeContext";
 import { ToastProvider } from "@/components/ui/Toast";
+import { SkipToContent } from "@/components/layout/SkipToContent";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 min-h-screen">
+        <SkipToContent />
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>{children}</ToastProvider>
