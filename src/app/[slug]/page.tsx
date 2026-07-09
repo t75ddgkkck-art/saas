@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import {
+
   businesses,
   workingHours,
   reviews,
@@ -14,6 +15,10 @@ import { notFound } from "next/navigation";
 import { PublicPage } from "./PublicPage";
 
 import type { Metadata } from "next";
+
+// Rendu dynamique (dépendance DB)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Props = {
   params: Promise<{ slug: string }>;

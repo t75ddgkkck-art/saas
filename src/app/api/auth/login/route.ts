@@ -1,37 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyPassword } from "@/lib/auth";
 import { createSessionToken } from "@/lib/session";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { badRequest, handleApiError, unauthorized } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-const TOKEN_EXPIRY = 7 * 24 * 60 * 60;
+const TOKEN_EXPIRY_SEC = 7 * 24 * 60 * 60;
+
+const LoginSchema = z.object({
+  email: z.string().email("Email invalide").max(255),
+  password: z.string().min(1, "Mot de passe requis").max(200),
+});
 
 export async function POST(request: NextRequest) {
+  // 5 tentatives / minute / IP — limite le brute-force
+  const rl = checkRateLimit(request, { key: "auth:login", limit: 5, windowSec: 60 });
+  if (!rl.ok) return rl.response;
+
   try {
-    const body = await request.json();
-    const { email, password } = body;
-
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email et mot de passe requis" }, { status: 400 });
+    const json = await request.json().catch(() => null);
+    const parsed = LoginSchema.safeParse(json);
+    if (!parsed.success) {
+      throw badRequest(parsed.error.issues[0]?.message ?? "Données invalides");
     }
+    const { email, password } = parsed.data;
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const userResult = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (userResult.length === 0) {
-      return NextResponse.json({ error: "Email ou mot de passe incorrect" }, { status: 401 });
-    }
+    const userResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    // On répond toujours le même message pour ne pas révéler l'existence d'un compte.
+    const invalidCreds = unauthorized("Email ou mot de passe incorrect");
+    if (userResult.length === 0) throw invalidCreds;
 
     const user = userResult[0];
     const isValid = await verifyPassword(password, user.passwordHash);
-    if (!isValid) {
-      return NextResponse.json({ error: "Email ou mot de passe incorrect" }, { status: 401 });
-    }
+    if (!isValid) throw invalidCreds;
 
     const token = createSessionToken(user.id);
-    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY * 1000);
-    const secure = (request.headers.get("x-forwarded-proto")?.split(",")[0].trim() === "https") || new URL(request.url).protocol === "https:";
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_SEC * 1000);
+    const secure =
+      request.headers.get("x-forwarded-proto")?.split(",")[0].trim() === "https" ||
+      new URL(request.url).protocol === "https:";
 
     const response = NextResponse.json({
       success: true,
@@ -53,23 +71,8 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
-    response.cookies.set("auth_user", JSON.stringify({
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      subscription: user.subscription,
-    }), {
-      httpOnly: false,
-      secure,
-      sameSite: "lax",
-      expires: expiresAt,
-      path: "/",
-    });
-
     return response;
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Erreur de connexion" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "/api/auth/login" });
   }
 }

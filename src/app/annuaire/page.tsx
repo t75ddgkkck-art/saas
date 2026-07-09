@@ -4,6 +4,13 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import type { Metadata } from "next";
 
+// Rendu dynamique (dépendance DB)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+// Contenu dynamique (dépend de la DB) : évite les échecs de prerender au build
+// quand DATABASE_URL pointe sur un environnement non joignable (ex: preview).
+
 export const metadata: Metadata = {
   title: "Annuaire des artisans - Trouvez un professionnel près de chez vous",
   description: "Découvrez les meilleurs artisans inscrits sur Vitrix. Plombiers, électriciens, peintres et plus encore.",

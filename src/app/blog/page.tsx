@@ -4,6 +4,10 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import type { Metadata } from "next";
 
+// Rendu dynamique (dépendance DB)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Blog - Conseils et astuces pour votre activité",
   description: "Découvrez nos conseils pour améliorer votre visibilité et gérer votre activité d'artisan.",
