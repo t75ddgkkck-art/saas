@@ -83,7 +83,7 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   return res;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicRoute = PUBLIC_ROUTES.has(pathname);

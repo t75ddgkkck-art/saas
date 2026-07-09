@@ -16,13 +16,38 @@ import { PublicPage } from "./PublicPage";
 
 import type { Metadata } from "next";
 
-// Rendu dynamique (dépendance DB)
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+/**
+ * Rendu ISR : la page est générée puis mise en cache 5 minutes.
+ * → Grosse économie DB (hits multiples = 1 seul rendu / 5 min / slug)
+ * → LCP quasi-CDN pour les visiteurs
+ * Les slots de RDV / prix / avis étant relativement stables, 300s = bon compromis.
+ * Une invalidation ciblée peut être ajoutée via revalidatePath() côté /api/my-business PUT.
+ */
+export const revalidate = 300;
+
+// Pré-génère les vitrines les plus consultées au build.
+// Fallback "blocking" = les autres seront générées à la 1ʳᵉ visite puis mises en cache.
+export const dynamicParams = true;
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateStaticParams() {
+  try {
+    // On pré-génère les 50 vitrines les plus récemment mises à jour.
+    // Les autres seront rendues à la volée puis mises en cache (ISR fallback).
+    const rows = await db
+      .select({ slug: businesses.slug })
+      .from(businesses)
+      .orderBy(desc(businesses.updatedAt))
+      .limit(50);
+    return rows.map((r) => ({ slug: r.slug }));
+  } catch {
+    // Build sans DB (preview Vercel avant migration) : liste vide, tout en fallback.
+    return [];
+  }
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;

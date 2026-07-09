@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
@@ -136,6 +137,17 @@ export async function PUT(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(businesses.id, business.id));
+
+    // Invalide le cache ISR de la vitrine + de l'ancien slug si le pro l'a changé.
+    // Effet : la prochaine visite verra immédiatement les nouvelles infos,
+    // sans attendre la fin de la fenêtre ISR (600s).
+    try {
+      revalidatePath(`/${newSlug}`);
+      if (newSlug !== business.slug) revalidatePath(`/${business.slug}`);
+      revalidatePath("/annuaire");
+    } catch {
+      // Silencieux : l'invalidation peut échouer en dev, ce n'est jamais bloquant.
+    }
 
     return NextResponse.json({ success: true, slug: newSlug });
   } catch (err) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import Image from "next/image";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -57,6 +58,8 @@ export function BusinessAvatar({
   className,
   primaryColor,
 }: BusinessAvatarProps) {
+  const [hasError, setHasError] = useState(false);
+
   const bg = useMemo(() => {
     if (primaryColor && /^#[0-9a-fA-F]{6}$/.test(primaryColor)) return primaryColor;
     return BG_PALETTE[hash(name) % BG_PALETTE.length];
@@ -67,15 +70,18 @@ export function BusinessAvatar({
   const roundedClass =
     rounded === "full" ? "rounded-full" : rounded === "xl" ? "rounded-xl" : "rounded-2xl";
 
-  if (logo) {
+  // Utilise next/image quand un logo est fourni : AVIF/WebP + srcset auto + lazy natif.
+  // Fallback initiales si l'URL 404 (via state `errored`).
+  // Note : le composant interne gère lui-même le state — voir plus bas.
+  if (logo && !hasError) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <Image
         src={logo}
         alt={`Logo ${name}`}
         width={size}
         height={size}
         loading="lazy"
+        onError={() => setHasError(true)}
         className={cn("object-cover shadow-sm", roundedClass, className)}
         style={{ width: size, height: size }}
       />

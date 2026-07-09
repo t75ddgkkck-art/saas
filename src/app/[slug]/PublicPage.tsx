@@ -33,6 +33,7 @@ import { PublicChat } from "@/components/public/PublicChat";
 import { WorkingHoursCard } from "./sections/WorkingHoursCard";
 import { QrCodeCard } from "./sections/QrCodeCard";
 import { PublicFooter } from "./sections/PublicFooter";
+import { OptimizedImage } from "@/components/ui/OptimizedImage";
 import type { Business, Service } from "@/db/types";
 
 // Types partiels acceptés par le composant (colonnes réellement affichées).
@@ -276,10 +277,16 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
       {/* Cover Image */}
       <div className={`relative ${tpl.style.headerHeight}`}>
         {business.coverImage ? (
-          <img
+          <OptimizedImage
             src={business.coverImage}
-            alt="Couverture"
-            className="h-full w-full object-cover"
+            alt={`Couverture ${business.name}`}
+            fill
+            priority
+            sizes="(max-width: 768px) 100vw, 100vw"
+            className="object-cover"
+            fallback={
+              <div className="absolute inset-0" style={{ background: tpl.style.coverGradient }} />
+            }
           />
         ) : (
           <div className="absolute inset-0" style={{ background: tpl.style.coverGradient }} />
@@ -309,7 +316,14 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
         <div className="mb-6 flex justify-center">
           <div className={`flex h-32 w-32 items-center justify-center ${tpl.style.avatarRadius} border-4 border-white bg-slate-900 text-5xl shadow-2xl dark:border-slate-950`}>
             {business.profileImage ? (
-              <img src={business.profileImage} alt={business.name} className="h-full w-full rounded-2xl object-cover" />
+              <OptimizedImage
+                src={business.profileImage}
+                alt={`Photo de profil de ${business.name}`}
+                width={128}
+                height={128}
+                sizes="128px"
+                className="h-full w-full rounded-2xl object-cover"
+              />
             ) : (
               <span>{emoji}</span>
             )}
@@ -413,8 +427,15 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
                     {cat.items.map((item, j) => (
                       <div key={j} className="flex gap-4 group">
                         {item.image && (
-                          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
-                            <img src={item.image} alt={item.name} className="h-full w-full object-cover transition-transform group-hover:scale-110" />
+                          <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                            <OptimizedImage
+                              src={item.image}
+                              alt={item.name}
+                              fill
+                              sizes="64px"
+                              loading="lazy"
+                              className="object-cover transition-transform group-hover:scale-110"
+                            />
                           </div>
                         )}
                         <div className="flex-1">
@@ -550,11 +571,14 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
             </h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {gallery.map((item) => (
-                <div key={item.id} className="group aspect-square overflow-hidden rounded-xl">
-                  <img
+                <div key={item.id} className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                  <OptimizedImage
                     src={item.url}
-                    alt={item.title || ""}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                    alt={item.title || `Photo galerie ${business.name}`}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 250px"
+                    loading="lazy"
+                    className="object-cover transition-transform duration-300 group-hover:scale-110"
                   />
                 </div>
               ))}

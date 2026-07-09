@@ -1,10 +1,24 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider, THEME_INIT_SCRIPT } from "@/contexts/ThemeContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { SkipToContent } from "@/components/layout/SkipToContent";
 import "./globals.css";
+
+// Préchargement Inter via next/font :
+// - Auto self-hosting (aucun fetch runtime vers Google)
+// - Subsetting `latin` (réduit ~85% du poids)
+// - font-display: swap (aucun FOIT/FOUT)
+// - Génère automatiquement --font-inter, exposé via style var + fontFamily
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+  preload: true,
+  adjustFontFallback: true,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"),
@@ -70,7 +84,7 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* Applique le thème AVANT le first paint pour éviter le FOUC.
             Sûr : lit uniquement localStorage + prefers-color-scheme, aucun input externe. */}

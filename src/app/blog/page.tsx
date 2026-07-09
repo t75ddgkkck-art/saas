@@ -5,24 +5,33 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 // Rendu dynamique (dépendance DB)
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+// ISR : régénération toutes les 10 minutes.
+export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: "Blog - Conseils et astuces pour votre activité",
   description: "Découvrez nos conseils pour améliorer votre visibilité et gérer votre activité d'artisan.",
 };
 
+async function fetchPublishedPosts() {
+  try {
+    return await db
+      .select({
+        post: blogPosts,
+        business: businesses,
+      })
+      .from(blogPosts)
+      .innerJoin(businesses, eq(blogPosts.businessId, businesses.id))
+      .where(eq(blogPosts.isPublished, true))
+      .orderBy(blogPosts.publishedAt);
+  } catch {
+    // Build sans DB : fallback vide, la vraie liste apparaîtra à la 1ʳᵉ visite prod.
+    return [];
+  }
+}
+
 export default async function BlogPage() {
-  const posts = await db
-    .select({
-      post: blogPosts,
-      business: businesses,
-    })
-    .from(blogPosts)
-    .innerJoin(businesses, eq(blogPosts.businessId, businesses.id))
-    .where(eq(blogPosts.isPublished, true))
-    .orderBy(blogPosts.publishedAt);
+  const posts = await fetchPublishedPosts();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">

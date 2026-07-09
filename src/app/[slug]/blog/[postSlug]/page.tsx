@@ -6,8 +6,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 // Rendu dynamique (dépendance DB)
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+// ISR : régénération toutes les 10 minutes.
+export const revalidate = 600;
 
 type Props = {
   params: Promise<{ slug: string; postSlug: string }>;
