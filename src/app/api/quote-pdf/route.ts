@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-error";
 import { db } from "@/db";
 import { quotes, quoteItems, businesses, clients } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -167,7 +168,7 @@ export async function GET(request: NextRequest) {
     return new Response(html, {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "/api/quote-pdf" });
   }
 }

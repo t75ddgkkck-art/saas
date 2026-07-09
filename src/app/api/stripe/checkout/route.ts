@@ -1,47 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { handleApiError, badRequest, notFound } from "@/lib/api-error";
+import { validateBody } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
+
+const RATE = { key: "stripe-checkout", limit: 20, windowSec: 60 } as const;
+
+const Schema = z.object({
+  businessSlug: z.string().trim().min(1).max(150),
+  amount: z.number().positive("Montant invalide").max(10000, "Montant maximum dépassé"),
+  description: z.string().trim().max(500).optional(),
+});
 
 export async function POST(request: NextRequest) {
   if (!isStripeConfigured()) {
     return NextResponse.json({ error: "Stripe non configuré" }, { status: 503 });
   }
 
+  const rl = checkRateLimit(request, RATE);
+  if (!rl.ok) return rl.response;
+
   try {
-    const body = await request.json();
-    const { businessSlug, amount, description } = body;
+    const { businessSlug, amount, description } = await validateBody(request, Schema);
 
-    if (!businessSlug) {
-      return NextResponse.json({ error: "businessSlug requis" }, { status: 400 });
-    }
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
-    }
-    if (amount > 10000) {
-      return NextResponse.json({ error: "Montant maximum dépassé" }, { status: 400 });
-    }
-
-    const biz = await db
+    const [business] = await db
       .select()
       .from(businesses)
       .where(eq(businesses.slug, businessSlug))
       .limit(1);
-
-    if (!biz.length) {
-      return NextResponse.json({ error: "Professionnel introuvable" }, { status: 404 });
-    }
-
-    const business = biz[0];
+    if (!business) throw notFound("Professionnel introuvable");
 
     if (!business.enableStripe || !business.stripeAccountId) {
-      return NextResponse.json(
-        { error: "Ce professionnel n'a pas connecté Stripe" },
-        { status: 400 }
-      );
+      throw badRequest("Ce professionnel n'a pas connecté Stripe");
     }
 
     const stripe = getStripe();
@@ -70,17 +66,11 @@ export async function POST(request: NextRequest) {
           description: description || "",
         },
       },
-      {
-        stripeAccount: business.stripeAccountId,
-      }
+      { stripeAccount: business.stripeAccountId }
     );
 
     return NextResponse.json({ url: session.url });
-  } catch (error: any) {
-    console.error("Stripe checkout error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la création du paiement" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/stripe/checkout" });
   }
 }

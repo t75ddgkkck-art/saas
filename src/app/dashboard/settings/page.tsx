@@ -86,8 +86,10 @@ export default function SettingsPage() {
     // Ouvrir directement l'onglet demandé via ?tab=abonnement
     const params = new URLSearchParams(window.location.search);
     const requestedTab = params.get("tab");
-    if (requestedTab && ["compte", "langue", "abonnement", "danger"].includes(requestedTab)) {
-      setTab(requestedTab as any);
+    const VALID_TABS = ["compte", "langue", "abonnement", "domaine", "danger"] as const;
+    type ValidTab = (typeof VALID_TABS)[number];
+    if (requestedTab && (VALID_TABS as readonly string[]).includes(requestedTab)) {
+      setTab(requestedTab as ValidTab);
     }
     const checkout = params.get("checkout");
     if (checkout === "success") {

@@ -6,7 +6,6 @@ import {
   MessageCircle,
   Mail,
   MapPin,
-  Clock,
   Star,
   ChevronDown,
   ChevronUp,
@@ -25,41 +24,22 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { DAYS, formatPrice } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { getTemplate } from "@/lib/vitrine-templates";
 import { QuoteForm } from "@/components/public/QuoteForm";
 import { BusinessStructuredData } from "@/components/public/StructuredData";
 import { PublicChat } from "@/components/public/PublicChat";
+import { WorkingHoursCard } from "./sections/WorkingHoursCard";
+import { QrCodeCard } from "./sections/QrCodeCard";
+import { PublicFooter } from "./sections/PublicFooter";
+import type { Business, Service } from "@/db/types";
 
+// Types partiels acceptés par le composant (colonnes réellement affichées).
+// On utilise Business (source de vérité DB) pour éviter les `as any` sur les
+// champs récemment ajoutés (template, language, showQrOnPage, hideBranding, etc.).
 interface PublicPageProps {
-  business: {
-    id: string;
-    name: string;
-    slug: string;
-    description: string | null;
-    category: string;
-    logo: string | null;
-    coverImage: string | null;
-    profileImage: string | null;
-    address: string | null;
-    city: string | null;
-    postalCode: string | null;
-    country: string | null;
-    latitude: string | null;
-    longitude: string | null;
-    serviceArea: string | null;
-    phone: string | null;
-    whatsapp: string | null;
-    email: string | null;
-    website: string | null;
-    emergencyPhone: string | null;
-    showEmergency: boolean | null;
-    taxNumber: string | null;
-    siret: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  business: Business;
   hours: {
     id: string;
     businessId: string;
@@ -104,7 +84,7 @@ interface PublicPageProps {
     endTime: string;
   }[];
   ownerPlan?: string;
-  initialServices?: any[];
+  initialServices?: Service[];
 }
 
 const categoryEmojis: Record<string, string> = {
@@ -142,13 +122,17 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
   const [payAmount, setPayAmount] = useState("");
   const [payDesc, setPayDesc] = useState("");
   const [payLoading, setPayLoading] = useState(false);
-  const lang = (business as any).language || "fr";
+  const lang = business.language || "fr";
   const canQuote = ownerPlan !== "free"; // Devis réservé aux plans payants
-  const tpl = getTemplate((business as any).template);
-  const showQr = (business as any).showQrOnPage !== false;
-  const showReviews = (business as any).showReviewsOnPage !== false;
-  const highlightsEnabled = (business as any).highlightsEnabled !== false;
-  const highlights = (business as any).highlightsData || [
+  const tpl = getTemplate(business.template ?? undefined);
+  const showQr = business.showQrOnPage !== false;
+  const showReviews = business.showReviewsOnPage !== false;
+  const highlightsEnabled = business.highlightsEnabled !== false;
+  const highlights = (business.highlightsData as Array<{
+    icon?: string;
+    title?: string;
+    subtitle?: string;
+  }> | null) || [
     { icon: "⚡", title: "Intervention rapide", subtitle: "Sous 2h" },
     { icon: "🛡️", title: "Garantie décennale", subtitle: "Travaux couverts" },
     { icon: "💬", title: "Conseil personnalisé", subtitle: "Devis gratuit" },
@@ -205,8 +189,8 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
       setReviewRating(5);
       // simple refresh client-side pour voir l'avis
       window.location.reload();
-    } catch (e: any) {
-      alert(e.message || "Erreur lors de l'envoi de l'avis");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erreur lors de l'envoi de l'avis");
     } finally {
       setReviewSubmitting(false);
     }
@@ -403,44 +387,26 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
           </div>
         </div>
 
-        {/* Working Hours */}
-        {hours.length > 0 && (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-              <Clock className="h-5 w-5" />
-              {t(lang, "hours")}
-            </h2>
-            <div className="mt-4 space-y-2.5">
-              {hours.map((hour) => (
-                <div key={hour.id} className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700 dark:text-slate-300">{DAYS[hour.dayOfWeek]}</span>
-                  {hour.isClosed ? (
-                    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">Fermé</span>
-                  ) : (
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                      {hour.startTime} - {hour.endTime}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Working Hours (extrait -> sections/WorkingHoursCard.tsx) */}
+        <WorkingHoursCard hours={hours} lang={lang as never} />
 
         {/* Section Menu (Spécial Restaurant) */}
-        {business.category === "restaurant" && (business as any).menuData && (business as any).menuData.length > 0 && (
+        {business.category === "restaurant" && Array.isArray(business.menuData) && business.menuData.length > 0 && (
           <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900 shadow-sm">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100 mb-6">
               <span className="text-2xl">🍽️</span> Notre Carte
             </h2>
             <div className="grid gap-8 md:grid-cols-2">
-              {(business as any).menuData.map((cat: any, i: number) => (
+              {(business.menuData as Array<{
+                category: string;
+                items: Array<{ name: string; price: string; description?: string; image?: string }>;
+              }>).map((cat, i) => (
                 <div key={i} className="space-y-4">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 border-b-2 border-amber-400 pb-2 inline-block">
                     {cat.category}
                   </h3>
                   <div className="space-y-4">
-                    {cat.items.map((item: any, j: number) => (
+                    {cat.items.map((item, j) => (
                       <div key={j} className="flex gap-4 group">
                         {item.image && (
                           <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
@@ -506,7 +472,7 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
             
             {highlightsEnabled && (
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-xs text-slate-500 dark:text-slate-400">
-                {highlights.map((h: any, i: number) => (
+                {highlights.map((h, i) => (
                   <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                     <span className="text-lg">{h.icon}</span>
                     <span className="font-medium text-slate-700 dark:text-slate-300">{h.title}</span>
@@ -519,7 +485,7 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
         )}
 
         {/* Paiement en ligne (Stripe) */}
-        {(business as any).enableStripe && (
+        {business.enableStripe && (
           <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50/50 p-6 dark:border-blue-900/50 dark:bg-blue-900/10">
             <div className="flex items-center justify-between">
               <div>
@@ -711,38 +677,23 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
           </a>
         </div>
 
-        {/* QR Code de partage (contrôlable depuis Ma vitrine) */}
+        {/* QR Code (extrait -> sections/QrCodeCard.tsx) */}
         {showQr && qrCode && (
-          <div className={`mt-8 rounded-2xl border ${tpl.style.cardBorder} ${tpl.style.cardBg} p-6`}>
-            <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-8">
-              <img src={qrCode} alt="QR Code" className="h-36 w-36 rounded-xl bg-white p-2 shadow-sm" />
-              <div className="text-center sm:text-left">
-                <p className="font-semibold text-slate-900 dark:text-slate-100">📱 {t(lang, "qrTitle")}</p>
-                <p className="mt-1 max-w-xs text-sm text-slate-500 dark:text-slate-400">
-                  {lang === "en" ? "Scan this code to save or share this page." : lang === "es" ? "Escanea este código para guardar o compartir esta página." : lang === "de" ? "Scannen Sie diesen Code, um die Seite zu speichern oder zu teilen." : "Scannez ce code pour enregistrer ou partager cette page."}
-                </p>
-                <p className="mt-2 font-mono text-xs text-slate-400">vitrix.fr/{business.slug}</p>
-              </div>
-            </div>
-          </div>
+          <QrCodeCard
+            qrCode={qrCode}
+            slug={business.slug}
+            lang={lang as never}
+            cardBorder={tpl.style.cardBorder}
+            cardBg={tpl.style.cardBg}
+          />
         )}
 
-        {/* Footer */}
-        <div className="mt-8 border-t border-slate-200 py-8 text-center dark:border-slate-800">
-          {!(business as any).hideBranding && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {t(lang, "poweredBy")}{" "}
-            <a href="/" className="font-semibold text-slate-900 hover:underline dark:text-slate-100">
-              Vitrix
-            </a>
-          </p>
-          )}
-          {business.siret && (
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              SIRET: {business.siret}
-            </p>
-          )}
-        </div>
+        {/* Footer (extrait -> sections/PublicFooter.tsx) */}
+        <PublicFooter
+          hideBranding={(business as { hideBranding?: boolean | null }).hideBranding}
+          siret={business.siret}
+          lang={lang as never}
+        />
       </div>
 
       {/* Booking Modal */}
@@ -856,7 +807,7 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
       )}
 
       {/* Chatbot IA public (Premium + activé) */}
-      {ownerPlan === "premium" && (business as any).publicChatEnabled && (
+      {ownerPlan === "premium" && business.publicChatEnabled && (
         <PublicChat businessId={business.id} businessName={business.name} />
       )}
 
@@ -904,7 +855,7 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowQuote(false)} />
           <div className="relative z-10 w-full max-w-lg rounded-t-2xl bg-white p-6 dark:bg-slate-900 sm:rounded-2xl max-h-[90vh] overflow-y-auto">
-            <QuoteForm businessId={business.id} businessName={business.name} category={business.category} customFields={quoteFields} enableStripe={(business as any).enableStripe} onClose={() => setShowQuote(false)} />
+            <QuoteForm businessId={business.id} businessName={business.name} category={business.category} customFields={quoteFields} enableStripe={business.enableStripe ?? undefined} onClose={() => setShowQuote(false)} />
           </div>
         </div>
       )}

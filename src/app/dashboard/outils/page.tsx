@@ -20,7 +20,18 @@ export default function OutilsPage() {
   const isPremium = plan === "premium";
 
   // Données du business (à fetch en production)
-  const [business, setBusiness] = useState<any>(null);
+  const [business, setBusiness] = useState<{
+    name?: string;
+    slug?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    postalCode?: string;
+    siret?: string;
+    iban?: string;
+    bic?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/my-business")
@@ -55,8 +66,9 @@ export default function OutilsPage() {
   const tva = totalHT * 0.20;
   const totalTTC = totalHT + tva;
 
-  const updateItem = (index: number, field: string, value: any) => {
-    const newItems = [...items];
+  type InvoiceItem = { description: string; quantity: number; unitPrice: number; total: number };
+  const updateItem = <K extends keyof InvoiceItem>(index: number, field: K, value: InvoiceItem[K]) => {
+    const newItems = [...items] as InvoiceItem[];
     newItems[index] = { ...newItems[index], [field]: value };
     if (field === "quantity" || field === "unitPrice") {
       newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;

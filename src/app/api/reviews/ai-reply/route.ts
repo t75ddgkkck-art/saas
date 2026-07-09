@@ -1,37 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { reviews } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { handleApiError, forbidden, notFound, unauthorized } from "@/lib/api-error";
+import { validateBody } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// L'IA propose une réponse professionnelle à un avis client (Pro/Premium)
+// Cette route consomme OpenAI : cap 20/heure/utilisateur (via IP).
+const RATE = { key: "reviews:ai-reply", limit: 20, windowSec: 3600 } as const;
+
+const Schema = z.object({
+  reviewId: z.string().uuid("reviewId invalide"),
+});
+
 export async function POST(request: NextRequest) {
+  const rl = checkRateLimit(request, RATE);
+  if (!rl.ok) return rl.response;
+
   try {
     const user = await getCurrentUser();
     const business = await getCurrentBusiness();
-    if (!user || !business) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-    }
+    if (!user || !business) throw unauthorized();
+
     if (user.subscription === "free") {
-      return NextResponse.json({ error: "La réponse aux avis par IA est réservée aux plans Pro et Premium" }, { status: 403 });
+      throw forbidden("La réponse aux avis par IA est réservée aux plans Pro et Premium");
     }
 
-    const body = await request.json();
-    const { reviewId } = body;
-    if (!reviewId) return NextResponse.json({ error: "reviewId requis" }, { status: 400 });
+    const { reviewId } = await validateBody(request, Schema);
 
-    const reviewResult = await db.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
-    const review = reviewResult[0];
-    if (!review || review.businessId !== business.id) {
-      return NextResponse.json({ error: "Avis introuvable" }, { status: 404 });
-    }
+    const [review] = await db
+      .select()
+      .from(reviews)
+      .where(and(eq(reviews.id, reviewId), eq(reviews.businessId, business.id)))
+      .limit(1);
+    if (!review) throw notFound("Avis introuvable");
 
     const isPositive = review.rating >= 4;
     const isNeutral = review.rating === 3;
 
-    // Tentative IA (OpenAI)
     let reply: string | null = null;
     if (process.env.OPENAI_API_KEY) {
       try {
@@ -42,7 +53,7 @@ export async function POST(request: NextRequest) {
             Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
             messages: [
               {
                 role: "system",
@@ -57,12 +68,19 @@ export async function POST(request: NextRequest) {
             temperature: 0.7,
           }),
         });
-        const data = await res.json();
-        reply = data.choices?.[0]?.message?.content || null;
-      } catch { /* fallback ci-dessous */ }
+        if (res.ok) {
+          const data = await res.json();
+          reply = data.choices?.[0]?.message?.content || null;
+        } else {
+          logger.warn("reviews.ai-reply.openai.http_error", { status: res.status });
+        }
+      } catch (openAiErr) {
+        logger.warn("reviews.ai-reply.openai.fetch_failed", {
+          message: openAiErr instanceof Error ? openAiErr.message : String(openAiErr),
+        });
+      }
     }
 
-    // Fallback sans OpenAI : réponses professionnelles pré-rédigées selon la note
     if (!reply) {
       const firstName = review.clientName.split(" ")[0];
       if (isPositive) {
@@ -75,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ reply, generatedByAI: !!process.env.OPENAI_API_KEY });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/reviews/ai-reply" });
   }
 }

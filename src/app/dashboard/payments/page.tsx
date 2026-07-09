@@ -12,7 +12,7 @@ const mockPayments = [
   { id: 4, client: "Claire Petit", amount: 500, type: "subscription" as const, status: "completed" as const, date: "2025-01-01", method: "Stripe" },
 ];
 
-const statusConfig: Record<string, { label: string; variant: any }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple" }> = {
   pending: { label: "En attente", variant: "warning" },
   completed: { label: "Complété", variant: "success" },
   failed: { label: "Échoué", variant: "danger" },

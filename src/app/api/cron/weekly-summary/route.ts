@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-error";
 import { db } from "@/db";
 import { users, businesses, appointments, quotes, payments, pageVisits } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
@@ -71,8 +72,8 @@ async function handler(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, summariesSent: sent });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "/api/cron/weekly-summary" });
   }
 }
 

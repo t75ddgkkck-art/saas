@@ -120,7 +120,7 @@ export function generateProfessionalPDF(data: PDFData) {
   });
 
   // --- TOTALS ---
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = (doc.lastAutoTable?.finalY ?? 40) + 10;
   
   doc.setFontSize(10);
   doc.setTextColor(80, 80, 80);

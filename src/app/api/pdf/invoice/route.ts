@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateInvoicePDF, PdfTemplate } from "@/lib/pdf-generator";
+import { generateInvoicePDF, type PdfTemplate } from "@/lib/pdf-generator";
+import { handleApiError, badRequest } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
+const VALID_TYPES = new Set(["devis", "facture"]);
+const VALID_TEMPLATES = new Set<PdfTemplate>(["standard", "moderne", "minimaliste"]);
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body) throw badRequest("JSON invalide");
+
     const {
       type,
       number,
@@ -20,34 +26,32 @@ export async function POST(request: NextRequest) {
       notes,
       conditions,
       template = "standard",
-    } = body;
+    } = body as Record<string, unknown>;
 
     if (!type || !number || !business || !client || !items) {
-      return NextResponse.json({ error: "Données requises manquantes" }, { status: 400 });
+      throw badRequest("Données requises manquantes");
     }
-
-    if (!["devis", "facture"].includes(type)) {
-      return NextResponse.json({ error: "Type invalide" }, { status: 400 });
+    if (typeof type !== "string" || !VALID_TYPES.has(type)) {
+      throw badRequest("Type invalide (devis|facture)");
     }
-
-    if (!["standard", "moderne", "minimaliste"].includes(template)) {
-      return NextResponse.json({ error: "Template invalide" }, { status: 400 });
+    if (typeof template !== "string" || !VALID_TEMPLATES.has(template as PdfTemplate)) {
+      throw badRequest("Template invalide (standard|moderne|minimaliste)");
     }
 
     const doc = generateInvoicePDF(
       {
-        type,
-        number,
-        date,
-        dueDate,
-        business,
-        client,
-        items,
-        totalHT,
-        tva,
-        totalTTC,
-        notes,
-        conditions,
+        type: type as "devis" | "facture",
+        number: number as string,
+        date: date as string,
+        dueDate: dueDate as string | undefined,
+        business: business as never,
+        client: client as never,
+        items: items as never,
+        totalHT: totalHT as number,
+        tva: tva as number,
+        totalTTC: totalTTC as number,
+        notes: notes as string | undefined,
+        conditions: conditions as string | undefined,
       },
       template as PdfTemplate
     );
@@ -60,11 +64,7 @@ export async function POST(request: NextRequest) {
         "Content-Disposition": `attachment; filename="${type}_${number}.pdf"`,
       },
     });
-  } catch (error: any) {
-    console.error("PDF generation error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la génération du PDF" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/pdf/invoice" });
   }
 }

@@ -363,7 +363,9 @@ export const quotes = pgTable("quotes", {
   validUntil: varchar("valid_until", { length: 10 }),
   signedAt: timestamp("signed_at"),
   signature: text("signature"),
+  signatureUrl: text("signature_url"),
   termsAndConditions: text("terms_and_conditions"),
+  reminderSentAt: timestamp("reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

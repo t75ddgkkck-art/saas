@@ -32,8 +32,8 @@ export default function LoginPage() {
       // (source de vérité = cookie httpOnly signé).
       // Full navigation pour que le cookie soit pris en compte par le middleware.
       window.location.href = "/dashboard";
-    } catch (err: any) {
-      setError(err.message || "Erreur de connexion");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de connexion");
       setIsLoading(false);
     }
   };

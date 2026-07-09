@@ -5,9 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
-import { MobileModal } from "@/components/ui/MobileModal";
-import { MobileInput } from "@/components/ui/MobileInput";
-import { MobileButton } from "@/components/ui/MobileButton";
+import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import {
@@ -43,7 +41,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   
   // Form state
   const [newClient, setNewClient] = useState({ firstName: "", lastName: "", email: "", phone: "" });
@@ -159,7 +157,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Client detail modal */}
-      <MobileModal
+      <Modal
         isOpen={!!selectedClient}
         onClose={() => setSelectedClient(null)}
         title={`${selectedClient?.firstName} ${selectedClient?.lastName}`}
@@ -191,7 +189,7 @@ export default function ClientsPage() {
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <DollarSign className="h-4 w-4 text-slate-400" />
-                <span>{formatPrice(selectedClient.totalSpent)}</span>
+                <span>{formatPrice(selectedClient.totalSpent ?? 0)}</span>
               </div>
             </div>
 
@@ -209,35 +207,35 @@ export default function ClientsPage() {
             </div>
           </div>
         )}
-      </MobileModal>
+      </Modal>
 
       {/* New client modal */}
-      <MobileModal
+      <Modal
         isOpen={showNewModal}
         onClose={() => setShowNewModal(false)}
         title="Nouveau client"
       >
         <div className="space-y-4">
-          <MobileInput 
+          <Input 
             label="Prénom" 
             placeholder="Jean" 
             value={newClient.firstName}
             onChange={e => setNewClient({ ...newClient, firstName: e.target.value })}
           />
-          <MobileInput 
+          <Input 
             label="Nom" 
             placeholder="Dupont" 
             value={newClient.lastName}
             onChange={e => setNewClient({ ...newClient, lastName: e.target.value })}
           />
-          <MobileInput 
+          <Input 
             label="Email" 
             type="email" 
             placeholder="jean@email.fr" 
             value={newClient.email}
             onChange={e => setNewClient({ ...newClient, email: e.target.value })}
           />
-          <MobileInput 
+          <Input 
             label="Téléphone" 
             placeholder="+33612345678" 
             value={newClient.phone}
@@ -247,12 +245,12 @@ export default function ClientsPage() {
             <Button variant="outline" onClick={() => setShowNewModal(false)} disabled={isSaving} className="flex-1">
               Annuler
             </Button>
-            <MobileButton onClick={handleAddClient} loading={isSaving} className="flex-1">
+            <Button onClick={handleAddClient} loading={isSaving} className="flex-1">
               Ajouter le client
-            </MobileButton>
+            </Button>
           </div>
         </div>
-      </MobileModal>
+      </Modal>
     </div>
   );
 }

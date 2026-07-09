@@ -12,10 +12,11 @@ import { CheckCircle2, CreditCard, Banknote, Apple } from "lucide-react";
 
 export default function BookPage() {
   const params = useParams<{ slug: string }>();
+  interface Slot { id: string; date: string; startTime: string; endTime: string }
   const [step, setStep] = useState(1);
-  const [slots, setSlots] = useState<any[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
-  const [form, setForm] = useState<Record<string, any>>({ firstName: "", lastName: "", phone: "", email: "", payment: "stripe" });
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({ firstName: "", lastName: "", phone: "", email: "", payment: "stripe" });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -68,7 +69,7 @@ export default function BookPage() {
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-500" />
             <h1 className="mt-6 text-2xl font-bold text-slate-900 dark:text-slate-100">Réservation confirmée !</h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              {form.firstName}, votre rendez-vous du {selectedSlot.date} à {selectedSlot.startTime} est confirmé.
+              {form.firstName}, votre rendez-vous du {selectedSlot?.date} à {selectedSlot?.startTime} est confirmé.
             </p>
           </CardContent>
         </Card>

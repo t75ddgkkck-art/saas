@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { vitrineTemplates, templatesForPlan, getTemplate } from "@/lib/vitrine-templates";
+import type { Business } from "@/db/types";
 import {
   Palette, Globe, Clock, CreditCard, Gift, Save, Eye, Upload, HelpCircle, QrCode, Download, Plus, Trash2, FileText,
   CheckCircle2, AlertCircle, Loader2, Link2, Phone, Star, Lock, Calendar, Sparkles,
@@ -14,10 +15,22 @@ import {
 
 type Section = "design" | "infos" | "horaires" | "paiements" | "fidelite" | "faqsec" | "qrcode" | "devis" | "rdv" | "automations" | "menu";
 
+// Types locaux pour l'éditeur de menu restaurant (jsonb côté DB)
+interface MenuItem {
+  name: string;
+  price: string;
+  description?: string;
+  image?: string;
+}
+interface MenuCategory {
+  category: string;
+  items: MenuItem[];
+}
+
 export default function VitrinePage() {
   const { user } = useAuth();
   const [section, setSection] = useState<Section>("design");
-  const [business, setBusiness] = useState<any>(null);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -64,7 +77,7 @@ export default function VitrinePage() {
   useEffect(() => {
     // Charger la FAQ existante
 fetch("/api/my-faqs").then(r => r.json()).then(d => {
-      if (d.faqs) setFaqList(d.faqs.map((f: any) => ({ question: f.question, answer: f.answer })));
+      if (d.faqs) setFaqList(d.faqs.map((f: { question: string; answer: string }) => ({ question: f.question, answer: f.answer })));
     }).catch(() => {});
     fetch("/api/quote-form-fields").then(r => r.json()).then(d => {
       if (d.fields && d.fields.length > 0) setQuoteFields(d.fields);
@@ -76,7 +89,9 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
     fetch("/api/my-availability").then(r => r.json()).then(d => {
       if (d.hours && d.hours.length > 0) {
         const newHours = Array.from({ length: 7 }, (_, i) => {
-          const existing = d.hours.find((h: any) => h.dayOfWeek === i);
+          const existing = d.hours.find(
+            (h: { dayOfWeek: number; startTime: string | null; endTime: string | null; isClosed: boolean }) => h.dayOfWeek === i
+          );
           return existing
             ? { dayOfWeek: i, start: existing.startTime || "09:00", end: existing.endTime || "18:00", isOpen: !existing.isClosed }
             : { dayOfWeek: i, start: "09:00", end: "18:00", isOpen: i >= 1 && i <= 5 };
@@ -164,7 +179,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
     template: "classique", showQrOnPage: true,
     showReviewsOnPage: true,
     highlightsEnabled: true,
-    menuData: [] as any[],
+    menuData: [] as MenuCategory[],
   });
 
   useEffect(() => {
@@ -286,8 +301,8 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
       
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -933,7 +948,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                   </Button>
                 </div>
                 <div className="space-y-6">
-                  {(form.menuData || []).map((cat: any, catIndex: number) => (
+                  {(form.menuData || []).map((cat: MenuCategory, catIndex: number) => (
                     <div key={catIndex} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                       <div className="flex items-center justify-between mb-3">
                         <Input 
@@ -946,12 +961,12 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                           className="font-bold text-lg bg-transparent border-none p-0 h-auto"
                         />
                         <button onClick={() => {
-                          const newMenu = form.menuData.filter((_: any, i: number) => i !== catIndex);
+                          const newMenu = form.menuData.filter((_: MenuItem | MenuCategory, i: number) => i !== catIndex);
                           setForm({ ...form, menuData: newMenu });
                         }} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 className="h-4 w-4"/></button>
                       </div>
                       <div className="space-y-3 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
-                        {cat.items.map((item: any, itemIndex: number) => (
+                        {cat.items.map((item: MenuItem, itemIndex: number) => (
                           <div key={itemIndex} className="flex gap-2 items-start bg-white dark:bg-slate-950 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
                             <div className="flex-1 space-y-2">
                               <Input placeholder="Nom du plat" value={item.name} onChange={e => {
@@ -979,7 +994,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                             </div>
                             <button onClick={() => {
                               const newMenu = [...form.menuData];
-                              newMenu[catIndex].items = newMenu[catIndex].items.filter((_: any, i: number) => i !== itemIndex);
+                              newMenu[catIndex].items = newMenu[catIndex].items.filter((_: MenuItem | MenuCategory, i: number) => i !== itemIndex);
                               setForm({ ...form, menuData: newMenu });
                             }} className="text-slate-400 hover:text-red-500 p-1"><Trash2 className="h-4 w-4"/></button>
                           </div>

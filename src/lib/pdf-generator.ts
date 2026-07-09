@@ -116,7 +116,7 @@ function generateStandardTemplate(doc: jsPDF, data: InvoiceData): jsPDF {
   });
 
   // Totaux
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = (doc.lastAutoTable?.finalY ?? 40) + 10;
   doc.setFontSize(10);
   doc.text(`Total HT:`, 140, finalY);
   doc.text(`${data.totalHT.toFixed(2)} €`, 195, finalY);
@@ -225,7 +225,7 @@ function generateModerneTemplate(doc: jsPDF, data: InvoiceData): jsPDF {
   });
 
   // Totaux
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = (doc.lastAutoTable?.finalY ?? 40) + 10;
   doc.setFontSize(10);
   doc.text(`Total HT: ${data.totalHT.toFixed(2)} €`, 140, finalY);
   doc.text(`TVA: ${data.tva.toFixed(2)} €`, 140, finalY + 6);
@@ -292,7 +292,7 @@ function generateMinimalisteTemplate(doc: jsPDF, data: InvoiceData): jsPDF {
     },
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  const finalY = (doc.lastAutoTable?.finalY ?? 40) + 8;
   doc.setFontSize(10);
   doc.text(`Total TTC: ${data.totalTTC.toFixed(2)} €`, 140, finalY);
 

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
-const statusConfig: Record<string, { label: string; variant: any }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple" }> = {
   draft: { label: "Brouillon", variant: "default" },
   sent: { label: "Envoyé", variant: "warning" },
   accepted: { label: "Accepté", variant: "success" },

@@ -163,7 +163,7 @@ DO $$ BEGIN
   IF public.__vx_table_exists('notifications') THEN
     ALTER TABLE public.notifications
       ADD COLUMN IF NOT EXISTS data jsonb,
-      ADD COLUMN IF NOT EXISTS read boolean DEFAULT false;
+      ADD COLUMN IF NOT EXISTS is_read boolean DEFAULT false NOT NULL;
   END IF;
 END $$;
 
@@ -213,7 +213,7 @@ BEGIN
       ('quotes',          'quotes_sent_updated_idx',         '',        '(status, updated_at) WHERE status = ''sent'''),
       ('payments',        'payments_business_created_idx',   '',        '(business_id, created_at DESC)'),
       ('payments',        'payments_status_idx',             '',        '(status)'),
-      ('notifications',   'notifications_user_read_idx',     '',        '(user_id, read, created_at DESC)'),
+      ('notifications',   'notifications_user_read_idx',     '',        '(user_id, is_read, created_at DESC)'),
       ('reviews',         'reviews_business_idx',            '',        '(business_id, created_at DESC)'),
       ('page_visits',     'page_visits_business_date_idx',   '',        '(business_id, date)'),
       ('blog_posts',      'blog_business_published_idx',     '',        '(business_id, is_published, published_at DESC)'),

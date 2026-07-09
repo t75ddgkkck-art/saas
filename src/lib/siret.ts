@@ -1,7 +1,5 @@
-import { db } from "@/db";
-import { businesses } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import QRCode from "qrcode";
+import { logger } from "@/lib/logger";
 
 // API officielle de l'État français — gratuite, sans clé API
 // https://api.gouv.fr/les-api/api-recherche-entreprises
@@ -67,9 +65,10 @@ export async function verifySiret(siret: string): Promise<SiretVerificationResul
     }
 
     // Vérifier correspondance exacte du SIRET
-    const matchExact = result.matching_etablissements?.some(
-      (e: any) => e.siret === cleanSiret
-    ) || result.siege?.siret === cleanSiret;
+    const matchExact =
+      (result.matching_etablissements as Array<{ siret?: string }> | undefined)?.some(
+        (e) => e.siret === cleanSiret
+      ) || result.siege?.siret === cleanSiret;
 
     if (!matchExact) {
       return {
@@ -94,8 +93,9 @@ export async function verifySiret(siret: string): Promise<SiretVerificationResul
       legalForm: result.nature_juridique,
       activity: result.activite_principale,
     };
-  } catch (error: any) {
-    console.warn("API INSEE indisponible, fallback Luhn:", error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn("siret.api_insee_unavailable", { message });
     return {
       valid: true,
       name: "Entreprise (vérification Luhn - API INSEE temporairement indisponible)",
@@ -129,7 +129,9 @@ export async function generateQRCode(text: string): Promise<string> {
       errorCorrectionLevel: "M",
     });
   } catch (error) {
-    console.error("Erreur génération QR code:", error);
+    logger.error("qr.dataurl_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     throw new Error("Impossible de générer le QR code");
   }
 }
@@ -143,7 +145,9 @@ export async function generateQRCodeBuffer(text: string): Promise<Buffer> {
       errorCorrectionLevel: "M",
     });
   } catch (error) {
-    console.error("Erreur génération QR code buffer:", error);
+    logger.error("qr.buffer_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     throw new Error("Impossible de générer le QR code");
   }
 }

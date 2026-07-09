@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMonthlyReport } from "@/lib/ai-content";
 import { requirePermission } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
+// Génération lourde IA : 5/heure/IP suffit largement.
+const RATE = { key: "ai:monthly-report", limit: 5, windowSec: 3600 } as const;
+
 export async function POST(request: NextRequest) {
-  const { error } = await requirePermission("canAiReports");
-  if (error) return error;
+  const perm = await requirePermission("canAiReports");
+  if (perm.error) return perm.error;
+
+  const rl = checkRateLimit(request, RATE);
+  if (!rl.ok) return rl.response;
 
   try {
     const result = await generateMonthlyReport();
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error("AI report error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur serveur" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/ai/monthly-report" });
   }
 }

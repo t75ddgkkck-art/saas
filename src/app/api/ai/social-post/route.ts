@@ -1,39 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateSocialPost } from "@/lib/ai-content";
 import { requirePermission } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-error";
+import { validateBody } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
 
+// 20 posts/heure/IP : largement au-dessus d'un usage humain, bloque le scripting.
+const RATE = { key: "ai:social-post", limit: 20, windowSec: 3600 } as const;
+
+const Schema = z.object({
+  topic: z.string().trim().min(1).max(500),
+  platform: z.enum(["facebook", "instagram", "linkedin"]),
+});
+
 export async function POST(request: NextRequest) {
-  const { error } = await requirePermission("canAiPosts");
-  if (error) return error;
+  const perm = await requirePermission("canAiPosts");
+  if (perm.error) return perm.error;
+
+  const rl = checkRateLimit(request, RATE);
+  if (!rl.ok) return rl.response;
 
   try {
-    const body = await request.json();
-    const { topic, platform } = body;
-
-    if (!topic || !platform) {
-      return NextResponse.json(
-        { error: "Sujet et plateforme requis" },
-        { status: 400 }
-      );
-    }
-
-    if (!["facebook", "instagram", "linkedin"].includes(platform)) {
-      return NextResponse.json(
-        { error: "Plateforme invalide" },
-        { status: 400 }
-      );
-    }
-
+    const { topic, platform } = await validateBody(request, Schema);
     const result = await generateSocialPost({ topic, platform });
-
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error("AI social post error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur serveur" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/ai/social-post" });
   }
 }

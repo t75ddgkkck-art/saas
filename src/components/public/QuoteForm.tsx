@@ -15,7 +15,7 @@ interface QuoteFormProps {
   businessId: string;
   businessName: string;
   category: string;
-  customFields?: any[] | null;
+  customFields?: QuoteField[] | null;
   enableStripe?: boolean;
   onClose: () => void;
 }
@@ -36,11 +36,11 @@ export function QuoteForm({ businessId, businessName, category, customFields, en
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState<Record<string, any>>({
+  const [formData, setFormData] = useState<Record<string, string>>({
     firstName: "", lastName: "", email: "", phone: "", address: "", paymentMethod: "other",
   });
 
-  const updateField = (field: string, value: any) => {
+  const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -96,8 +96,8 @@ export function QuoteForm({ businessId, businessName, category, customFields, en
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi");
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'envoi de la demande");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de l'envoi de la demande");
     } finally {
       setIsLoading(false);
     }
@@ -107,7 +107,7 @@ export function QuoteForm({ businessId, businessName, category, customFields, en
     const val = formData[field.id] || "";
     const commonProps = {
       value: val,
-      onChange: (e: any) => updateField(field.id, e.target.value),
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => updateField(field.id, e.target.value),
     };
 
     switch (field.type) {
@@ -162,7 +162,7 @@ export function QuoteForm({ businessId, businessName, category, customFields, en
             <input
               type="checkbox"
               checked={!!val}
-              onChange={(e) => updateField(field.id, e.target.checked)}
+              onChange={(e) => updateField(field.id, e.target.checked ? "true" : "")}
               className="h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
             />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{field.label}</span>

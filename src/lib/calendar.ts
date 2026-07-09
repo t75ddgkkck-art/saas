@@ -1,5 +1,6 @@
 // Service Google Calendar - Synchronisation des RDV
 // Nécessite GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+import { logger } from "@/lib/logger";
 
 interface CalendarEvent {
   summary: string;
@@ -15,7 +16,7 @@ export async function createCalendarEvent(event: CalendarEvent) {
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
-    console.log("[Calendar] Google non configuré, simulation RDV:", event.summary);
+    logger.warn("calendar.simulated", { summary: event.summary, reason: "Google not configured" });
     return { success: true, simulated: true, eventId: `sim_${Date.now()}` };
   }
 
@@ -66,9 +67,10 @@ export async function createCalendarEvent(event: CalendarEvent) {
     }
 
     return { success: true, eventId: result.id, htmlLink: result.htmlLink };
-  } catch (error: any) {
-    console.error("[Calendar] Erreur:", error);
-    return { success: false, error: error.message };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("calendar.create_failed", { message });
+    return { success: false, error: message };
   }
 }
 

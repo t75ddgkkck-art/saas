@@ -1,35 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
-import { requirePermission, isValidEmail, normalizePhone } from "@/lib/validation";
+import { requirePermission } from "@/lib/validation";
+import { normalizePhone } from "@/lib/validation";
+import { handleApiError, unauthorized, conflict, badRequest } from "@/lib/api-error";
+import { validateBody } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  const { error, user } = await requirePermission("canAddClients");
+const CreateSchema = z
+  .object({
+    firstName: z.string().trim().max(100).optional().default(""),
+    lastName: z.string().trim().max(100).optional().default(""),
+    email: z.string().trim().toLowerCase().email("Email invalide").optional().or(z.literal("")),
+    phone: z.string().trim().max(30).optional().default(""),
+    notes: z.string().trim().max(2000).optional(),
+    source: z.enum(["website", "google", "referral", "social", "other"]).optional(),
+  })
+  .refine((v) => v.firstName || v.lastName || v.email, {
+    message: "Nom, prénom ou email requis",
+    path: ["firstName"],
+  });
+
+export async function GET() {
+  const { error } = await requirePermission("canAddClients");
   if (error) return error;
 
   try {
     const business = await getCurrentBusiness();
-    if (!business) {
-      return NextResponse.json({ clients: [] });
-    }
+    if (!business) return NextResponse.json({ clients: [] });
 
-    const clientList = await db
+    const list = await db
       .select()
       .from(clients)
       .where(eq(clients.businessId, business.id))
       .orderBy(desc(clients.createdAt));
 
-    return NextResponse.json({ clients: clientList });
-  } catch (error: any) {
-    console.error("GET clients error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ clients: list });
+  } catch (err) {
+    return handleApiError(err, { route: "GET /api/clients" });
   }
 }
 
@@ -39,65 +51,48 @@ export async function POST(request: NextRequest) {
 
   try {
     const business = await getCurrentBusiness();
-    if (!business) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-    }
+    if (!business) throw unauthorized();
 
-    const body = await request.json();
-    const { firstName, lastName, email, phone } = body;
+    const data = await validateBody(request, CreateSchema);
 
-    // Validation
-    if (!firstName && !lastName && !email) {
-      return NextResponse.json(
-        { error: "Nom ou email requis" },
-        { status: 400 }
-      );
-    }
+    const normalizedPhone = data.phone ? normalizePhone(data.phone) : "";
+    const emailNormalized = data.email ? data.email : "";
 
-    if (email && !isValidEmail(email)) {
-      return NextResponse.json(
-        { error: "Email invalide" },
-        { status: 400 }
-      );
-    }
-
-    const normalizedPhone = phone ? normalizePhone(phone) : "";
-
-    // Vérification anti-doublon
-    if (email) {
-      const existing = await db
-        .select()
+    // Anti-doublon par email pour ce business
+    if (emailNormalized) {
+      const [dup] = await db
+        .select({ id: clients.id })
         .from(clients)
-        .where(
-          and(
-            eq(clients.businessId, business.id),
-            eq(clients.email, email.toLowerCase())
-          )
-        )
+        .where(and(eq(clients.businessId, business.id), eq(clients.email, emailNormalized)))
         .limit(1);
+      if (dup) throw conflict("Un client avec cet email existe déjà");
+    }
 
-      if (existing.length > 0) {
-        return NextResponse.json(
-          { error: "Un client avec cet email existe déjà" },
-          { status: 409 }
-        );
-      }
+    // Anti-doublon par téléphone pour ce business (si fourni)
+    if (normalizedPhone) {
+      const [dup] = await db
+        .select({ id: clients.id })
+        .from(clients)
+        .where(and(eq(clients.businessId, business.id), eq(clients.phone, normalizedPhone)))
+        .limit(1);
+      if (dup) throw conflict("Un client avec ce téléphone existe déjà");
+    }
+
+    if (!emailNormalized && !normalizedPhone) {
+      throw badRequest("Un moyen de contact (email ou téléphone) est requis");
     }
 
     await db.insert(clients).values({
       businessId: business.id,
-      firstName: firstName?.trim() || "",
-      lastName: lastName?.trim() || "",
-      email: email?.trim().toLowerCase() || "",
+      firstName: data.firstName || "",
+      lastName: data.lastName || "",
+      email: emailNormalized || "",
       phone: normalizedPhone || "",
+      source: data.source || "website",
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("POST client error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur serveur" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/clients" });
   }
 }

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { appointments, quotes, clients, payments, reviews, pageVisits } from "@/db/schema";
-import { eq, desc, gte, and, sql } from "drizzle-orm";
+import { eq, desc, gte, and } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
+import { handleApiError } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export async function GET() {
         subscription: null,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "GET /api/activity" });
   }
 }

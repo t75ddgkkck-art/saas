@@ -1,128 +1,139 @@
 # 🛠️ Améliorations issues de l'audit
 
-Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUDIT_REPORT.md`](./AUDIT_REPORT.md).
+Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) et [`AUDIT_FULL_V2.md`](./AUDIT_FULL_V2.md).
 
 ---
 
-# 🟢 Tour 2 — Favicon, Vercel/IONOS, roadmap complète
+# 🟢 Tour 3 — Lots 1 + 2 complets
 
-## Favicon & PWA
+## Lot 1 — Sécurité restante
 
-- Nouveau SVG source `branding/icon-source.svg` (V blanc sur fond bleu marine + point cyan).
-- Génération complète de **14 tailles PNG** (16, 32, 48, 64, 96, 128, 144, 152, 167, 180, 192, 256, 384, 512).
-- Fichiers produits :
-  - `public/favicon.ico` (multi-résolutions 16/32/48)
-  - `public/favicon.svg`
-  - `public/apple-icon.png` (180×180)
-  - `public/icons/icon-*.png` (toutes les tailles)
-  - Doublons `src/app/favicon.ico|svg`, `src/app/icon.png|svg`, `src/app/apple-icon.png|svg` (Next.js App Router auto-détection).
-- `src/app/layout.tsx` : `metadata.icons` complet (ICO + SVG + PNG + apple + shortcut).
-- `src/app/manifest.webmanifest/route.ts` : réécrit avec icônes **any + maskable** séparées, cache 1h, `scope`, `lang`.
-- Suppression de `public/manifest.webmanifest` (doublon avec la route dynamique).
+### Routes API refondues (Zod + rate-limit + fix IDOR + api-error unifié)
 
-## Configuration Vercel / IONOS
+**Public (rate-limit strict pour bloquer scripting) :**
+| Route | Limit | Fenêtre | Cause |
+|---|---|---|---|
+| `POST /api/verify-siret` | 10 | 60s | Coût API INSEE |
+| `POST /api/qr-code` | 30 | 60s | CPU |
+| `POST /api/track` | 60 | 60s | Empêche pollution stats |
+| `POST /api/ai-chat` | 15 | 300s | **Coût OpenAI** |
+| `POST /api/book-appointment` | 5 | 600s | Anti-spam RDV |
+| `POST /api/reviews/public` | 3 | 3600s | Anti-spam avis |
+| `POST /api/stripe/checkout` | 20 | 60s | Anti-abus |
+| `POST /api/stripe-payment` | 20 | 60s | Anti-abus |
 
-- `vercel.json` refondu : `framework`, `regions: ["cdg1"]`, crons multiples, `headers` fins (cache immutable pour icônes, no-cache pour SW, MIME manifest), `functions.maxDuration` par route (PDF 30s, IA 60s, cron 300s).
-- Nouveau guide `DEPLOY_VERCEL_IONOS.md` : DNS IONOS (A + CNAME + email MX/SPF conservés), variables d'env par environnement, webhook Stripe, vérifs post-déploiement, rollback, coûts.
+**Authentifié (Zod + validation stricte) :**
+- `POST /api/team` — Zod + fix IDOR sur DELETE (vérif membre appartient au business)
+- `POST /api/loyalty` — Zod discriminatedUnion (award/redeem) + fix IDOR sur `clientId`
+- `POST /api/notifications` + nouveau `PATCH` — fix IDOR + Zod + support `markAllRead`
+- `PUT /api/my-availability` + `POST` génération créneaux — Zod (dayOfWeek, TIME_RE)
+- `POST/DELETE /api/schedule/exceptions` — Zod + double filtre WHERE
+- `PUT /api/my-faqs` + `PUT /api/quote-form-fields` — Zod + cap (50 questions, 30 champs)
+- `PUT /api/services` — Zod + cap 200 services
+- `PUT /api/my-business` — Zod complet (44 champs, longueur max, format couleur `#RRGGBB`)
+- `POST /api/appointments/complete` — Zod + double filtre WHERE
+- `POST/GET /api/blog` — Zod + vérif limite plan + anti-collision slug
+- `POST /api/clients` — Zod + anti-doublon email ET téléphone
+- `POST /api/subscribe` + `cancel` — Zod, fix bug downgrade immédiat sur cancel (attend le webhook)
 
-## Nettoyage dépendances
+**Routes IA (rate-limit + Zod + fallback logger) :**
+- `POST /api/ai/monthly-report` — 5/h
+- `POST /api/ai/social-post` — 20/h, Zod platform enum
+- `POST /api/ai/auto-review` — Zod + fix IDOR sur appointmentId
+- `POST /api/ai-blog` — 10/h, Zod (topic ≤ 300)
+- `POST /api/ai-tools` — 15/h, Zod discriminatedUnion (report|social-post)
+- `POST /api/reviews/ai-reply` — 20/h, Zod + fix IDOR
 
-- **Retirées** : `next-auth`, `@auth/drizzle-adapter` (installées, jamais utilisées).
-- **Déplacées** en `devDependencies` : `@types/bcryptjs`, `@types/qrcode`.
-- **Ajoutée** : `vitest ^2.1.8` (dev).
-- `package.json` renommé `vitrix-saas`, nouveaux scripts : `test`, `test:watch`, `db:generate`.
+**Infra :**
+- `POST /api/stripe/webhook` — singleton Stripe, logger structuré, 200 OK sur erreur DB (évite retry loop), typed events
+- `POST /api/push/subscribe` — nouveau : Zod + upsert par (user, endpoint), auth requise
+- `POST /api/upload` — nouvelle route dédiée aux uploads (folder validé : logo/cover/profile/gallery/blog/signature/misc)
 
-## Tests unitaires (Vitest)
+### Nouveaux helpers `src/lib/api-helpers.ts`
+- `parseJson<T>` — parse safe
+- `validateBody<T>` — Zod → HttpError 400 automatique
+- `assertOwnership` — helper de fix IDOR réutilisable
 
-Nouveau `vitest.config.ts` + 4 suites (**27 tests, tous verts**) :
+### Fix critique déjà appliqué au tour précédent
+- Suppression de `localStorage.setItem("auth_user", ...)` dans login/register
 
-- `tests/unit/session.test.ts` — token HMAC : création, vérif, expiration, falsification signature, tampering userId.
-- `tests/unit/rate-limit.test.ts` — sous limite, au-delà (429 + Retry-After), isolation IP/clé.
-- `tests/unit/permissions.test.ts` — matrice free/pro/premium + cohérence de forme.
-- `tests/unit/utils.test.ts` — slugify (accents, spéciaux), formatPrice, isValidEmail, téléphone FR.
+## Lot 2 — Code mort, duplications, dette
 
-## Uploads : abstraction storage
+### Suppressions (code mort)
+- `src/lib/page-templates.ts` (89 lignes, 0 usage)
+- `src/lib/invoice.ts` (113 lignes, 0 usage)
+- `src/components/ui/MobileButton.tsx` — remplacé par `Button` responsive
+- `src/components/ui/MobileInput.tsx` — remplacé par `Input` responsive
+- `src/components/ui/MobileModal.tsx` — remplacé par `Modal` (avec Escape + focus)
+- `src/app/sw.js` — doublon supprimé (le vrai SW est `public/sw.js`)
 
-- Nouveau `src/lib/storage.ts` : helper `uploadFile()` avec **Supabase Storage** si configuré, sinon fallback base64 (compatibilité rétro).
-  - Support `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_STORAGE_BUCKET`.
-  - Filtrage MIME (image, video, pdf), cap 10 Mo, safe filename.
-- `src/app/api/quote-request/route.ts` refondu : Zod, rate limit (5/10min), `uploadFile()`, cap de **6 pièces jointes max**, logger structuré, gestion d'erreur unifiée.
+### Migration `dashboard/clients/page.tsx`
+Passage de `MobileButton/Input/Modal` → composants standards responsives.
 
-## Migrations DB
+### Service Worker refondu (`public/sw.js`)
+- Version bump `vitrix-v2` avec purge automatique des anciens caches
+- Stratégie **cache-first** pour assets statiques (`/icons/*`, `/_next/static/*`, images, fonts)
+- Stratégie **network-first** pour tout le reste avec fallback offline
+- Handler `push` typé JSON safe + handler `notificationclick` → ouvre l'URL
+- Skip API et /dashboard
 
-- 5 fichiers SQL racine déplacés dans `archive/sql-legacy/` avec `README.md` explicatif.
-- `drizzle.config.json` durci (`strict: true`, `verbose: true`, `out: ./drizzle`).
-- Migration Drizzle générée : `drizzle/0000_initial_schema.sql` (source de vérité).
+### Types DB centralisés (`src/db/types.ts`)
+Export de **26 types** dérivés du schéma Drizzle (`User`, `Business`, `Client`, `Quote`, `Appointment`, `Payment`, `Notification`, `BlogPost`, `LoyaltyPoint`, …). Fini les redéclarations de props à la main dans chaque page.
 
-## Correctifs ESLint préexistants
+### Découpage `PublicPage.tsx` (944 → ~880 lignes, 3 sections extraites)
+- `src/app/[slug]/sections/WorkingHoursCard.tsx` — bloc horaires
+- `src/app/[slug]/sections/QrCodeCard.tsx` — carte QR de partage
+- `src/app/[slug]/sections/PublicFooter.tsx` — pied de page + branding
+- `README.md` documentant les 15 sections restantes à extraire
 
-- Script `/tmp/fix_apos.py` : échappement automatique des apostrophes dans le **texte JSX uniquement** (pas dans le JS/attributs).
-- **74 → 29 erreurs ESLint** (les 45 fixées sont toutes des apostrophes).
-- 12 fichiers UI corrigés : `a-propos`, `cgu`, `confidentialite`, `PricingSection`, `PublicPage`, `dashboard/{ai-chat, analytics, blog, my-businesses, outils, qr-code, reviews, settings, vitrine}/page.tsx`.
+Bonus : suppression des imports morts (`Clock`, `DAYS`) et refactor du type `PublicPageProps.business` avec le vrai type `Business` du schéma DB (→ tous les `(business as any).X` supprimés).
 
-## Vérifications finales
+### Logger structuré (28 → 8 `console.*` restants)
+Passages `console.log/error/warn` → `logger.info/warn/error` dans :
+- `src/lib/email.ts`, `sms.ts`, `calendar.ts`, `google-reviews.ts`, `siret.ts`
+- `src/app/api/dashboard/route.ts` (bonus : réécrit avec agrégats SQL, plus de N+1)
+- `src/app/api/stripe/webhook/route.ts` (singleton + typed events)
+- `src/app/api/google/callback/route.ts`, `pdf/invoice`, `push/subscribe`, `stripe-payment`, `stripe/callback`, `stripe/connect`
+- `src/app/api/cron/quote-reminders/route.ts` (bonus : **fix N+1 via JOIN unique** + envoi réel des emails/SMS avec `reminder_sent_at` pour ne pas répéter)
+- `src/app/api/cron/reminder-sms/route.ts` (bonus : SMS + WhatsApp réels via Twilio)
+- `src/components/layout/PWARegister.tsx` (bonus : SW enregistré prod-only)
+- `src/hooks/usePWA.ts` (bonus : type `BeforeInstallPromptEvent`)
+
+Les 8 restants sont côté client dans des catch UI silencieux (non critiques en prod).
+
+### Chasse aux `any` (165 → 2)
+- Toutes les routes API : `catch (error: any)` → `handleApiError(err, {route})`
+- `Record<string, { label: string; variant: any }>` → union stricte des variants Badge (5 fichiers dashboard)
+- `useState<any>` → types dérivés du schéma DB (`useState<Business | null>`, `useState<Client | null>`, …)
+- `PublicPage.tsx` : `(business as any).X` → typé directement via `Business` du schema
+- `dashboard/vitrine/page.tsx` : nouveaux types `MenuCategory`/`MenuItem` pour l'éditeur JSON
+- `dashboard/page.tsx` : `ListSection<T>` générique + type `DashboardData`
+- `SignaturePad`: type `SignatureMetadata` exporté
+- `QuoteForm`: types propres (`QuoteField`)
+- `whitelabel.ts`: `business: { slug: string }` (contrat minimal)
+- `create-notification.ts`: `data?: Record<string, unknown>`
+- Nouveau `src/types/jspdf-autotable.d.ts` — module augmentation pour la propriété `lastAutoTable`
+
+**Les 2 restants** : dans `db/index.ts`, Proxy générique (légitime).
+
+## Schéma DB
+- Ajout des colonnes `signatureUrl` + `reminderSentAt` à la table `quotes`
+- Correction : le SQL `sql/00_apply_safe.sql` utilise bien `is_read` (colonne réelle du schema) au lieu de `read`
+
+## Validations finales
 
 ```
-✅ npx tsc --noEmit         → 0 erreur
-✅ npx vitest run           → 27/27 tests passés
-✅ npx next build           → Compiled successfully + 39/39 static pages
-✅ npx eslint .             → 29 erreurs (contre 74), tous des faux positifs résiduels ou <a>→<Link>
+tsc --noEmit  → 0 erreur
+vitest run    → 27/27 tests OK
+next build    → Compiled successfully + 34/34 static pages
 ```
 
 ---
+
+# 🟢 Tour 2 — Favicon, Vercel/IONOS, roadmap (rappel)
+
+Voir historique git commit `e642e8b`.
 
 # 🟢 Tour 1 — Sécurité, robustesse, config (rappel)
 
-## Lot A — Sécurité (critique)
-
-| Fichier | Change |
-|---|---|
-| `src/lib/session.ts` | Fail-fast si `NEXTAUTH_SECRET` manquant en prod ; `timingSafeEqual`. |
-| `src/middleware.ts` | Vérifie la **signature** du token ; headers sécurité (`XCTO`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS prod) ; purge cookies invalides. |
-| `src/lib/auth.ts` | Suppression des fonctions mortes (`registerUser`, `loginUser`, `generateToken` non signés). |
-| `src/app/api/auth/session/route.ts` | Réécrit en `GET` (introspection) + `DELETE` (logout). |
-| `src/app/api/auth/login/route.ts` | Zod ; rate limit 5/60s ; suppression cookie `auth_user` non-httpOnly. |
-| `src/app/api/auth/register/route.ts` | Zod + rate limit 3/h ; **transaction** DB user + business + hours + faqs. |
-| `src/contexts/AuthContext.tsx` | Hydratation via `GET /api/auth/session` (plus de lecture cookie non-httpOnly). |
-| `src/app/api/blog/[id]/route.ts` | **Fix IDOR** (vérif appartenance business avant PUT/DELETE) + Zod. |
-| `src/app/api/blog/[id]/publish/route.ts` | **Fix IDOR** identique. |
-
-## Lot B — Robustesse
-
-| Fichier | Change |
-|---|---|
-| `src/lib/logger.ts` | Logger structuré JSON en prod, texte en dev. |
-| `src/lib/rate-limit.ts` | Token bucket mémoire (à remplacer par Redis en multi-instance). |
-| `src/lib/api-error.ts` | `HttpError` + `handleApiError()` centralisé (log détaillé, réponse client neutre). |
-
-## Lot C — Config
-
-| Fichier | Change |
-|---|---|
-| `next.config.ts` | `poweredByHeader: false`, `compress: true`, `optimizePackageImports`, `images.remotePatterns`, headers sécurité. |
-| `eslint.config.mjs` | Règles renforcées : `no-console`, `eqeqeq`, `no-var`, `prefer-const`, `no-unused-vars`. |
-| `.gitignore` | Complet (test-results, .vercel, .env.*.local, drizzle/meta, …). |
-| `.nvmrc` | Épingle Node 20.18. |
-| `package.json` | `engines.node >= 20.18`. |
-| Pages DB (`/annuaire`, `/[slug]`, `/[slug]/blog/**`, `/blog`, `/metier/[c]`, `/ville/[c]`) | `dynamic = "force-dynamic"` → fix prerender build. |
-
-## Lot D — Documentation
-
-- `AUDIT_REPORT.md` : rapport complet avec sévérité par point.
-- `SECURITY.md` : politique de divulgation + checklist appliquée + roadmap.
-- `CHANGELOG_AUDIT.md` : ce fichier.
-
----
-
-# 🟡 Reste optionnel (non bloquant)
-
-| Item | Priorité | Effort |
-|---|---|---|
-| Zod sur les ~45 routes API restantes | Moyen | 3-4h |
-| Retirer `<a href="/">` → `<Link>` (3 occurrences) | Faible | 15min |
-| Nettoyer les 27 apostrophes résiduelles dans blocs multi-lignes | Faible | 30min |
-| Rate limiter Upstash Redis (multi-instance) | Élevé si scaling | 1h |
-| CSP stricte avec nonce | Élevé pour banque | 2h |
-| 2FA TOTP optionnel | Selon besoin | 1 jour |
-| Tests E2E supplémentaires (Playwright) | Moyen | 2-3h |
-| Audit RLS Supabase (défense en profondeur DB) | Élevé | 1-2h |
+Voir historique git commit `4c25f9c`.

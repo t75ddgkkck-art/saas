@@ -31,6 +31,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/stripe/webhook",
   "/api/book-appointment",
   "/api/quote-request",
+  "/api/quote-form-fields", // GET public : formulaire de devis affiché sur la vitrine
   "/api/ai-chat",
 ];
 

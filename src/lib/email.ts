@@ -1,8 +1,10 @@
 import { Resend } from "resend";
+import { logger } from "@/lib/logger";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@artisanpro.fr";
+// Fallback historique. À terme, remplacer par noreply@<votre-domaine> configuré dans Resend.
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@vitrix.fr";
 
 interface EmailOptions {
   to: string;
@@ -12,8 +14,8 @@ interface EmailOptions {
 
 export async function sendEmail({ to, subject, html }: EmailOptions) {
   if (!resend) {
-    console.log("[Email] Resend non configuré, simulation d'envoi:", { to, subject });
-    return { success: true, simulated: true };
+    logger.warn("email.simulated", { to, subject, reason: "RESEND_API_KEY missing" });
+    return { success: true, simulated: true } as const;
   }
 
   try {
@@ -23,10 +25,11 @@ export async function sendEmail({ to, subject, html }: EmailOptions) {
       subject,
       html,
     });
-    return { success: true, id: result.data?.id };
-  } catch (error: any) {
-    console.error("[Email] Erreur envoi:", error);
-    return { success: false, error: error.message };
+    return { success: true, id: result.data?.id } as const;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("email.send_failed", { to, subject, message });
+    return { success: false, error: message } as const;
   }
 }
 

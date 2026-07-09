@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-error";
 import { db } from "@/db";
 import { payments, clients, quotes, appointments } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "/api/export" });
   }
 }

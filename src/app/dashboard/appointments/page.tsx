@@ -18,7 +18,7 @@ import {
   User,
 } from "lucide-react";
 
-const statusConfig: Record<string, { label: string; variant: any }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple" }> = {
   pending: { label: "En attente", variant: "warning" },
   confirmed: { label: "Confirmé", variant: "success" },
   cancelled: { label: "Annulé", variant: "danger" },

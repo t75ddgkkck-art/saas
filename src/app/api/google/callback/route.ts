@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { businesses } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   if (!code) {
     return NextResponse.json({ error: "Code manquant" }, { status: 400 });
@@ -13,10 +12,10 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/google/callback";
+  const redirectUri =
+    process.env.GOOGLE_REDIRECT_URI || `${appUrl}/api/google/callback`;
 
   try {
-    // Échanger le code contre un access token + refresh token
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -29,38 +28,37 @@ export async function GET(request: NextRequest) {
       }),
     });
 
-    const tokenData = await tokenResponse.json();
+    const tokenData = (await tokenResponse.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+    };
 
     if (!tokenData.access_token) {
-      return NextResponse.json({ error: "Impossible d'obtenir un token Google", details: tokenData }, { status: 400 });
+      logger.warn("google.oauth.no_token", { tokenData });
+      return NextResponse.json(
+        { error: "Impossible d'obtenir un token Google" },
+        { status: 400 }
+      );
     }
 
-    // Récupérer les infos du compte Google Business (si le pro a Google Business Profile)
+    // Récupérer les infos du compte Google Business
     const profileResponse = await fetch(
       "https://mybusinessbusinessinformation.googleapis.com/v1/accounts",
-      {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` },
-      }
+      { headers: { Authorization: `Bearer ${tokenData.access_token}` } }
     );
+    const profileData = (await profileResponse.json()) as unknown;
 
-    const profileData = await profileResponse.json();
-
-    // Sauvegarder le refresh token + Place ID dans le business du pro
-    // (pour l'instant on log, en prod on mettrait à jour le business)
-    console.log("Google connected:", {
-      refreshToken: tokenData.refresh_token,
-      accessToken: tokenData.access_token,
-      accounts: profileData,
+    // TODO: persister refresh_token + Place ID dans la table businesses de l'user courant
+    logger.info("google.oauth.success", {
+      hasRefreshToken: !!tokenData.refresh_token,
+      profileData,
     });
 
-    // Rediriger vers le dashboard avec un message de succès
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard?google=connected`
-    );
-  } catch (error: any) {
-    console.error("Google OAuth error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard?google=error`
-    );
+    return NextResponse.redirect(`${appUrl}/dashboard?google=connected`);
+  } catch (error) {
+    logger.error("google.oauth.failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.redirect(`${appUrl}/dashboard?google=error`);
   }
 }

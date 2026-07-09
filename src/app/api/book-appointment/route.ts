@@ -1,162 +1,242 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
-import { clients, appointments, availabilitySlots, businesses, users, notifications, teamMembers } from "@/db/schema";
+import {
+  clients,
+  appointments,
+  availabilitySlots,
+  businesses,
+  users,
+  notifications,
+  teamMembers,
+} from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendEmail, EmailTemplates } from "@/lib/email";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { badRequest, handleApiError, notFound } from "@/lib/api-error";
+import { validateBody } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+// Anti-spam : 5 réservations / 10min / IP.
+// (Une vraie personne ne réserve jamais 5 RDV en 10 min.)
+const RATE = { key: "book-appointment", limit: 5, windowSec: 600 } as const;
+
+const Schema = z
+  .object({
+    businessId: z.string().uuid().optional(),
+    businessSlug: z.string().trim().max(150).optional(),
+    firstName: z.string().trim().min(1).max(100),
+    lastName: z.string().trim().max(100).optional().default(""),
+    phone: z.string().trim().min(6).max(30),
+    email: z.string().trim().toLowerCase().email("Email invalide"),
+    notes: z.string().trim().max(2000).optional().default(""),
+    service: z.string().trim().max(200).optional().default(""),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date attendue au format YYYY-MM-DD"),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/, "Heure attendue au format HH:MM"),
+    endTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/, "Heure attendue au format HH:MM")
+      .optional(),
+  })
+  .refine((v) => v.businessId || v.businessSlug, {
+    message: "businessId ou businessSlug requis",
+    path: ["businessId"],
+  });
+
 export async function POST(request: NextRequest) {
+  const rl = checkRateLimit(request, RATE);
+  if (!rl.ok) return rl.response;
+
   try {
-    const body = await request.json();
-    const { businessId, businessSlug, firstName, lastName, phone, email, notes, service, date, startTime, endTime } = body;
-
-    if ((!businessId && !businessSlug) || !firstName || !phone || !date || !startTime) {
-      return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
-    }
-
-    // Email fortement recommandé pour recevoir la confirmation
-    if (!email) {
-      return NextResponse.json({ error: "L'email est requis pour recevoir votre confirmation de rendez-vous" }, { status: 400 });
-    }
+    const data = await validateBody(request, Schema);
 
     // Résoudre le business (par ID ou slug)
-    let business;
-    if (businessId) {
-      const r = await db.select().from(businesses).where(eq(businesses.id, businessId)).limit(1);
-      business = r[0];
-    } else {
-      const r = await db.select().from(businesses).where(eq(businesses.slug, businessSlug)).limit(1);
-      business = r[0];
-    }
-    if (!business) {
-      return NextResponse.json({ error: "Professionnel introuvable" }, { status: 404 });
+    const [business] = data.businessId
+      ? await db.select().from(businesses).where(eq(businesses.id, data.businessId)).limit(1)
+      : await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.slug, data.businessSlug!))
+          .limit(1);
+    if (!business) throw notFound("Professionnel introuvable");
+
+    // Vérif date pas dans le passé (basique, en TZ serveur)
+    const now = new Date();
+    const target = new Date(`${data.date}T${data.startTime}:00`);
+    if (target.getTime() < now.getTime() - 60_000) {
+      throw badRequest("Impossible de réserver un créneau passé.");
     }
 
-    // Créer ou retrouver le client
-    let clientResult = await db.select().from(clients)
-      .where(and(eq(clients.phone, phone), eq(clients.businessId, business.id)))
+    // Client : upsert par (phone, businessId)
+    const [existing] = await db
+      .select()
+      .from(clients)
+      .where(and(eq(clients.phone, data.phone), eq(clients.businessId, business.id)))
       .limit(1);
-    let clientId: string;
 
-    if (clientResult.length === 0) {
-      const [newClient] = await db.insert(clients).values({
-        businessId: business.id, firstName, lastName: lastName || "",
-        email: email || null, phone, source: "website",
-        appointmentsCount: 1, lastContact: new Date(),
-      }).returning();
-      clientId = newClient.id;
+    let clientId: string;
+    if (!existing) {
+      const [c] = await db
+        .insert(clients)
+        .values({
+          businessId: business.id,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phone: data.phone,
+          source: "website",
+          appointmentsCount: 1,
+          lastContact: new Date(),
+        })
+        .returning();
+      clientId = c.id;
     } else {
-      clientId = clientResult[0].id;
-      await db.update(clients).set({
-        firstName, lastName: lastName || clientResult[0].lastName,
-        email: email || clientResult[0].email,
-        appointmentsCount: (clientResult[0].appointmentsCount || 0) + 1,
-        lastContact: new Date(),
-      }).where(eq(clients.id, clientId));
+      clientId = existing.id;
+      await db
+        .update(clients)
+        .set({
+          firstName: data.firstName,
+          lastName: data.lastName || existing.lastName,
+          email: data.email || existing.email,
+          appointmentsCount: (existing.appointmentsCount || 0) + 1,
+          lastContact: new Date(),
+        })
+        .where(eq(clients.id, clientId));
     }
 
-    // Marquer le créneau comme réservé
-    const slot = await db.select().from(availabilitySlots)
-      .where(and(
-        eq(availabilitySlots.businessId, business.id),
-        eq(availabilitySlots.date, date),
-        eq(availabilitySlots.startTime, startTime)
-      )).limit(1);
-    if (slot.length > 0) {
-      await db.update(availabilitySlots).set({ isBooked: true }).where(eq(availabilitySlots.id, slot[0].id));
+    // Marquer le créneau comme réservé si trouvé
+    const [slot] = await db
+      .select()
+      .from(availabilitySlots)
+      .where(
+        and(
+          eq(availabilitySlots.businessId, business.id),
+          eq(availabilitySlots.date, data.date),
+          eq(availabilitySlots.startTime, data.startTime)
+        )
+      )
+      .limit(1);
+    if (slot) {
+      // Éviter les doubles réservations du même créneau (race condition minimale)
+      if (slot.isBooked) throw badRequest("Ce créneau vient d'être réservé, choisissez-en un autre.");
+      await db.update(availabilitySlots).set({ isBooked: true }).where(eq(availabilitySlots.id, slot.id));
     }
 
     // Créer le RDV
-    const title = service || notes || `Rendez-vous — ${firstName} ${lastName || ""}`.trim();
-    const [appointment] = await db.insert(appointments).values({
-      businessId: business.id, clientId,
-      title,
-      description: notes || service || null,
-      date, startTime,
-      endTime: endTime || `${String(parseInt(startTime.split(":")[0]) + 1).padStart(2, "0")}:${startTime.split(":")[1]}`,
-      status: "confirmed",
-    }).returning();
+    const title = data.service || data.notes || `Rendez-vous — ${data.firstName} ${data.lastName}`.trim();
+    const [startH, startM] = data.startTime.split(":").map(Number);
+    const computedEnd =
+      data.endTime ||
+      `${String(startH + 1).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
 
+    const [appointment] = await db
+      .insert(appointments)
+      .values({
+        businessId: business.id,
+        clientId,
+        title,
+        description: data.notes || data.service || null,
+        date: data.date,
+        startTime: data.startTime,
+        endTime: computedEnd,
+        status: "confirmed",
+      })
+      .returning();
+
+    // ==== Automatisations (non bloquantes) ====
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
-    const dateFr = new Date(date + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const dateFr = new Date(`${data.date}T00:00:00`).toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
 
-    // ===== AUTOMATISATIONS (non bloquantes) =====
-    const automations: Promise<any>[] = [];
+    const jobs: Promise<unknown>[] = [];
 
-    // 1. Email de confirmation au CLIENT
     const loyaltyInfo = business.loyaltyEnabled
       ? `Programme fidélité : vous cumulez ${business.loyaltyPointsPerEuro || 1} point(s) par euro dépensé. ${business.loyaltyReward || ""}`
       : undefined;
 
     const clientTemplate = EmailTemplates.bookingConfirmationClient({
-      clientName: firstName,
+      clientName: data.firstName,
       businessName: business.name,
       date: dateFr,
-      time: startTime,
-      service: service || notes || undefined,
-      address: business.address ? `${business.address}${business.city ? ", " + business.city : ""}` : undefined,
+      time: data.startTime,
+      service: data.service || data.notes || undefined,
+      address: business.address
+        ? `${business.address}${business.city ? ", " + business.city : ""}`
+        : undefined,
       phone: business.phone || undefined,
       loyaltyInfo,
     });
-    automations.push(sendEmail({ to: email, subject: clientTemplate.subject, html: clientTemplate.html }));
+    jobs.push(
+      sendEmail({ to: data.email, subject: clientTemplate.subject, html: clientTemplate.html })
+    );
 
-    // 2. Email au PRO (nouveau RDV)
-    const owner = await db.select().from(users).where(eq(users.id, business.ownerId)).limit(1);
-    if (owner.length > 0 && owner[0].email) {
+    const [owner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, business.ownerId))
+      .limit(1);
+    if (owner?.email) {
       const proTemplate = EmailTemplates.newBookingPro({
-        proName: owner[0].firstName,
-        clientName: `${firstName} ${lastName || ""}`.trim(),
-        clientPhone: phone,
-        clientEmail: email,
+        proName: owner.firstName,
+        clientName: `${data.firstName} ${data.lastName}`.trim(),
+        clientPhone: data.phone,
+        clientEmail: data.email,
         date: dateFr,
-        time: startTime,
-        service: service || notes || undefined,
+        time: data.startTime,
+        service: data.service || data.notes || undefined,
         dashboardLink: `${appUrl}/dashboard`,
       });
-      automations.push(sendEmail({ to: owner[0].email, subject: proTemplate.subject, html: proTemplate.html }));
-
-      // 3. Notification interne (cloche du dashboard)
-      automations.push(
+      jobs.push(
+        sendEmail({ to: owner.email, subject: proTemplate.subject, html: proTemplate.html })
+      );
+      jobs.push(
         db.insert(notifications).values({
           userId: business.ownerId,
           businessId: business.id,
           type: "new_appointment",
           title: "Nouveau rendez-vous 📅",
-          message: `${firstName} ${lastName || ""} a réservé le ${dateFr} à ${startTime}${service ? ` — ${service}` : ""}`,
+          message: `${data.firstName} ${data.lastName} a réservé le ${dateFr} à ${data.startTime}${data.service ? ` — ${data.service}` : ""}`,
           data: { appointmentId: appointment.id },
-        }).then(() => {})
+        })
       );
     }
 
-    // 4. Notifier les membres d'équipe actifs (Premium)
-    try {
-      const team = await db.select().from(teamMembers)
-        .where(eq(teamMembers.businessId, business.id));
-      for (const member of team.filter(m => m.active)) {
-        const teamTemplate = EmailTemplates.newBookingPro({
-          proName: member.firstName,
-          clientName: `${firstName} ${lastName || ""}`.trim(),
-          clientPhone: phone,
-          clientEmail: email,
-          date: dateFr,
-          time: startTime,
-          service: service || notes || undefined,
-          dashboardLink: `${appUrl}/dashboard`,
-        });
-        automations.push(sendEmail({ to: member.email, subject: teamTemplate.subject, html: teamTemplate.html }));
-      }
-    } catch { /* l'équipe ne doit jamais bloquer la réservation */ }
+    const team = await db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.businessId, business.id));
+    for (const member of team.filter((m) => m.active)) {
+      const t = EmailTemplates.newBookingPro({
+        proName: member.firstName,
+        clientName: `${data.firstName} ${data.lastName}`.trim(),
+        clientPhone: data.phone,
+        clientEmail: data.email,
+        date: dateFr,
+        time: data.startTime,
+        service: data.service || data.notes || undefined,
+        dashboardLink: `${appUrl}/dashboard`,
+      });
+      jobs.push(sendEmail({ to: member.email, subject: t.subject, html: t.html }));
+    }
 
-    // Exécuter toutes les automatisations sans bloquer la réponse
-    await Promise.allSettled(automations);
+    await Promise.allSettled(jobs);
+
+    logger.info("booking.created", {
+      appointmentId: appointment.id,
+      businessId: business.id,
+    });
 
     return NextResponse.json({
       success: true,
       message: "Rendez-vous confirmé ! Un email de confirmation vous a été envoyé.",
     });
-  } catch (error: any) {
-    console.error("Booking error:", error);
-    return NextResponse.json({ error: error.message || "Erreur lors de la réservation" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/book-appointment" });
   }
 }

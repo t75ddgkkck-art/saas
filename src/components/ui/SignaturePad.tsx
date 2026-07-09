@@ -4,8 +4,15 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Pen, Trash2, Check, Download } from "lucide-react";
 
+export interface SignatureMetadata {
+  signedAt: string;
+  timestamp: string;
+  userAgent: string;
+  ip: string;
+}
+
 interface SignaturePadProps {
-  onSave: (signatureDataUrl: string, metadata: any) => void;
+  onSave: (signatureDataUrl: string, metadata: SignatureMetadata) => void;
   onCancel?: () => void;
   width?: number;
   height?: number;

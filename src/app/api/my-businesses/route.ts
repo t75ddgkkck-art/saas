@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-error";
 import { db } from "@/db";
 import { businesses, workingHours, faqs } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -26,8 +27,8 @@ export async function GET() {
         createdAt: b.createdAt,
       })),
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "/api/my-businesses" });
   }
 }
 
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     await db.insert(faqs).values(defaultFaqs.map((f) => ({ ...f, businessId: business.id })));
 
     return NextResponse.json({ success: true, business });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, { route: "/api/my-businesses" });
   }
 }

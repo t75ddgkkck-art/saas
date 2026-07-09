@@ -2,6 +2,7 @@
 // 1. Après chaque RDV terminé → envoyer un lien pour laisser un avis
 // 2. Récupérer automatiquement les avis Google via l'API Places (si configurée)
 // 3. Afficher les meilleurs avis sur la page publique
+import { logger } from "@/lib/logger";
 
 interface GoogleReview {
   author_name: string;
@@ -11,12 +12,15 @@ interface GoogleReview {
   profile_photo_url?: string;
 }
 
-export async function requestGoogleReview(clientEmail: string, clientName: string, businessName: string) {
-  // En production, on enverrait un email avec un lien vers Google Maps
-  // Pour l'instant, simulation
-  console.log(`[Google Review] Demande d'avis envoyée à ${clientEmail} pour ${businessName}`);
+export async function requestGoogleReview(
+  clientEmail: string,
+  clientName: string,
+  businessName: string
+) {
+  // Note : l'envoi email réel se fait via sendEmail() côté route.
+  // Cette fonction ne fait que construire le lien de review.
+  logger.info("google-review.requested", { clientEmail, businessName });
 
-  // Exemple de lien généré (à personnaliser avec l'ID Google du business)
   const reviewLink = `https://search.google.com/local/writereview?placeid=YOUR_PLACE_ID`;
 
   return {
@@ -30,7 +34,7 @@ export async function fetchGoogleReviews(placeId: string): Promise<GoogleReview[
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
   if (!apiKey || !placeId) {
-    console.log("[Google Reviews] Clé API ou Place ID manquant");
+    logger.warn("google-reviews.missing_config", { hasKey: !!apiKey, hasPlaceId: !!placeId });
     return [];
   }
 
@@ -39,16 +43,21 @@ export async function fetchGoogleReviews(placeId: string): Promise<GoogleReview[
       `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=reviews&key=${apiKey}`
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      status?: string;
+      result?: { reviews?: GoogleReview[] };
+    };
 
     if (data.status !== "OK") {
-      console.error("[Google Reviews] Erreur API:", data.status);
+      logger.warn("google-reviews.api_error", { status: data.status });
       return [];
     }
 
-    return data.result.reviews || [];
+    return data.result?.reviews || [];
   } catch (error) {
-    console.error("[Google Reviews] Erreur:", error);
+    logger.error("google-reviews.fetch_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }

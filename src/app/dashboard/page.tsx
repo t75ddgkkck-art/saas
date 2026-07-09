@@ -13,7 +13,7 @@ import Link from "next/link";
 
 type Tab = "apercu" | "rdv" | "devis" | "clients" | "paiements";
 
-const statusLabels: Record<string, { label: string; variant: any }> = {
+const statusLabels: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple" }> = {
   pending: { label: "En attente", variant: "warning" },
   confirmed: { label: "Confirmé", variant: "success" },
   cancelled: { label: "Annulé", variant: "danger" },
@@ -27,11 +27,37 @@ const statusLabels: Record<string, { label: string; variant: any }> = {
   refunded: { label: "Remboursé", variant: "info" },
 };
 
+// Type "large" de la réponse /api/activity — on typera plus finement quand
+// on aura extrait /api/activity dans une route dédiée avec Zod.
+interface DashboardData {
+  business?: { slug?: string; pageUrl?: string; name?: string; id?: string } | null;
+  revenue?: number;
+  stats?: {
+    revenue: number;
+    appointmentsCount: number;
+    quotesCount: number;
+    clientsCount: number;
+    visitsTotal?: number;
+    avgRating: number;
+    [k: string]: unknown;
+  };
+  visits?: {
+    byDay?: Array<{ date: string; count: number }>;
+    bySource?: Array<{ source: string; count: number }>;
+    total?: number;
+  };
+  appointments?: unknown[];
+  quotes?: unknown[];
+  clients?: unknown[];
+  payments?: unknown[];
+  reviews?: unknown[];
+}
+
 export default function UnifiedDashboard() {
   const { user } = useAuth();
   const { td } = useLang();
   const [tab, setTab] = useState<Tab>("apercu");
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -53,7 +79,14 @@ export default function UnifiedDashboard() {
     return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>;
   }
 
-  const stats = data?.stats || { revenue: 0, appointmentsCount: 0, quotesCount: 0, clientsCount: 0, avgRating: 0 };
+  const stats = data?.stats || {
+    revenue: 0,
+    appointmentsCount: 0,
+    quotesCount: 0,
+    clientsCount: 0,
+    visitsTotal: 0,
+    avgRating: 0,
+  };
 
   const plan = user?.subscription || "free";
   const tabs = [
@@ -78,9 +111,9 @@ export default function UnifiedDashboard() {
         <div className="rounded-2xl bg-slate-900 p-5 text-white dark:bg-white dark:text-slate-900">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="font-bold">{data.business.name}</p>
+              <p className="font-bold">{data.business?.name}</p>
               <p className="truncate text-xs text-slate-300 dark:text-slate-600 font-mono">
-                vitrix.fr/{data.business.slug}
+                vitrix.fr/{data.business?.slug}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -88,7 +121,7 @@ export default function UnifiedDashboard() {
                 {copied ? <Check className="mr-1 h-3.5 w-3.5" /> : <Copy className="mr-1 h-3.5 w-3.5" />}
                 {copied ? "Copié" : "Copier"}
               </Button>
-              <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10 dark:border-slate-300 dark:text-slate-900" onClick={() => window.open(`/${data.business.slug}`, "_blank")}>
+              <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10 dark:border-slate-300 dark:text-slate-900" onClick={() => data.business?.slug && window.open(`/${data.business.slug}`, "_blank")}>
                 <Eye className="mr-1 h-3.5 w-3.5" /> Voir
               </Button>
               <Link href="/dashboard/vitrine">
@@ -147,8 +180,8 @@ export default function UnifiedDashboard() {
                 {/* Graphique par jour (14 jours) */}
                 <div>
                   <div className="flex h-32 items-end gap-1">
-                    {(data?.visits?.byDay || []).map((d: any) => {
-                      const max = Math.max(...(data?.visits?.byDay || []).map((x: any) => x.count), 1);
+                    {(data?.visits?.byDay || []).map((d) => {
+                      const max = Math.max(...(data?.visits?.byDay || []).map((x) => x.count), 1);
                       return (
                         <div key={d.date} className="group relative flex-1">
                           <div
@@ -171,7 +204,7 @@ export default function UnifiedDashboard() {
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">{td("sources")}</p>
                   <div className="space-y-2">
-                    {(data?.visits?.bySource || []).slice(0, 5).map((s: any) => {
+                    {(data?.visits?.bySource || []).slice(0, 5).map((s) => {
                       const total = stats.visitsTotal || 1;
                       const pct = Math.round((s.count / total) * 100);
                       const icons: Record<string, string> = { direct: "🔗", google: "🔍", facebook: "📘", instagram: "📸", qr: "📱", vitrix: "🏪", autre: "🌐" };
@@ -192,7 +225,7 @@ export default function UnifiedDashboard() {
           </div>
 
           {/* Avis */}
-          {data?.reviews?.length > 0 && (
+          {(data?.reviews?.length ?? 0) > 0 && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20">
@@ -200,7 +233,7 @@ export default function UnifiedDashboard() {
                 </div>
                 <div>
                   <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{stats.avgRating.toFixed(1)}/5</p>
-                  <p className="text-xs text-slate-500">{data.reviews.length} avis clients</p>
+                  <p className="text-xs text-slate-500">{data?.reviews?.length ?? 0} avis clients</p>
                 </div>
               </div>
             </div>
@@ -225,10 +258,10 @@ export default function UnifiedDashboard() {
 
       {/* RDV */}
       {tab === "rdv" && (
-        <ListSection
-          items={data?.appointments || []}
+        <ListSection<{ title: string; date: string; startTime: string; endTime: string; status: string }>
+          items={(data?.appointments || []) as Array<{ title: string; date: string; startTime: string; endTime: string; status: string }>}
           emptyText="Aucun rendez-vous pour le moment. Ils apparaîtront ici dès qu'un client réservera sur votre vitrine."
-          render={(a: any) => (
+          render={(a) => (
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/20"><CalendarDays className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
@@ -243,10 +276,10 @@ export default function UnifiedDashboard() {
 
       {/* DEVIS */}
       {tab === "devis" && (
-        <ListSection
-          items={data?.quotes || []}
+        <ListSection<{ quoteNumber: string; title: string; total?: string | null; status: string }>
+          items={(data?.quotes || []) as Array<{ quoteNumber: string; title: string; total?: string | null; status: string }>}
           emptyText="Aucun devis. Les demandes de devis de vos clients apparaîtront ici."
-          render={(q: any) => (
+          render={(q) => (
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-900/20"><FileText className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
@@ -261,10 +294,10 @@ export default function UnifiedDashboard() {
 
       {/* CLIENTS */}
       {tab === "clients" && (
-        <ListSection
-          items={data?.clients || []}
+        <ListSection<{ firstName?: string | null; lastName?: string | null; phone?: string | null; email?: string | null; appointmentsCount?: number | null; quotesCount?: number | null }>
+          items={(data?.clients || []) as Array<{ firstName?: string | null; lastName?: string | null; phone?: string | null; email?: string | null; appointmentsCount?: number | null; quotesCount?: number | null }>}
           emptyText="Aucun client. Chaque client qui réserve ou demande un devis est ajouté automatiquement."
-          render={(c: any) => (
+          render={(c) => (
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 {c.firstName?.[0]}{c.lastName?.[0]}
@@ -284,10 +317,10 @@ export default function UnifiedDashboard() {
 
       {/* PAIEMENTS */}
       {tab === "paiements" && (
-        <ListSection
-          items={data?.payments || []}
+        <ListSection<{ amount: string; createdAt: string | Date; status: string }>
+          items={(data?.payments || []) as Array<{ amount: string; createdAt: string | Date; status: string }>}
           emptyText="Aucun paiement. Connectez Stripe dans 'Ma vitrine' pour encaisser en ligne."
-          render={(p: any) => (
+          render={(p) => (
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20"><CreditCard className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
@@ -303,7 +336,15 @@ export default function UnifiedDashboard() {
   );
 }
 
-function ListSection({ items, emptyText, render }: { items: any[]; emptyText: string; render: (item: any) => React.ReactNode }) {
+function ListSection<T>({
+  items,
+  emptyText,
+  render,
+}: {
+  items: T[];
+  emptyText: string;
+  render: (item: T) => React.ReactNode;
+}) {
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center dark:border-slate-800">
@@ -313,11 +354,18 @@ function ListSection({ items, emptyText, render }: { items: any[]; emptyText: st
   }
   return (
     <div className="space-y-2">
-      {items.map((item, i) => (
-        <div key={item.id || i} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          {render(item)}
-        </div>
-      ))}
+      {items.map((item, i) => {
+        // On accepte tout T ; si l'objet a un `id` string on l'utilise comme clé.
+        const key =
+          typeof item === "object" && item !== null && "id" in item && typeof (item as { id?: unknown }).id === "string"
+            ? (item as { id: string }).id
+            : i;
+        return (
+          <div key={key} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            {render(item)}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
-import { SignaturePad } from "@/components/ui/SignaturePad";
+import { SignaturePad, type SignatureMetadata } from "@/components/ui/SignaturePad";
 import { formatPrice } from "@/lib/utils";
 import { generateProfessionalPDF } from "@/lib/generate-pdf";
 import {
@@ -35,7 +35,7 @@ const mockQuote = {
   signedAt: null as string | null,
 };
 
-const statusConfig: Record<string, { label: string; variant: any; color: string }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple"; color: string }> = {
   draft: { label: "Brouillon", variant: "default", color: "bg-slate-100 text-slate-600" },
   sent: { label: "Envoyé", variant: "warning", color: "bg-amber-100 text-amber-700" },
   accepted: { label: "Accepté", variant: "success", color: "bg-emerald-100 text-emerald-700" },
@@ -47,7 +47,7 @@ export default function QuoteDetailPage() {
   const [showSignModal, setShowSignModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  const handleSignature = (dataUrl: string, metadata: any) => {
+  const handleSignature = (dataUrl: string, metadata: SignatureMetadata) => {
     setQuote((prev) => ({ ...prev, signature: dataUrl, signedAt: metadata.signedAt, status: "signed" as const }));
     setShowSignModal(false);
   };

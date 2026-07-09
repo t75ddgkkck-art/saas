@@ -13,11 +13,14 @@ export interface WhiteLabelConfig {
   hideVitrixBranding: boolean; // true = pas de "Propulsé par Vitrix"
 }
 
-export function getBusinessDomain(business: any, config?: WhiteLabelConfig): string {
+export function getBusinessDomain(
+  business: { slug: string },
+  config?: WhiteLabelConfig
+): string {
   if (config?.customDomain) {
     return `https://${config.customDomain}`;
   }
-  return `${process.env.NEXT_PUBLIC_APP_URL || "https://artisanpro.fr"}/${business.slug}`;
+  return `${process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"}/${business.slug}`;
 }
 
 export function shouldShowBranding(config?: WhiteLabelConfig): boolean {

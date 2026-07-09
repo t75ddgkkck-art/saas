@@ -1,20 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  appointments,
-  quotes,
-  clients,
-  payments,
-  reviews,
-  analytics,
-  businesses,
-} from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { appointments, quotes, clients, payments, reviews } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
+import { handleApiError } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const business = await getCurrentBusiness();
 
@@ -31,58 +24,75 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Compter les données réelles
-    const [appointmentList, quoteList, clientList, paymentList, reviewList] = await Promise.all([
-      db.select().from(appointments).where(eq(appointments.businessId, business.id)),
-      db.select().from(quotes).where(eq(quotes.businessId, business.id)),
-      db.select().from(clients).where(eq(clients.businessId, business.id)),
-      db.select().from(payments).where(eq(payments.businessId, business.id)),
-      db.select().from(reviews).where(eq(reviews.businessId, business.id)),
-    ]);
+    // 5 requêtes en parallèle avec agrégats côté DB (pas de N+1, pas de download inutile).
+    const bizId = business.id;
+    const [aptAgg, quoteAgg, clientAgg, paymentAgg, reviewAgg, upcoming, recentQuotes] =
+      await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(appointments)
+          .where(eq(appointments.businessId, bizId)),
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            accepted: sql<number>`count(*) filter (where status in ('accepted','signed'))::int`,
+          })
+          .from(quotes)
+          .where(eq(quotes.businessId, bizId)),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(clients)
+          .where(eq(clients.businessId, bizId)),
+        db
+          .select({
+            revenue: sql<string>`coalesce(sum(amount) filter (where status = 'completed'), 0)`,
+          })
+          .from(payments)
+          .where(eq(payments.businessId, bizId)),
+        db
+          .select({
+            count: sql<number>`count(*)::int`,
+            avg: sql<string>`coalesce(avg(rating)::numeric(3,2), 0)`,
+          })
+          .from(reviews)
+          .where(eq(reviews.businessId, bizId)),
+        // Requête ciblée : RDV à venir uniquement
+        db
+          .select()
+          .from(appointments)
+          .where(
+            sql`${appointments.businessId} = ${bizId}
+                and ${appointments.status} in ('confirmed','pending')
+                and ${appointments.date} >= ${new Date().toISOString().split("T")[0]}`
+          )
+          .limit(5),
+        // Devis récents (ordonnés côté DB)
+        db
+          .select()
+          .from(quotes)
+          .where(eq(quotes.businessId, bizId))
+          .orderBy(sql`created_at desc`)
+          .limit(5),
+      ]);
 
-    // Calculer le CA
-    const totalRevenue = paymentList
-      .filter((p) => p.status === "completed")
-      .reduce((sum, p) => sum + parseFloat(p.amount), 0);
-
-    // Compter les devis acceptés
-    const acceptedQuotes = quoteList.filter(
-      (q) => q.status === "accepted" || q.status === "signed"
-    ).length;
-
-    // Rendez-vous à venir (status confirmed ou pending, date >= aujourd'hui)
-    const today = new Date().toISOString().split("T")[0];
-    const upcoming = appointmentList
-      .filter((a) => a.status === "confirmed" || a.status === "pending")
-      .filter((a) => a.date >= today)
-      .slice(0, 5);
-
-    // Devis récents
-    const recentQuotes = quoteList
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-      .map((q) => ({
+    return NextResponse.json({
+      revenue: Number(paymentAgg[0].revenue) || 0,
+      appointments: aptAgg[0].count,
+      quotes: quoteAgg[0].total,
+      quotesAccepted: quoteAgg[0].accepted,
+      clients: clientAgg[0].count,
+      visitors: 0, // à connecter à pageVisits si besoin
+      reviews: reviewAgg[0].count,
+      avgRating: Number(reviewAgg[0].avg) || 0,
+      upcomingAppointments: upcoming,
+      recentQuotes: recentQuotes.map((q) => ({
         id: q.quoteNumber,
         title: q.title,
         client: "Client",
         amount: parseFloat(q.total || "0"),
         status: q.status,
         date: q.createdAt.toISOString().split("T")[0],
-      }));
-
-    return NextResponse.json({
-      revenue: totalRevenue,
-      appointments: appointmentList.length,
-      quotes: quoteList.length,
-      quotesAccepted: acceptedQuotes,
-      clients: clientList.length,
-      visitors: 0, // À implémenter avec un vrai tracking
-      reviews: reviewList.length,
-      avgRating: reviewList.length > 0
-        ? reviewList.reduce((sum, r) => sum + r.rating, 0) / reviewList.length
-        : 0,
-      upcomingAppointments: upcoming,
-      recentQuotes,
+      })),
       business: {
         id: business.id,
         name: business.name,
@@ -90,11 +100,7 @@ export async function GET(request: NextRequest) {
         pageUrl: `/${business.slug}`,
       },
     });
-  } catch (error: any) {
-    console.error("Dashboard API error:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur serveur" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, { route: "GET /api/dashboard" });
   }
 }
