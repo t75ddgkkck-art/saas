@@ -22,6 +22,7 @@ import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/Button";
 import { GlobalSearch } from "./GlobalSearch";
 import { NotificationBell } from "./NotificationBell";
+import { ThemeToggle } from "./ThemeToggle";
 
 // Menu simplifié : 5 entrées seulement
 const baseNavItems = [
@@ -74,7 +75,10 @@ export function Sidebar() {
             </div>
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">Vitrix</span>
           </div>
-          <NotificationBell />
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
         </div>
 
         {/* Recherche */}

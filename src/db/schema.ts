@@ -83,6 +83,8 @@ export const businesses = pgTable("businesses", {
   primaryColor: varchar("primary_color", { length: 20 }).default("#0f172a"),
   hideBranding: boolean("hide_branding").default(false),
   language: varchar("language", { length: 5 }).default("fr"),
+  // Fuseau horaire IANA (ex: "Europe/Paris"). Défaut : Paris pour les nouveaux comptes.
+  timezone: varchar("timezone", { length: 64 }).default("Europe/Paris"),
   template: varchar("template", { length: 30 }).default("classique"),
   showQrOnPage: boolean("show_qr_on_page").default(true),
   customDomain: varchar("custom_domain", { length: 255 }),

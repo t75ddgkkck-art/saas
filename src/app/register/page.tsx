@@ -149,7 +149,8 @@ export default function RegisterPage() {
 
       // ⚠️  Ne PAS stocker l'utilisateur en localStorage : ce serait manipulable.
       // Le AuthContext ré-hydrate via GET /api/auth/session (cookie httpOnly signé).
-      window.location.href = "/dashboard";
+      // Redirection vers l'onboarding (checklist des étapes essentielles).
+      window.location.href = "/dashboard/welcome";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors de l'inscription");
       setIsLoading(false);

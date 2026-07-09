@@ -96,6 +96,7 @@ DO $$ BEGIN
       ADD COLUMN IF NOT EXISTS primary_color             varchar(20)  DEFAULT '#0f172a',
       ADD COLUMN IF NOT EXISTS hide_branding             boolean      DEFAULT false,
       ADD COLUMN IF NOT EXISTS language                  varchar(5)   DEFAULT 'fr',
+      ADD COLUMN IF NOT EXISTS timezone                  varchar(64)  DEFAULT 'Europe/Paris',
       ADD COLUMN IF NOT EXISTS template                  varchar(30)  DEFAULT 'classique',
       ADD COLUMN IF NOT EXISTS show_qr_on_page           boolean      DEFAULT true,
       ADD COLUMN IF NOT EXISTS custom_domain             varchar(255),

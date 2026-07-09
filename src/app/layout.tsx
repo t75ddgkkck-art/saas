@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider, THEME_INIT_SCRIPT } from "@/contexts/ThemeContext";
+import { ToastProvider } from "@/components/ui/Toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,10 +19,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
   verification: {
-    // Renseignez votre code Google Search Console ici après l'avoir obtenu
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
   },
-  description: "Augmentez votre visibilité et ramenez plus de clients. Page pro optimisée SEO, réservation en ligne, avis Google authentiques, paiements (Stripe, Apple Pay, espèces). Simple, rapide, efficace.",
+  description:
+    "Augmentez votre visibilité et ramenez plus de clients. Page pro optimisée SEO, réservation en ligne, avis Google authentiques, paiements (Stripe, Apple Pay, espèces). Simple, rapide, efficace.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -28,30 +30,59 @@ export const metadata: Metadata = {
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
     shortcut: ["/favicon.ico"],
   },
   manifest: "/manifest.webmanifest",
   openGraph: {
     title: "Vitrix - Visibilité & clients pour artisans",
-    description: "Augmentez votre visibilité et ramenez plus de clients. Page pro SEO, réservation, avis Google, paiements.",
-    images: [{ url: "/og-image.svg", width: 1200, height: 630 }],
+    description:
+      "Augmentez votre visibilité et ramenez plus de clients. Page pro SEO, réservation, avis Google, paiements.",
+    type: "website",
+    locale: "fr_FR",
+    siteName: "Vitrix",
+    images: [
+      { url: "/og-image.png", width: 1200, height: 630, alt: "Vitrix" },
+      // SVG conservé en secondaire pour compat
+      { url: "/og-image.svg", width: 1200, height: 630, alt: "Vitrix" },
+    ],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Vitrix",
+    description: "Visibilité et clients pour artisans",
+    images: ["/og-image.png"],
+  },
+};
+
+// theme-color adaptatif : slate-50 en clair, slate-950 en sombre
+// (utilisé par les navigateurs pour colorer la barre système)
+export const viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+        {/* Applique le thème AVANT le first paint pour éviter le FOUC.
+            Sûr : lit uniquement localStorage + prefers-color-scheme, aucun input externe. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="theme-color" content="#0f172a" />
       </head>
       <body className="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 min-h-screen">
-        <AuthProvider>{children}</AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
