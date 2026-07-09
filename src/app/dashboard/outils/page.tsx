@@ -458,8 +458,8 @@ export default function OutilsPage() {
 
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
               <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">⭐ Demande d'avis automatique</p>
-                <p className="text-xs text-slate-500">Email envoyé au client dès qu'un RDV est marqué terminé</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">⭐ Demande d&apos;avis automatique</p>
+                <p className="text-xs text-slate-500">Email envoyé au client dès qu&apos;un RDV est marqué terminé</p>
               </div>
               <input type="checkbox" className="h-5 w-5" />
             </div>

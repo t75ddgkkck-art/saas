@@ -1,4 +1,7 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["cdg1"],
   "crons": [
     {
       "path": "/api/cron/quote-reminders",
@@ -7,6 +10,47 @@
     {
       "path": "/api/cron/weekly-summary",
       "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron/reminder-sms",
+      "schedule": "0 8 * * *"
     }
-  ]
+  ],
+  "headers": [
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(favicon\\.svg|apple-icon\\.png|icons/.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, immutable" }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ],
+  "functions": {
+    "src/app/api/pdf/**/*.ts": { "maxDuration": 30 },
+    "src/app/api/quote-pdf/**/*.ts": { "maxDuration": 30 },
+    "src/app/api/ai/**/*.ts": { "maxDuration": 60 },
+    "src/app/api/ai-chat/route.ts": { "maxDuration": 30 },
+    "src/app/api/ai-blog/route.ts": { "maxDuration": 60 },
+    "src/app/api/stripe/webhook/route.ts": { "maxDuration": 30 },
+    "src/app/api/cron/**/*.ts": { "maxDuration": 300 }
+  }
 }

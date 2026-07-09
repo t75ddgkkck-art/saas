@@ -211,7 +211,7 @@ export default function QRCodePage() {
           <Card>
             <CardHeader>
               <CardTitle>Page cible</CardTitle>
-              <CardDescription>L'URL de votre page professionnelle</CardDescription>
+              <CardDescription>L&apos;URL de votre page professionnelle</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Input
@@ -304,7 +304,7 @@ export default function QRCodePage() {
           {/* Tips */}
           <Card>
             <CardHeader>
-              <CardTitle>Conseils d'utilisation</CardTitle>
+              <CardTitle>Conseils d&apos;utilisation</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
@@ -326,7 +326,7 @@ export default function QRCodePage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-0.5 text-emerald-500">✓</span>
-                  Utilisez le format PNG pour le web, SVG pour l'impression
+                  Utilisez le format PNG pour le web, SVG pour l&apos;impression
                 </li>
               </ul>
             </CardContent>

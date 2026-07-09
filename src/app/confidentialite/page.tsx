@@ -18,7 +18,7 @@ export default function ConfidentialitePage() {
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">1. Données collectées</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              Nous collectons uniquement les données nécessaires au fonctionnement du service : identité (nom, prénom, email), informations professionnelles (SIRET, nom d'entreprise, adresse), et les données de vos clients que vous enregistrez (nom, téléphone, email).
+              Nous collectons uniquement les données nécessaires au fonctionnement du service : identité (nom, prénom, email), informations professionnelles (SIRET, nom d&apos;entreprise, adresse), et les données de vos clients que vous enregistrez (nom, téléphone, email).
             </p>
           </section>
           <section>
@@ -30,19 +30,19 @@ export default function ConfidentialitePage() {
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">3. Hébergement et sécurité</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              Les données sont hébergées dans l'Union Européenne. Les mots de passe sont chiffrés (bcrypt), les sessions sécurisées par cookies httpOnly, et les paiements traités par Stripe (certifié PCI-DSS niveau 1).
+              Les données sont hébergées dans l&apos;Union Européenne. Les mots de passe sont chiffrés (bcrypt), les sessions sécurisées par cookies httpOnly, et les paiements traités par Stripe (certifié PCI-DSS niveau 1).
             </p>
           </section>
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">4. Vos droits (RGPD)</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, de portabilité et de suppression de vos données. La suppression de compte est disponible directement dans vos paramètres et efface immédiatement l'intégralité de vos données.
+              Conformément au RGPD, vous disposez d&apos;un droit d&apos;accès, de rectification, de portabilité et de suppression de vos données. La suppression de compte est disponible directement dans vos paramètres et efface immédiatement l&apos;intégralité de vos données.
             </p>
           </section>
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">5. Cookies</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              Vitrix utilise uniquement des cookies essentiels au fonctionnement (session de connexion). Aucun cookie publicitaire ou de pistage tiers n'est utilisé.
+              Vitrix utilise uniquement des cookies essentiels au fonctionnement (session de connexion). Aucun cookie publicitaire ou de pistage tiers n&apos;est utilisé.
             </p>
           </section>
           <section>

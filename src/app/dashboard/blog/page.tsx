@@ -225,7 +225,7 @@ export default function BlogPage() {
                   <Input placeholder="Ex: Conseils plomberie hiver..." value={aiTopic} onChange={e => setAiTopic(e.target.value)} className="flex-1" />
                   <Button onClick={generateWithAI} loading={isGenerating} variant="outline" size="sm">Générer</Button>
                 </div>
-                <p className="text-xs text-purple-700 dark:text-purple-300 mt-2">L'IA rédige un article SEO que vous pouvez modifier ensuite.</p>
+                <p className="text-xs text-purple-700 dark:text-purple-300 mt-2">L&apos;IA rédige un article SEO que vous pouvez modifier ensuite.</p>
               </div>
 
               <Input label="Titre" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="Titre de l'article" />

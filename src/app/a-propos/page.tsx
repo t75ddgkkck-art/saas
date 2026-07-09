@@ -28,9 +28,9 @@ export default function AboutPage() {
             Notre mission
           </h2>
           <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
-            Vitrix est né d'un constat simple : les artisans passent trop de temps sur l'administratif
+            Vitrix est né d&apos;un constat simple : les artisans passent trop de temps sur l&apos;administratif
             et pas assez sur leur métier. Notre objectif est de leur redonner du temps en automatisant
-            tout ce qui peut l'être.
+            tout ce qui peut l&apos;être.
           </p>
         </div>
 
@@ -71,7 +71,7 @@ export default function AboutPage() {
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
                 Chaque fonctionnalité est pensée pour faire gagner du temps aux artisans.
-                Moins d'administratif, plus de chantiers.
+                Moins d&apos;administratif, plus de chantiers.
               </p>
             </div>
             <div>
@@ -79,7 +79,7 @@ export default function AboutPage() {
                 🤝 Proximité
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Nous sommes à l'écoute des artisans. Nos évolutions sont guidées
+                Nous sommes à l&apos;écoute des artisans. Nos évolutions sont guidées
                 par leurs retours et leurs besoins réels.
               </p>
             </div>
@@ -98,10 +98,10 @@ export default function AboutPage() {
         {/* CTA */}
         <div className="mt-20 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl p-12">
           <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-4">
-            Prêt à rejoindre l'aventure ?
+            Prêt à rejoindre l&apos;aventure ?
           </h2>
           <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">
-            Rejoignez des centaines d'artisans qui ont déjà transformé leur activité
+            Rejoignez des centaines d&apos;artisans qui ont déjà transformé leur activité
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

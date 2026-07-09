@@ -892,7 +892,7 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
                 placeholder="vous@email.fr"
               />
               <Button className="w-full" size="lg" loading={reviewSubmitting} onClick={handleSubmitReview}>
-                <Star className="mr-2 h-4 w-4" /> Publier l'avis
+                <Star className="mr-2 h-4 w-4" /> Publier l&apos;avis
               </Button>
             </div>
           </div>

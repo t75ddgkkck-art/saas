@@ -549,7 +549,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                 </div>
 
                 <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Horaires d'ouverture</h3>
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Horaires d&apos;ouverture</h3>
                   <p className="text-xs text-slate-500 mb-3">Configurez vos horaires pour afficher sur votre vitrine et générer des créneaux de RDV.</p>
                   <div className="space-y-2">
                     {["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((day, i) => (
@@ -589,7 +589,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                   <p className="text-xs text-slate-500 mb-3">Générez automatiquement des créneaux de RDV à partir de vos horaires.</p>
                   <div className="flex gap-3 items-end">
                     <div className="flex-1">
-                      <label className="text-xs text-slate-500">Jours à l'avance</label>
+                      <label className="text-xs text-slate-500">Jours à l&apos;avance</label>
                       <Input type="number" value={daysAhead} onChange={e => setDaysAhead(parseInt(e.target.value) || 30)} placeholder="30" />
                     </div>
                     <div className="flex-1">

@@ -142,7 +142,7 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Provenance</CardTitle>
-            <CardDescription>D'où viennent vos visiteurs</CardDescription>
+            <CardDescription>D&apos;où viennent vos visiteurs</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -171,7 +171,7 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Appareils</CardTitle>
-            <CardDescription>Répartition par type d'appareil</CardDescription>
+            <CardDescription>Répartition par type d&apos;appareil</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[200px]">

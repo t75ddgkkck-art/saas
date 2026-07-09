@@ -196,7 +196,7 @@ export default function SettingsPage() {
                 { value: "de", label: "🇩🇪 Deutsch" },
               ]}
             />
-            <p className="text-xs text-slate-500">Les boutons et titres de votre vitrine publique s'afficheront dans cette langue pour vos clients.</p>
+            <p className="text-xs text-slate-500">Les boutons et titres de votre vitrine publique s&apos;afficheront dans cette langue pour vos clients.</p>
             <Button size="sm" onClick={saveLanguage} variant={saved ? "success" : "primary"}>
               {saved ? <><Check className="mr-1 h-4 w-4" /> Enregistré — visible sur votre vitrine</> : "Enregistrer"}
             </Button>
@@ -305,7 +305,7 @@ export default function SettingsPage() {
               <Input placeholder="www.mon-entreprise.fr" />
               <p className="mt-2 text-xs text-slate-500">Une fois configuré, contactez le support Vitrix pour activer le SSL et lier le domaine.</p>
             </div>
-            <Button size="sm" disabled>Demander l'activation (Support)</Button>
+            <Button size="sm" disabled>Demander l&apos;activation (Support)</Button>
           </div>
         )}
 

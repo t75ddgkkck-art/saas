@@ -176,7 +176,7 @@ export default function MyBusinessesPage() {
           <Textarea label="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Décrivez cet établissement..." />
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowModal(false)}>Annuler</Button>
-            <Button onClick={handleCreate} loading={isCreating}>Créer l'établissement</Button>
+            <Button onClick={handleCreate} loading={isCreating}>Créer l&apos;établissement</Button>
           </div>
         </div>
       </Modal>

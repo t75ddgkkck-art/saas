@@ -226,7 +226,7 @@ export default function AIChatPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Capacités de l'IA</CardTitle>
+              <CardTitle className="text-base">Capacités de l&apos;IA</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {[
