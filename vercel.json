@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/grace-period-expired",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/purge-deleted",
+      "schedule": "30 3 * * *"
     }
   ],
   "headers": [

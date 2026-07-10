@@ -4,6 +4,173 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 14 — Lot 15 Légal & RGPD
+
+Adresse les 5 points du Lot 15 de l'audit :
+- 15.1 CGU / Confidentialité : contenu manquait (DPO, base légale, transferts hors UE, durées)
+- 15.2 Aucun consent banner cookies
+- 15.3 Pas de mention légale visible (obligation LCEN)
+- 15.4 Aucun DPA (Data Processing Agreement) pour la sous-traitance
+- 15.5 Pas d'export ni de vraie suppression compte RGPD
+
+## 15.1 — Refonte CGU et politique de confidentialité
+
+**CGU (`src/app/cgu/page.tsx`)** — refonte complète, 14 sections + sommaire ancré :
+1. Objet et acceptation
+2. Éditeur (renvoi mentions légales)
+3. Inscription et accès (SIRET INSEE, ID/pass personnels)
+4. Abonnements, prix, résiliation (trial 14j, grace period 3/7j)
+5. Droit de rétractation B2B (art. L221-3 CC)
+6. Paiements Stripe Connect (délimitation responsabilité)
+7. Contenu publié (garanties, LCEN)
+8. Avis clients (anti-faux avis)
+9. Responsabilité (limitation au montant annuel versé)
+10. Données personnelles (renvoi confidentialité)
+11. **DPA article 28** ← 15.4 (voir ci-dessous)
+12. Force majeure (art. 1218 CC)
+13. Modification des CGU (préavis 30j)
+14. Droit applicable + juridictions
+
+**Confidentialité (`src/app/confidentialite/page.tsx`)** — refonte complète, 9 sections avec tableaux :
+- Distinction responsable/sous-traitant explicite
+- Tableau 8 catégories de données avec finalité + base légale (art. 6.1)
+- Tableau 6 sous-traitants nominatifs avec localisation et garanties
+- Section transferts hors UE (CCT + EU-US DPF)
+- Tableau 6 durées de conservation (compte, factures 10 ans, logs 12 mois…)
+- Section sécurité (bcrypt, TLS, HMAC, rate-limit, Sentry, backups)
+- Détail des droits RGPD art. 15-22 avec liens vers actions produit
+- Lien vers CNIL pour réclamation
+- Contact DPO séparé du contact général
+
+Toutes les données volatiles (nom éditeur, email, SIREN…) sont **paramétrées via env vars** (`NEXT_PUBLIC_LEGAL_*`) — voir `docs/RGPD.md` section 2.
+
+## 15.2 — Consent banner cookies
+
+**`src/lib/consent.ts`** : helper pur (7 tests unitaires) :
+- `readConsent()` / `writeConsent(value)` / `resetConsent()`
+- Version stockée dans `localStorage` avec check de version (invalidation possible si politique change)
+- Valeurs : `"essential"` (défaut safe) | `"all"` (préparé pour futur analytics)
+- Safe SSR (no-op si `window` absent), safe mode privé strict (try/catch silencieux)
+- **Pas de cookie** pour stocker le consent (ironique mais nécessaire pour éviter le paradoxe)
+
+**`src/components/layout/CookieConsent.tsx`** : bannière bas d'écran :
+- role="dialog" + aria-labelledby + aria-describedby (a11y AA)
+- 2 boutons : "Essentiels uniquement" / "Tout accepter"
+- Auto-masque si choix déjà fait
+- Message précise que Vitrix n'a **actuellement aucun cookie non-essentiel** → transparence maximale
+- Branchée dans `src/app/layout.tsx` sous ToastProvider
+
+⚠ **Aucun tracker ajouté par ce lot** — la bannière prépare le terrain pour un futur Plausible/GA/PostHog. À ce moment-là, respecter le choix `essential` de l'user avant d'injecter le script.
+
+## 15.3 — Mentions légales
+
+**`src/app/mentions-legales/page.tsx`** — obligatoire LCEN 2004-575 :
+- Éditeur : dénomination, forme, capital, adresse, RCS, SIREN, TVA, email, téléphone
+- Directeur de la publication
+- Hébergeur (Vercel Inc., 340 S Lemon Ave Walnut CA)
+- Registrar (IONOS SARL, Sarreguemines)
+- Section signalement de contenu illicite (LCEN art. 6-I-5, accusé sous 48h)
+- Propriété intellectuelle (Vitrix + contenu users)
+
+Ajoutée au sitemap statique + footer landing + settings dashboard.
+
+## 15.4 — DPA (Data Processing Agreement)
+
+Intégré comme **section 11 des CGU** — accepté par tout user à la souscription. Couvre les 7 obligations RGPD art. 28 :
+1. Objet du traitement
+2. Durée (abonnement + 30j)
+3. Catégories de données
+4. Obligations sous-traitant (instructions documentées, confidentialité, notif 72h)
+5. Sous-traitants ultérieurs (autorisation générale + liste)
+6. Transferts hors UE (CCT + EU-US DPF)
+7. Fin du contrat (restitution export JSON en 30j)
++ clause audit
+
+Un DPA formel séparé peut être signé sur demande (mailto).
+
+## 15.5 — Export RGPD + soft suppression (branchée Lot 14)
+
+**Portabilité (art. 20)** — `GET /api/account/export` :
+- Rate limit strict : 3/heure/user
+- Retourne un JSON téléchargeable `vitrix-mes-donnees-YYYY-MM-DD.json` avec header `Content-Disposition`
+- Helper `src/lib/rgpd-export.ts` : collecte user + businesses + clients + appointments + quotes + payments + blogPosts + reviews + services + aiUsage + emailOptouts
+- **passwordHash exclu** (via déstructuration, jamais dans l'output) — testé
+- Format versionné `meta.format: "vitrix-rgpd-v1"`
+- Bouton "Télécharger mes données" dans `Settings → Suppression`
+
+**Droit à l'oubli (art. 17)** — chaîne complète :
+- T0 : `DELETE /api/account` (Lot 14) fait un soft delete immédiat + purge cookies
+- T+30j : **nouveau cron** `/api/cron/purge-deleted` fait le vrai `DELETE` sur users/businesses/clients/appointments/quotes/blog_posts où `deleted_at < NOW() - 30 days`
+- Message settings amélioré : explique clairement les 30 jours de rétention
+- Rétention overridable via env `RGPD_PURGE_DAYS` (1-365)
+- Erreur cron → alerte Sentry `severity: "critical"` + webhook Slack
+
+**vercel.json** : cron `purge-deleted` schedulé `30 3 * * *` (30min après grace-period-expired pour éviter la collision).
+
+## Fichiers modifiés/créés
+
+- `src/app/cgu/page.tsx` — refonte complète (14 sections + DPA)
+- `src/app/confidentialite/page.tsx` — refonte complète (9 sections + 3 tableaux)
+- `src/app/mentions-legales/page.tsx` — **NOUVEAU**
+- `src/lib/consent.ts` — **NOUVEAU** (7 tests)
+- `src/components/layout/CookieConsent.tsx` — **NOUVEAU**
+- `src/app/layout.tsx` — branche `<CookieConsent />`
+- `src/lib/rgpd-export.ts` — **NOUVEAU** (3 tests)
+- `src/app/api/account/export/route.ts` — **NOUVEAU**
+- `src/app/api/cron/purge-deleted/route.ts` — **NOUVEAU**
+- `src/app/dashboard/settings/page.tsx` — bouton "Télécharger mes données" + message 30j
+- `src/app/page.tsx` — footer : lien Mentions légales
+- `src/app/sitemap-static.xml/route.ts` — ajout `/mentions-legales`
+- `vercel.json` — cron `purge-deleted` à 3h30
+- `tests/unit/consent.test.ts` — **NOUVEAU** (7 tests)
+- `tests/unit/rgpd-export.test.ts` — **NOUVEAU** (3 tests, dont vérif exclusion passwordHash)
+- `docs/RGPD.md` — **NOUVEAU** (~250 lignes)
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 174/174 tests (21 fichiers, +10 nouveaux)
+✅ npx next build      → 0 warning, compilé en 19s
+```
+
+## Impact business
+
+- **Conformité RGPD réelle** (plus juste "on prétend") : DPA, exercice des droits automatisé, notification CNIL préparée
+- **Vend-ready B2B** : les clients pros qui ont eux-mêmes des obligations RGPD envers leurs propres clients peuvent maintenant demander notre DPA (clause CGU) ou un DPA formel séparé
+- **Anti-friction juridique** : mentions légales visibles → pas de mise en demeure LCEN, pas de blocage APB / CCI
+- **Réputation** : bannière cookies **honnête** (annonce zéro tracker) → point différenciant vs concurrents envahis de GA/FB pixel
+- **Automatisation de la purge** : plus jamais de "j'ai supprimé mon compte il y a 6 mois pourquoi mes données sont encore là" → conformité article 17 vraiment appliquée
+
+## Actions post-déploiement
+
+1. **Remplir toutes les env vars `NEXT_PUBLIC_LEGAL_*` sur Vercel** (voir liste dans `docs/RGPD.md` §2)
+2. **Faire relire les CGU + confidentialité par un avocat** — le contenu est un cadre technique solide, PAS une validation juridique
+3. **Setup `CRON_SECRET`** sur Vercel si pas déjà fait — protège tous les crons
+4. **Optionnel** : setup `RGPD_PURGE_DAYS` si vous voulez une rétention différente de 30 jours
+5. **Optionnel** : signer un DPA formel avec chaque sous-traitant (téléchargeable sur leurs sites : stripe.com/legal/dpa, supabase.com/dpa…)
+6. **Vérifier le cron** dans Vercel dashboard après J+31 : `total` > 0 dans les logs
+7. **Tester l'export** sur son propre compte admin : ouvrir `/dashboard/settings → Suppression → Télécharger mes données` → vérifier JSON complet
+
+## Historique commits
+
+```
+d8babe6  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 13 — Lot 14 Base de données
 
 Adresse les 9 points du Lot 14 de l'audit :
@@ -184,7 +351,7 @@ Le `sql/00_apply_safe.sql` DROP + ADD les FKs avec la bonne politique. Sûr car 
 ## Historique commits
 
 ```
-e6c7b4e  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
 1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
 e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
 6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés

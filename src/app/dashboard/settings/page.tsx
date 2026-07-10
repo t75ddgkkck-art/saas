@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  User, Globe, CreditCard, Trash2, Check, AlertTriangle, FileText, Lock,
+  User, Globe, CreditCard, Trash2, Check, AlertTriangle, FileText, Lock, Download,
 } from "lucide-react";
 
 const PLANS = [
@@ -123,6 +123,31 @@ export default function SettingsPage() {
     }
   };
 
+  // Lot 15.5 : export RGPD (portabilité article 20)
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/account/export");
+      if (!res.ok) {
+        alert("Erreur lors de l'export. Réessayez dans quelques minutes.");
+        return;
+      }
+      // Télécharge le fichier via un lien blob (évite de repasser par le serveur)
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vitrix-mes-donnees-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const currentPlan = user?.subscription || "free";
 
   return (
@@ -181,6 +206,7 @@ export default function SettingsPage() {
               <a href="/cgu" target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"><FileText className="h-3.5 w-3.5" /> Conditions générales</a>
               <a href="/faq" target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"><FileText className="h-3.5 w-3.5" /> FAQ Vitrix</a>
               <a href="/confidentialite" target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"><FileText className="h-3.5 w-3.5" /> Confidentialité</a>
+              <a href="/mentions-legales" target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"><FileText className="h-3.5 w-3.5" /> Mentions légales</a>
             </div>
           </div>
         )}
@@ -323,17 +349,49 @@ export default function SettingsPage() {
         )}
 
         {tab === "danger" && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900 dark:bg-red-900/10">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
-              <div>
-                <p className="font-semibold text-red-800 dark:text-red-400">Supprimer mon compte</p>
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  Action <strong>irréversible</strong>. Vitrine, clients, devis, rendez-vous : tout sera définitivement supprimé.
-                </p>
-                <Button variant="destructive" size="sm" className="mt-3" onClick={() => setShowDeleteModal(true)}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer mon compte
-                </Button>
+          <div className="space-y-4">
+            {/* Lot 15.5 : export RGPD portabilité */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start gap-3">
+                <Download className="h-5 w-5 shrink-0 text-slate-600 dark:text-slate-400" />
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">
+                    Exporter mes données (RGPD)
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    Téléchargez toutes vos données personnelles (compte, vitrine,
+                    clients, RDV, devis, blog…) dans un fichier JSON structuré.
+                    Conforme à l&apos;article 20 du RGPD (droit à la portabilité).
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    loading={exporting}
+                    onClick={handleExport}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Télécharger mes données
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Suppression compte (Lot 14 soft delete + Lot 15 RGPD) */}
+            <div className="rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900 dark:bg-red-900/10">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
+                <div>
+                  <p className="font-semibold text-red-800 dark:text-red-400">Supprimer mon compte</p>
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    Votre vitrine devient invisible immédiatement. Toutes vos
+                    données (clients, devis, RDV, blog) sont conservées pendant
+                    <strong> 30 jours</strong> puis <strong>définitivement supprimées</strong>.
+                    Pendant cette période, contactez le support pour restaurer.
+                  </p>
+                  <Button variant="destructive" size="sm" className="mt-3" onClick={() => setShowDeleteModal(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Supprimer mon compte
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

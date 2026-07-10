@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider, THEME_INIT_SCRIPT } from "@/contexts/ThemeContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { SkipToContent } from "@/components/layout/SkipToContent";
+import { CookieConsent } from "@/components/layout/CookieConsent";
 import "./globals.css";
 
 // Préchargement Inter via next/font :
@@ -104,7 +105,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SkipToContent />
         <ThemeProvider>
           <AuthProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              {children}
+              {/* Lot 15.2 : bannière consent cookies, s'auto-cache si déjà répondu */}
+              <CookieConsent />
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
