@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   // Compression gzip côté server (redondant avec Vercel/Nginx mais utile en self-host)
   compress: true,
 
+  // Lot 20 : le TypeScript check du build Next fait un check global qui
+  // duplique celui de `npx tsc --noEmit` (déjà lancé en CI + pre-commit).
+  // Sur un serveur mémoire-limité (2 GB comme certains runners), le check
+  // Next OOM (SIGKILL). On désactive UNIQUEMENT le check du build ici :
+  // la source de vérité pour les types reste `npx tsc --noEmit` (0 erreur).
+  // Sur Vercel avec 8 GB+ le check passe, mais désactiver ne change rien
+  // à la qualité (deux checks identiques → un suffit).
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // Génère des sourcemaps de prod pour Sentry / debug (léger surcoût CI, gros gain support)
   productionBrowserSourceMaps: false, // passer à true si Sentry configuré
 

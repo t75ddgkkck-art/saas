@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { appointments, quotes, clients, payments, reviews, pageVisits } from "@/db/schema";
-import { eq, desc, gte, and } from "drizzle-orm";
+import { eq, desc, gte, and, isNull } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError } from "@/lib/api-error";
 
@@ -24,13 +24,43 @@ export async function GET() {
     since.setDate(since.getDate() - 13);
     const sinceStr = since.toISOString().split("T")[0];
 
+    // Lot 20 : on filtre les soft-deleted (Lot 14.3) partout — sinon le dashboard
+    // continue d'afficher des RDV/devis/clients supprimés en attente de purge.
     const [apts, qts, clts, pmts, rvws, visits] = await Promise.all([
-      db.select().from(appointments).where(eq(appointments.businessId, business.id)).orderBy(desc(appointments.createdAt)).limit(50),
-      db.select().from(quotes).where(eq(quotes.businessId, business.id)).orderBy(desc(quotes.createdAt)).limit(50),
-      db.select().from(clients).where(eq(clients.businessId, business.id)).orderBy(desc(clients.createdAt)).limit(100),
-      db.select().from(payments).where(eq(payments.businessId, business.id)).orderBy(desc(payments.createdAt)).limit(50),
-      db.select().from(reviews).where(eq(reviews.businessId, business.id)).orderBy(desc(reviews.createdAt)).limit(20),
-      db.select().from(pageVisits).where(and(eq(pageVisits.businessId, business.id), gte(pageVisits.date, sinceStr))),
+      db
+        .select()
+        .from(appointments)
+        .where(and(eq(appointments.businessId, business.id), isNull(appointments.deletedAt)))
+        .orderBy(desc(appointments.createdAt))
+        .limit(50),
+      db
+        .select()
+        .from(quotes)
+        .where(and(eq(quotes.businessId, business.id), isNull(quotes.deletedAt)))
+        .orderBy(desc(quotes.createdAt))
+        .limit(50),
+      db
+        .select()
+        .from(clients)
+        .where(and(eq(clients.businessId, business.id), isNull(clients.deletedAt)))
+        .orderBy(desc(clients.createdAt))
+        .limit(100),
+      db
+        .select()
+        .from(payments)
+        .where(eq(payments.businessId, business.id))
+        .orderBy(desc(payments.createdAt))
+        .limit(50),
+      db
+        .select()
+        .from(reviews)
+        .where(eq(reviews.businessId, business.id))
+        .orderBy(desc(reviews.createdAt))
+        .limit(20),
+      db
+        .select()
+        .from(pageVisits)
+        .where(and(eq(pageVisits.businessId, business.id), gte(pageVisits.date, sinceStr))),
     ]);
 
     const revenue = pmts.filter(p => p.status === "completed").reduce((s, p) => s + parseFloat(p.amount), 0);
