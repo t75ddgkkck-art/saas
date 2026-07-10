@@ -76,6 +76,96 @@ export async function createCheckoutSession(params: {
   return session;
 }
 
+/**
+ * F2 (Lot 30) — Session Checkout dédiée à un ACOMPTE de réservation.
+ *
+ * Différences avec `createCheckoutSession` :
+ *  - `expires_at` court (30 min) → libère le créneau si abandon
+ *  - `metadata.type = "booking_deposit"` → identifiable côté webhook
+ *  - `metadata.appointmentId` → pointe le RDV pending à confirmer au paiement
+ *  - Compte destinataire = compte Stripe Connect du pro (pas Vitrix)
+ *  - `payment_intent_data.metadata` répercuté pour tracing sur le PaymentIntent
+ */
+export async function createDepositCheckoutSession(params: {
+  businessStripeAccountId: string;
+  businessId: string;
+  businessSlug: string;
+  appointmentId: string;
+  amountCents: number;
+  serviceName: string;
+  clientEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+  /** Expiration en secondes après now (Stripe min 30 min = 1800). */
+  expiresInSec?: number;
+}) {
+  const stripe = getStripe();
+  const now = Math.floor(Date.now() / 1000);
+  // Stripe exige EXPIRES_AT au minimum 30 min dans le futur, max 24h
+  const expiresIn = Math.max(30 * 60, params.expiresInSec ?? 30 * 60);
+  const expiresAt = now + expiresIn;
+
+  const metadata = {
+    type: "booking_deposit",
+    appointmentId: params.appointmentId,
+    businessId: params.businessId,
+    businessSlug: params.businessSlug,
+  };
+
+  const session = await stripe.checkout.sessions.create(
+    {
+      payment_method_types: ["card"],
+      customer_email: params.clientEmail,
+      expires_at: expiresAt,
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: `Acompte — ${params.serviceName}`,
+              description: "Acompte de réservation, déduit du montant total",
+            },
+            unit_amount: params.amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      // On tag session ET payment intent → utile côté webhook pour l'idempotence
+      metadata,
+      payment_intent_data: {
+        metadata,
+      },
+    },
+    {
+      stripeAccount: params.businessStripeAccountId,
+    }
+  );
+  return session;
+}
+
+/**
+ * F2 (Lot 30) — Rembourse un acompte via un PaymentIntent.
+ * Utilisé à l'annulation d'un RDV dans la fenêtre de remboursement configurée.
+ * Le remboursement est fait sur le compte connect du pro (destination effective).
+ */
+export async function refundDeposit(params: {
+  businessStripeAccountId: string;
+  paymentIntentId: string;
+  reason?: "requested_by_customer" | "duplicate" | "fraudulent";
+}) {
+  const stripe = getStripe();
+  return stripe.refunds.create(
+    {
+      payment_intent: params.paymentIntentId,
+      reason: params.reason ?? "requested_by_customer",
+    },
+    { stripeAccount: params.businessStripeAccountId }
+  );
+}
+
 // Créer une session d'abonnement (Pro / Premium)
 export async function createSubscriptionSession(params: {
   userId: string;

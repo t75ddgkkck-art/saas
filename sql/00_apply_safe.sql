@@ -676,6 +676,73 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4sexies. Lot 30 (F2) — Acompte à la réservation
+-- -----------------------------------------------------------------------------
+
+-- Nouvel enum deposit_status (idempotent)
+DO $$ BEGIN
+  CREATE TYPE public.deposit_status AS ENUM ('pending', 'paid', 'refunded', 'forfeited');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Colonnes acompte sur services (config par service)
+DO $$ BEGIN
+  IF public.__vx_table_exists('services') THEN
+    ALTER TABLE public.services
+      ADD COLUMN IF NOT EXISTS price_cents integer,
+      ADD COLUMN IF NOT EXISTS deposit_type varchar(10),
+      ADD COLUMN IF NOT EXISTS deposit_amount integer;
+    -- CHECK : deposit_type doit être fixed | percent | null
+    ALTER TABLE public.services DROP CONSTRAINT IF EXISTS services_deposit_type_check;
+    ALTER TABLE public.services
+      ADD CONSTRAINT services_deposit_type_check
+      CHECK (deposit_type IS NULL OR deposit_type IN ('fixed', 'percent'));
+    -- CHECK : si percent, 0 < amount <= 100
+    ALTER TABLE public.services DROP CONSTRAINT IF EXISTS services_deposit_percent_check;
+    ALTER TABLE public.services
+      ADD CONSTRAINT services_deposit_percent_check
+      CHECK (deposit_type IS DISTINCT FROM 'percent' OR (deposit_amount > 0 AND deposit_amount <= 100));
+  END IF;
+END $$;
+
+-- Politique de remboursement acompte au niveau business
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    ALTER TABLE public.businesses
+      ADD COLUMN IF NOT EXISTS deposit_refund_hours integer;
+  END IF;
+END $$;
+
+-- Traçabilité acompte sur appointments
+DO $$ BEGIN
+  IF public.__vx_table_exists('appointments') THEN
+    ALTER TABLE public.appointments
+      ADD COLUMN IF NOT EXISTS deposit_required boolean DEFAULT false NOT NULL,
+      ADD COLUMN IF NOT EXISTS deposit_amount_cents integer,
+      ADD COLUMN IF NOT EXISTS deposit_status public.deposit_status,
+      ADD COLUMN IF NOT EXISTS stripe_checkout_session_id varchar(255);
+    -- Index partiel pour le cron d'expiration (scan uniquement 'pending')
+    CREATE INDEX IF NOT EXISTS appointments_deposit_scan_idx
+      ON public.appointments (deposit_status, created_at)
+      WHERE deposit_status = 'pending';
+    -- Lookup par session Stripe (webhook rapide)
+    CREATE INDEX IF NOT EXISTS appointments_stripe_session_idx
+      ON public.appointments (stripe_checkout_session_id)
+      WHERE stripe_checkout_session_id IS NOT NULL;
+  END IF;
+END $$;
+
+-- Idempotence webhooks Stripe (bonus B27 lié F2)
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (
+    event_id     varchar(255) PRIMARY KEY,
+    type         varchar(60)  NOT NULL,
+    processed_at timestamp    NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS stripe_webhook_type_processed_idx
+    ON public.stripe_webhook_events (type, processed_at);
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

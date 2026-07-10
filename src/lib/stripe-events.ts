@@ -8,8 +8,8 @@
 
 import type Stripe from "stripe";
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { users, appointments, payments, availabilitySlots } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 import { sendEmail } from "@/lib/email";
 import { GRACE_PERIOD_DAYS, type PlanId } from "@/lib/plans";
@@ -18,10 +18,19 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
 
 /**
  * checkout.session.completed
- * Le user vient de payer sa première mensualité : on active son plan.
+ * Deux flows selon `metadata.type` :
+ *  - `booking_deposit` → F2 (Lot 30) : confirme un RDV + enregistre le paiement
+ *  - autre / absent → flow subscription : active le plan payant du user
  */
 export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
   const session = event.data.object as Stripe.Checkout.Session;
+
+  // F2 (Lot 30) : acompte de réservation ?
+  if (session.metadata?.type === "booking_deposit") {
+    await handleBookingDepositCompleted(event);
+    return;
+  }
+
   const userId = session.metadata?.userId;
   const plan = session.metadata?.plan as PlanId | undefined;
 
@@ -381,4 +390,156 @@ export async function handleDisputeCreated(event: Stripe.Event): Promise<void> {
       { category: "transactional" }
     );
   }
+}
+
+// -----------------------------------------------------------------------------
+// F2 (Lot 30) — Handlers acompte de réservation
+// -----------------------------------------------------------------------------
+
+/**
+ * `checkout.session.completed` avec metadata.type = "booking_deposit".
+ *
+ * Le client vient de payer son acompte :
+ *  1. Passe le RDV de status `pending` → `confirmed`
+ *  2. Passe deposit_status → `paid`
+ *  3. Enregistre une ligne dans `payments` (type = deposit)
+ *
+ * Idempotence : on ne fait rien si le RDV est déjà `confirmed` (webhook rejoué
+ * par Stripe, ou double delivery). Le RDV pending est identifié par
+ * `stripe_checkout_session_id`, indexé.
+ */
+export async function handleBookingDepositCompleted(event: Stripe.Event): Promise<void> {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const appointmentId = session.metadata?.appointmentId;
+  const businessId = session.metadata?.businessId;
+
+  if (!appointmentId || !businessId) {
+    logger.warn("stripe.deposit.missing_metadata", {
+      sessionId: session.id,
+      metadata: session.metadata,
+    });
+    return;
+  }
+
+  // Idempotence : on cible uniquement les RDV encore en attente d'acompte
+  const [apt] = await db
+    .select()
+    .from(appointments)
+    .where(
+      and(eq(appointments.id, appointmentId), eq(appointments.stripeCheckoutSessionId, session.id))
+    )
+    .limit(1);
+
+  if (!apt) {
+    logger.warn("stripe.deposit.appointment_not_found", { appointmentId, sessionId: session.id });
+    return;
+  }
+
+  if (apt.depositStatus === "paid") {
+    // Webhook rejoué : rien à faire, on est déjà à jour
+    logger.info("stripe.deposit.already_paid", { appointmentId });
+    return;
+  }
+
+  // Confirmation atomique du RDV + traçabilité paiement
+  await db
+    .update(appointments)
+    .set({
+      status: "confirmed",
+      depositStatus: "paid",
+      updatedAt: new Date(),
+    })
+    .where(eq(appointments.id, appointmentId));
+
+  // Enregistrement du paiement (type "deposit") pour reporting côté pro
+  const amountEuros = ((session.amount_total ?? 0) / 100).toFixed(2);
+  try {
+    await db.insert(payments).values({
+      businessId,
+      clientId: apt.clientId,
+      stripePaymentId: (session.payment_intent as string) || null,
+      stripeCustomerId: (session.customer as string) || null,
+      amount: amountEuros,
+      currency: (session.currency || "EUR").toUpperCase(),
+      type: "deposit",
+      status: "completed",
+      metadata: {
+        source: "booking_deposit",
+        sessionId: session.id,
+        appointmentId,
+      },
+    });
+  } catch (err) {
+    // Erreur d'insert paiement = non bloquant pour la confirmation RDV,
+    // mais loggé pour audit manuel
+    logger.error("stripe.deposit.payment_insert_failed", {
+      appointmentId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  logger.info("stripe.deposit.paid", {
+    appointmentId,
+    amount: session.amount_total,
+    sessionId: session.id,
+  });
+}
+
+/**
+ * `checkout.session.expired` (via webhook Stripe).
+ *
+ * Le client n'a pas payé son acompte dans les 30 min → on libère le créneau
+ * et on supprime le RDV pending pour laisser la place à d'autres réservations.
+ *
+ * NB : Stripe envoie ce webhook automatiquement à `expires_at` — pas besoin
+ * de cron côté Vitrix. Un cron de sécurité peut être ajouté séparément si
+ * on veut faire du sweep manuel (voir `/api/cron/expire-deposits`).
+ */
+export async function handleCheckoutExpired(event: Stripe.Event): Promise<void> {
+  const session = event.data.object as Stripe.Checkout.Session;
+  if (session.metadata?.type !== "booking_deposit") return;
+
+  const appointmentId = session.metadata?.appointmentId;
+  if (!appointmentId) return;
+
+  const [apt] = await db
+    .select()
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.id, appointmentId),
+        eq(appointments.stripeCheckoutSessionId, session.id),
+        eq(appointments.depositStatus, "pending")
+      )
+    )
+    .limit(1);
+
+  if (!apt) {
+    // Déjà payé ou déjà nettoyé — no-op
+    return;
+  }
+
+  // Libérer le slot de disponibilité si trouvé
+  await db
+    .update(availabilitySlots)
+    .set({ isBooked: false })
+    .where(
+      and(
+        eq(availabilitySlots.businessId, apt.businessId),
+        eq(availabilitySlots.date, apt.date),
+        eq(availabilitySlots.startTime, apt.startTime)
+      )
+    );
+
+  // Soft-delete du RDV pending (garde trace pour audit)
+  await db
+    .update(appointments)
+    .set({
+      status: "cancelled",
+      deletedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(appointments.id, appointmentId));
+
+  logger.info("stripe.deposit.expired", { appointmentId, sessionId: session.id });
 }

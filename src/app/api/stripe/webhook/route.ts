@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { logger } from "@/lib/logger";
+import { db } from "@/db";
+import { stripeWebhookEvents } from "@/db/schema";
 import {
   handleCheckoutCompleted,
+  handleCheckoutExpired,
   handleSubscriptionUpdated,
   handleSubscriptionDeleted,
   handleInvoicePaymentFailed,
@@ -31,6 +34,8 @@ export const dynamic = "force-dynamic";
 
 const HANDLERS: Record<string, (event: Stripe.Event) => Promise<void>> = {
   "checkout.session.completed": handleCheckoutCompleted,
+  // F2 (Lot 30) : abandon d'acompte → libère le créneau
+  "checkout.session.expired": handleCheckoutExpired,
   "customer.subscription.updated": handleSubscriptionUpdated,
   "customer.subscription.deleted": handleSubscriptionDeleted,
   "customer.subscription.trial_will_end": handleTrialWillEnd,
@@ -69,6 +74,31 @@ export async function POST(request: NextRequest) {
   if (!handler) {
     logger.debug("stripe.webhook.unhandled", { type: event.type });
     return NextResponse.json({ received: true, handled: false });
+  }
+
+  // F2 (Lot 30, bonus B27) — Idempotence par event.id.
+  // Stripe retente les webhooks pendant 3 jours en cas de 5xx/timeout. Sans
+  // dédup, un handler non-idempotent (crédit parrain, insert paiement) doublerait
+  // son effet. INSERT ON CONFLICT DO NOTHING = si l'event a déjà été traité,
+  // on skip proprement et on répond 200.
+  try {
+    const inserted = await db
+      .insert(stripeWebhookEvents)
+      .values({ eventId: event.id, type: event.type })
+      .onConflictDoNothing({ target: stripeWebhookEvents.eventId })
+      .returning({ eventId: stripeWebhookEvents.eventId });
+
+    if (inserted.length === 0) {
+      logger.info("stripe.webhook.duplicate_skipped", { eventId: event.id, type: event.type });
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+  } catch (err) {
+    // Erreur DB sur la table de dédup → on log et on continue (le handler pourra
+    // gérer sa propre idempotence côté métier, ex : depositStatus === "paid")
+    logger.warn("stripe.webhook.dedup_failed", {
+      eventId: event.id,
+      err: err instanceof Error ? err.message : String(err),
+    });
   }
 
   try {

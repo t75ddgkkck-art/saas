@@ -54,6 +54,8 @@ const UpdateSchema = z
     enableStripe: z.boolean().optional().nullable(),
     acceptCash: z.boolean().optional().nullable(),
     acceptApplePay: z.boolean().optional().nullable(),
+    // F2 (Lot 30) : politique remboursement acompte (heures avant RDV)
+    depositRefundHours: z.number().int().min(0).max(720).optional().nullable(),
     loyaltyEnabled: z.boolean().optional().nullable(),
     loyaltyPointsPerEuro: z.number().int().min(0).max(1000).optional().nullable(),
     loyaltyReward: z.string().trim().max(500).optional().nullable(),
@@ -131,6 +133,10 @@ export async function PUT(request: NextRequest) {
         enableStripe: body.enableStripe ?? business.enableStripe,
         acceptCash: body.acceptCash ?? business.acceptCash,
         acceptApplePay: body.acceptApplePay ?? business.acceptApplePay,
+        depositRefundHours:
+          body.depositRefundHours !== undefined
+            ? body.depositRefundHours
+            : business.depositRefundHours,
         loyaltyEnabled: body.loyaltyEnabled ?? business.loyaltyEnabled,
         loyaltyPointsPerEuro: body.loyaltyPointsPerEuro ?? business.loyaltyPointsPerEuro,
         loyaltyReward: body.loyaltyReward ?? business.loyaltyReward,

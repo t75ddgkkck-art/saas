@@ -41,6 +41,10 @@ const errorResponseSchema = z.object({
 // Contrats — routes GET (payloads de lecture)
 // ---------------------------------------------------------------------------
 
+// Note : le schema DB utilise "cancelled" (2 L), pas "canceled" (contrairement
+// à ce qui aurait pu être fait par convention Stripe US). Découverte au Lot 30
+// via TS check — le contract test précédent était faux (jamais confronté à un
+// vrai payload). "draft" n'est pas dans l'enum DB non plus.
 const appointmentSchema = z.object({
   id: uuid,
   businessId: uuid,
@@ -48,7 +52,7 @@ const appointmentSchema = z.object({
   serviceId: uuid.nullable(),
   startTime: isoDate,
   endTime: isoDate,
-  status: z.enum(["draft", "pending", "confirmed", "completed", "no_show", "canceled"]),
+  status: z.enum(["pending", "confirmed", "completed", "no_show", "cancelled"]),
   notes: z.string().nullable(),
   createdAt: isoDate,
   updatedAt: isoDate.optional(),
@@ -219,9 +223,9 @@ describe("API contract — response shapes", () => {
 describe("API contract — enum stability", () => {
   // Les enums sont particulièrement fragiles : ajouter/renommer une valeur
   // casse tous les clients. On les fige explicitement ici.
-  it("appointment.status contient exactement 6 valeurs", () => {
+  it("appointment.status contient exactement 5 valeurs (aligné DB enum appointment_status)", () => {
     const values = appointmentSchema.shape.status.options;
-    expect(values).toEqual(["draft", "pending", "confirmed", "completed", "no_show", "canceled"]);
+    expect(values).toEqual(["pending", "confirmed", "completed", "no_show", "cancelled"]);
   });
 
   it("payment.status contient exactement 5 valeurs", () => {

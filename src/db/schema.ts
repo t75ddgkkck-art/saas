@@ -44,6 +44,16 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "refunded",
 ]);
 export const paymentTypeEnum = pgEnum("payment_type", ["deposit", "full", "subscription"]);
+// F2 (Lot 30) : statut spécifique aux acomptes RDV. Séparé de payment_status
+// car un RDV peut être `pending` (créneau tenu) → `paid` (acompte reçu) →
+// `refunded` (annulé dans les délais) OU `forfeited` (annulé hors délais,
+// acompte non remboursé, le pro conserve).
+export const depositStatusEnum = pgEnum("deposit_status", [
+  "pending",
+  "paid",
+  "refunded",
+  "forfeited",
+]);
 export const reminderTypeEnum = pgEnum("reminder_type", ["email", "sms", "whatsapp"]);
 export const clientSourceEnum = pgEnum("client_source", [
   "website",
@@ -193,6 +203,11 @@ export const businesses = pgTable(
     stripeAccountId: varchar("stripe_account_id", { length: 255 }),
     acceptCash: boolean("accept_cash").default(true),
     acceptApplePay: boolean("accept_apple_pay").default(false),
+    // F2 (Lot 30) : politique de remboursement d'acompte.
+    // Nombre d'heures AVANT le RDV où l'annulation donne droit au remboursement
+    // automatique. Ex : 48 → annulation 48h avant = remboursé, sinon forfeited.
+    // NULL = pas de politique définie (jamais remboursé automatiquement, à la main).
+    depositRefundHours: integer("deposit_refund_hours"),
     // Programme de fidélité (Premium)
     loyaltyEnabled: boolean("loyalty_enabled").default(false),
     loyaltyPointsPerEuro: integer("loyalty_points_per_euro").default(1),
@@ -289,7 +304,16 @@ export const services = pgTable("services", {
     .references(() => businesses.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
-  price: varchar("price", { length: 50 }), // ex: "50€", "Sur devis"
+  price: varchar("price", { length: 50 }), // ex: "50€", "Sur devis" (legacy, gardé pour compat)
+  // F2 (Lot 30) : prix numérique en centimes — nécessaire pour calculer un %
+  // d'acompte de manière fiable (le champ `price` varchar était humain, pas parseable).
+  // Nullable : les services legacy sans priceCents affichent le varchar comme avant.
+  priceCents: integer("price_cents"),
+  // F2 : configuration d'acompte pour ce service.
+  // Type=null → pas d'acompte demandé. Type=fixed → montant en centimes.
+  // Type=percent → depositAmount représente 0-100 (ex : 20 = 20%).
+  depositType: varchar("deposit_type", { length: 10 }), // "fixed" | "percent" | null
+  depositAmount: integer("deposit_amount"), // centimes si fixed, 0-100 si percent
   sortOrder: integer("sort_order").default(0).notNull(),
 });
 
@@ -441,6 +465,14 @@ export const appointments = pgTable(
     googleCalendarId: varchar("google_calendar_id", { length: 500 }),
     outlookCalendarId: varchar("outlook_calendar_id", { length: 500 }),
     reminderSent: boolean("reminder_sent").default(false),
+    // F2 (Lot 30) : traçabilité de l'acompte pour ce RDV.
+    // Si `depositRequired = true`, le RDV reste en status `pending` tant que
+    // `depositStatus !== 'paid'`. Passage à `confirmed` piloté par le webhook Stripe.
+    depositRequired: boolean("deposit_required").default(false).notNull(),
+    depositAmountCents: integer("deposit_amount_cents"), // NULL si pas d'acompte
+    depositStatus: depositStatusEnum("deposit_status"), // NULL si pas d'acompte
+    // Session Stripe Checkout — lien d'audit + retry potentiel
+    stripeCheckoutSessionId: varchar("stripe_checkout_session_id", { length: 255 }),
     // Lot 14.3 soft delete
     deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -455,6 +487,11 @@ export const appointments = pgTable(
     clientIdx: index("appointments_client_idx").on(t.clientId),
     // Lot 14.3 soft delete
     deletedAtIdx: index("appointments_deleted_at_idx").on(t.deletedAt),
+    // F2 (Lot 30) : cron d'expiration des acomptes en attente
+    // WHERE deposit_status='pending' AND created_at < now-15min
+    depositScanIdx: index("appointments_deposit_scan_idx")
+      .on(t.depositStatus, t.createdAt)
+      .where(sql`${t.depositStatus} = 'pending'`),
   })
 );
 
@@ -1062,6 +1099,24 @@ export const aiUsage = pgTable(
 // - Traçabilité RGPD (qui a fait quoi sur quel compte, quand)
 // - Rejouable en cas d'incident
 // - Une seule table pour tous les types d'événements admin (payload jsonb)
+// F2 (Lot 30, bonus B27) — Idempotence des webhooks Stripe.
+// Stripe retente les webhooks pendant 3 jours sur 5xx / timeout. Certains handlers
+// (crédit parrain, upsert paiement) NE SONT PAS strictement idempotents et
+// doubleraient l'effet si l'event était rejoué. Cette table garde une trace du
+// event_id traité — un INSERT sur clé dupliquée = event déjà vu → skip.
+export const stripeWebhookEvents = pgTable(
+  "stripe_webhook_events",
+  {
+    eventId: varchar("event_id", { length: 255 }).primaryKey(),
+    type: varchar("type", { length: 60 }).notNull(),
+    processedAt: timestamp("processed_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Purge périodique par type + date
+    typeProcessedIdx: index("stripe_webhook_type_processed_idx").on(t.type, t.processedAt),
+  })
+);
+
 export const adminEvents = pgTable(
   "admin_events",
   {

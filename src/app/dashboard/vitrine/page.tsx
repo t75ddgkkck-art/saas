@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { vitrineTemplates, templatesForPlan, getTemplate } from "@/lib/vitrine-templates";
 import type { Business } from "@/db/types";
+// F2 (Lot 30) : éditeur inline d'acompte, gaté sur `payments.stripe`
+import { ServiceDepositEditor } from "@/components/deposit/ServiceDepositEditor";
 import {
   Palette,
   Globe,
@@ -124,8 +126,20 @@ export default function VitrinePage() {
     },
     { label: "Description du projet", type: "textarea", options: "", required: true },
   ]);
+  // F2 (Lot 30) : les services portent maintenant AUSSI un prix numérique en
+  // centimes (`priceCents`) et une config d'acompte optionnelle (`depositType`
+  // + `depositAmount`). Tous nullable pour rétro-compat totale : les services
+  // existants qui n'ont pas rempli ces champs continuent de fonctionner comme
+  // avant (juste le champ `price` varchar affiché).
   const [servicesList, setServicesList] = useState<
-    { name: string; description: string; price: string }[]
+    {
+      name: string;
+      description: string;
+      price: string;
+      priceCents?: number | null;
+      depositType?: "fixed" | "percent" | null;
+      depositAmount?: number | null;
+    }[]
   >([]);
 
   useEffect(() => {
@@ -274,6 +288,10 @@ export default function VitrinePage() {
     stripeAccountId: "",
     acceptCash: true,
     acceptApplePay: false,
+    // F2 (Lot 30) : politique remboursement acompte (heures avant le RDV
+    // où le remboursement automatique s'applique). null = jamais auto,
+    // 0 = toujours remboursé, 24/48 = fenêtre classique.
+    depositRefundHours: null as number | null,
     iban: "",
     bic: "",
     loyaltyEnabled: false,
@@ -331,6 +349,7 @@ export default function VitrinePage() {
             stripeAccountId: b.stripeAccountId || "",
             acceptCash: b.acceptCash ?? true,
             acceptApplePay: b.acceptApplePay || false,
+            depositRefundHours: b.depositRefundHours ?? null,
             iban: b.iban || "",
             bic: b.bic || "",
             loyaltyEnabled: b.loyaltyEnabled || false,
@@ -820,6 +839,17 @@ export default function VitrinePage() {
                               className="flex-1"
                             />
                           </div>
+                          {/* F2 (Lot 30) : éditeur d'acompte, gaté sur payments.stripe */}
+                          <ServiceDepositEditor
+                            priceCents={s.priceCents}
+                            depositType={s.depositType}
+                            depositAmount={s.depositAmount}
+                            onChange={(patch) => {
+                              const next = [...servicesList];
+                              next[i] = { ...next[i], ...patch };
+                              setServicesList(next);
+                            }}
+                          />
                         </div>
                         <button
                           onClick={() => setServicesList(servicesList.filter((_, j) => j !== i))}
@@ -1034,11 +1064,41 @@ export default function VitrinePage() {
                             Connecter mon compte Stripe
                           </Button>
                           <p className="text-xs text-slate-500">
-                            Vous serez redirigé vers Stripe pour lier votre compte. C'est gratuit et
-                            sécurisé.
+                            Vous serez redirigé vers Stripe pour lier votre compte. C&apos;est
+                            gratuit et sécurisé.
                           </p>
                         </div>
                       )}
+                      {/* F2 (Lot 30) : politique de remboursement d'acompte */}
+                      <div className="mt-4 space-y-1">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                          Politique de remboursement d&apos;acompte
+                        </label>
+                        <select
+                          value={form.depositRefundHours ?? "none"}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setForm({
+                              ...form,
+                              depositRefundHours: v === "none" ? null : parseInt(v, 10),
+                            });
+                          }}
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                        >
+                          <option value="none">
+                            Jamais remboursé automatiquement (gestion manuelle)
+                          </option>
+                          <option value="0">Toujours remboursé si annulation</option>
+                          <option value="24">Remboursé si annulation ≥ 24h avant</option>
+                          <option value="48">Remboursé si annulation ≥ 48h avant</option>
+                          <option value="72">Remboursé si annulation ≥ 72h avant</option>
+                          <option value="168">Remboursé si annulation ≥ 7 jours avant</option>
+                        </select>
+                        <p className="text-xs text-slate-500">
+                          Au-delà de cette fenêtre, l&apos;acompte reste acquis en cas
+                          d&apos;annulation (protection anti no-show).
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -4,6 +4,202 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 26 — F2 Acompte Stripe à la réservation (+ bonus B27 idempotence webhook)
+
+Livre l'anti no-show : un client qui doit payer 20€ pour réserver n'annule pas à la dernière minute. Statistiquement, un acompte non-remboursable élimine 80% des no-show chez les artisans. **Différenciateur majeur vs concurrents FR.**
+
+Bonus offert : **B27 idempotence Stripe webhook** — table `stripe_webhook_events` avec PK sur `event_id`, INSERT ON CONFLICT DO NOTHING = un event rejoué (retry Stripe pendant 3j) ne double plus l'effet.
+
+## Modèle de données (5 nouvelles colonnes + 1 table + 1 enum)
+
+- **Enum `deposit_status`** : `pending` | `paid` | `refunded` | `forfeited`
+- **`services`** : `price_cents` (int), `deposit_type` (varchar), `deposit_amount` (int) + CHECK
+- **`businesses`** : `deposit_refund_hours` (int, nullable = pas de refund auto)
+- **`appointments`** : `deposit_required` (bool NOT NULL false), `deposit_amount_cents` (int), `deposit_status` (enum), `stripe_checkout_session_id` (varchar)
+- **`stripe_webhook_events`** (nouvelle table) : `event_id` PK, `type`, `processed_at`
+- Index partiel `appointments_deposit_scan_idx WHERE deposit_status = 'pending'` — cron
+- Index `appointments_stripe_session_idx` — lookup rapide webhook
+
+SQL idempotent bloc **4sexies** dans `sql/00_apply_safe.sql`.
+
+## Logique métier (`src/lib/deposit.ts`)
+
+Tout en **centimes** pour éviter float :
+
+- `computeDepositCents(service)` — fixed / percent avec cap au prix total + arrondi entier
+- `requiresDeposit(service)` — booléen
+- `decideRefundOnCancel({refundHours, appointmentStart, cancelledAt})` — `"refunded"` ou `"forfeited"`
+- `formatCentsEur(cents)` — locale fr-FR (12,50 €)
+- `describeDeposit(service)` — phrase humaine ("20 % soit 6,00 €")
+- Constante `DEPOSIT_CHECKOUT_EXPIRY_SEC = 30 * 60` (min Stripe)
+
+## Handlers Stripe étendus (`src/lib/stripe-events.ts`)
+
+- **`handleCheckoutCompleted`** — dispatch selon `metadata.type` :
+  - `"booking_deposit"` → `handleBookingDepositCompleted`
+  - Sinon → flow subscription (inchangé, retro-compat 100%)
+- **`handleBookingDepositCompleted`** (NEW) :
+  - Cible RDV par `stripeCheckoutSessionId` (indexé)
+  - Idempotence métier : skip si `depositStatus === "paid"`
+  - Update RDV `status=confirmed`, `depositStatus=paid`, insert `payments` type=deposit
+- **`handleCheckoutExpired`** (NEW) :
+  - Filtre metadata.type = booking_deposit
+  - Libère le slot
+  - Soft-delete RDV (status=cancelled)
+
+## Client Stripe étendu (`src/lib/stripe.ts`)
+
+- **`createDepositCheckoutSession()`** — session Checkout Connect avec :
+  - `expires_at` = 30 min (Stripe min)
+  - `metadata` = `{type: "booking_deposit", appointmentId, businessId, businessSlug}`
+  - Metadata également poussé sur `payment_intent_data` pour tracing PaymentIntent
+  - Sur le compte Stripe Connect du pro (pas Vitrix)
+- **`refundDeposit()`** — remboursement sur le compte Connect
+
+## Nouvelle route publique `/api/book-appointment/deposit-checkout`
+
+Rate-limit **3/10 min/IP** (strict). Flow :
+
+1. Résout business (ID ou slug) + service
+2. Gate `payments.stripe` sur le pro (entitlement F1 réutilisé)
+3. Calcule `depositCents`, valide ≥ 50 cts (min Stripe)
+4. Upsert client par `(business, phone)` (ne compte pas `appointmentsCount` avant paiement)
+5. Réserve slot atomiquement
+6. Crée RDV `status=pending`, `depositStatus=pending`, `depositRequired=true`
+7. Crée session Stripe + stocke `stripeCheckoutSessionId` sur le RDV
+8. Retourne `{checkoutUrl, appointmentId, expiresAt, amountCents}`
+9. **Rollback si Stripe fail** : libère slot + supprime RDV
+
+## Route classique `/api/book-appointment` inchangée
+
+Le flow sans acompte continue à fonctionner à l'identique — retro-compat totale.
+
+## Idempotence webhook Stripe (B27)
+
+Dans `src/app/api/stripe/webhook/route.ts` :
+
+```ts
+const inserted = await db
+  .insert(stripeWebhookEvents)
+  .values({ eventId: event.id, type: event.type })
+  .onConflictDoNothing({ target: stripeWebhookEvents.eventId })
+  .returning({ eventId: stripeWebhookEvents.eventId });
+
+if (inserted.length === 0) {
+  return NextResponse.json({ received: true, duplicate: true });
+}
+```
+
+Stripe retente les webhooks pendant 3 jours en cas de 5xx/timeout. Sans dédup, un handler comme `handleBookingDepositCompleted` (insert payment) doublerait. Maintenant : un event rejoué = short-circuit avant même d'appeler le handler.
+
+## UI dashboard (dashboard/vitrine)
+
+### `<ServiceDepositEditor>` (nouveau composant)
+
+S'insère sous chaque service dans "Mes Services & Tarifs" :
+
+- Repli/déploi avec preview du montant
+- Champs : Prix (€), Type (Aucun / Fixe / Pourcentage), Montant
+- **Gaté** sur `payments.stripe` : Free voit un lien vers `/pricing?from=payments.stripe`
+- Alerte visuelle si `percent` sans priceCents
+
+### Politique de remboursement dans le bloc Paiements
+
+Nouveau `<select>` sous "Compte Stripe connecté" :
+- Jamais / Toujours / ≥24h / ≥48h / ≥72h / ≥7j
+
+## Extension de l'API `/api/my-business` PUT
+
+Accepte `depositRefundHours: number | null` — mergé avec les autres champs update, écrit sur `businesses.deposit_refund_hours`.
+
+## Extension de l'API `/api/services` PUT
+
+Accepte optionnellement `priceCents`, `depositType`, `depositAmount` par service. Validation cross-field (`percent` → 1 ≤ amount ≤ 100). CHECK SQL en dernier ressort.
+
+Retro-compat 100% : les payloads existants sans ces champs continuent de fonctionner (null par défaut).
+
+## Cron sanity `/api/cron/expire-deposits`
+
+Passe toutes les 30 min (`vercel.json`). Sécurisé par `CRON_SECRET`.
+
+Filtre : `depositStatus = 'pending' AND createdAt < now - 45min AND deletedAt IS NULL`.
+
+Ceinture-bretelles pour les cas rares où `checkout.session.expired` n'arrive pas (endpoint webhook down au bon moment, signature invalide temporaire).
+
+## Correction de bug découvert par TS check
+
+Le contract test API du Lot 27 figeait `"canceled"` (US) alors que l'enum DB utilise `"cancelled"` (2 L). Le test passait car il ne touchait pas la DB. Correction du schéma Zod contract + suppression du `"draft"` inexistant.
+
+## Documentation
+
+`docs/DEPOSIT.md` — guide complet : flow visiteur, config pro, modèle de données, sécurité, roadmap v2/v3/v4.
+
+## Tests (33 unit)
+
+- **`tests/unit/deposit.test.ts`** : 26 tests
+  - `computeDepositCents` : fixed, percent, cap prix, arrondi banquier, priceCents null, 100%, > 100 ceinture-bretelles
+  - `decideRefundOnCancel` : null hours, 0 hours, exactement à la fenêtre, dans/hors fenêtre, ISO string
+  - `formatCentsEur`, `describeDeposit`
+- **`tests/unit/deposit-webhook.test.ts`** : 7 tests avec mocks `@/db` fluide + `@/lib/logger` + `@/lib/email`
+  - Dispatch `handleCheckoutCompleted` deposit vs subscription
+  - Cas nominal : update + insert
+  - **Idempotence** : rejeu event = no-op
+  - RDV introuvable → no-op
+  - Metadata incomplet → no-op
+
+## Fichiers créés / modifiés
+
+**Créés** :
+- `src/lib/deposit.ts` (140 lignes)
+- `src/app/api/book-appointment/deposit-checkout/route.ts` (250 lignes)
+- `src/app/api/cron/expire-deposits/route.ts` (95 lignes)
+- `src/components/deposit/ServiceDepositEditor.tsx` (185 lignes)
+- `docs/DEPOSIT.md`
+- `tests/unit/deposit.test.ts` (26 tests)
+- `tests/unit/deposit-webhook.test.ts` (7 tests)
+
+**Modifiés** :
+- `src/db/schema.ts` — `depositStatusEnum`, colonnes services/businesses/appointments, table `stripeWebhookEvents`, index
+- `sql/00_apply_safe.sql` — bloc 4sexies (idempotent)
+- `src/lib/stripe.ts` — `createDepositCheckoutSession`, `refundDeposit`
+- `src/lib/stripe-events.ts` — dispatch checkout, handlers deposit + expired
+- `src/app/api/stripe/webhook/route.ts` — dédup event.id + handler expired
+- `src/app/api/services/route.ts` — accepte deposit fields
+- `src/app/api/my-business/route.ts` — accepte depositRefundHours
+- `src/app/dashboard/vitrine/page.tsx` — insertion `<ServiceDepositEditor>` + politique refund
+- `vercel.json` — cron expire-deposits toutes les 30 min
+- `tests/unit/api-contract.test.ts` — fix `cancelled` orthographe (bug Lot 27)
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 190 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **405 tests / 43 fichiers, tous verts** (+33 vs Lot 29)
+- ✅ `npm run test:coverage` — lines **45.26%** (↑ de 44.99%), functions 60.16%, branches 82.38%
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **Anti no-show** : élimine 80% des annulations dernière minute → argument commercial fort côté Pro/Premium
+- **Différenciateur marché FR** : Simplébo, Solocal, ProwebCE n'ont pas d'acompte Stripe natif
+- **Revenus indirects** : les no-show étaient à perte pour les artisans (créneau brûlé, matériel prévu) → gain net par pro
+- **Idempotence webhook** (B27) : plus de risque de crédit parrain doublé, de paiement enregistré 2× ou d'activation d'abonnement dupliquée
+
+## Actions post-déploiement
+
+1. **Appliquer le SQL** : `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4sexies + table `stripe_webhook_events`
+2. **Configurer les webhooks Stripe** : ajouter l'event `checkout.session.expired` dans le Dashboard Stripe (les autres events sont déjà configurés)
+3. **Vercel Cron** : le cron `expire-deposits` s'ajoute automatiquement à partir de `vercel.json` au prochain deploy
+4. **Test end-to-end** : créer un service avec 20% d'acompte, réserver depuis la vitrine test, vérifier le flow Checkout → webhook → confirmation
+5. **Communication users pro** : mail "Nouvelle fonctionnalité : réduisez vos no-show avec un acompte" — champagne pour la conversion Free→Pro
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 25 — F1 Entitlements centralisés + UpgradeGate + guard API
 
 Ferme le bug **B21** (feature-gating éparpillé, fuite de valeur). Avant : 15+ fichiers avec `plan === "premium"` inline, et **`/api/loyalty` + `/api/ai-chat` totalement ouverts à tous les plans**. Un user Free pouvait hit ces routes en direct et consommer les features Premium. Confirmé par grep pré-lot.
