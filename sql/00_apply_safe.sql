@@ -646,6 +646,36 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4quinquies. Lot 24 — CRM enrichi (no-show, doublons, relance impayés)
+-- -----------------------------------------------------------------------------
+
+-- Ajout `no_show` à l'enum appointment_status (idempotent via IF NOT EXISTS)
+-- Postgres 12+ requis pour ADD VALUE IF NOT EXISTS.
+DO $$ BEGIN
+  ALTER TYPE public.appointment_status ADD VALUE IF NOT EXISTS 'no_show';
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+
+-- Colonne compteur no-show sur clients (utile CRM : détection clients à risque)
+DO $$ BEGIN
+  IF public.__vx_table_exists('clients') THEN
+    ALTER TABLE public.clients
+      ADD COLUMN IF NOT EXISTS no_shows_count integer DEFAULT 0 NOT NULL;
+  END IF;
+END $$;
+
+-- Colonne "dernier rappel impayé" sur payments pour éviter le spam relance
+DO $$ BEGIN
+  IF public.__vx_table_exists('payments') THEN
+    ALTER TABLE public.payments
+      ADD COLUMN IF NOT EXISTS last_reminder_at timestamp,
+      ADD COLUMN IF NOT EXISTS reminder_count   integer DEFAULT 0 NOT NULL;
+    CREATE INDEX IF NOT EXISTS payments_reminder_scan_idx
+      ON public.payments (status, created_at)
+      WHERE status = 'pending';
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

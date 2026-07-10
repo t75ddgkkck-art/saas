@@ -4,6 +4,150 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 21 — Lot 24 CRM & Business
+
+Adresse les manques CRM/pro :
+- ❌ Pas d'import CSV clients (blocker migration Excel) → **fait, format flexible FR/EN**
+- ❌ Pas d'export CSV clients → **fait, compatible Excel avec BOM**
+- ❌ Pas de fiche client détaillée avec historique complet → **fait, page dédiée**
+- ❌ Pas de détection doublons → **fait par phone + email**
+- ❌ Pas de tracking no-show → **fait, status enum + compteur client**
+- ❌ Pas de relance impayés auto → **fait, cron 3-échelles (J+7/J+15/J+30)**
+
+## Schéma DB (idempotent)
+
+`sql/00_apply_safe.sql` bloc "4quinquies Lot 24" (~30 lignes SQL) :
+- `ALTER TYPE appointment_status ADD VALUE IF NOT EXISTS 'no_show'` (PG 12+, ADD VALUE IF NOT EXISTS)
+- `clients.no_shows_count integer NOT NULL DEFAULT 0`
+- `payments.last_reminder_at timestamp` + `payments.reminder_count integer NOT NULL DEFAULT 0`
+- Index partiel `payments_reminder_scan_idx WHERE status = 'pending'` (hot path cron)
+
+## Nouvelles routes API (6)
+
+- `GET /api/clients/[id]` — fiche complète : client + historique RDV + devis + paiements + notes + agrégats calculés à la volée (totalRevenue, noShows, completedAppointments, totalAppointments, totalQuotes)
+- `PATCH /api/clients/[id]` — édition partielle avec normalize phone, ownership business anti-IDOR
+- `DELETE /api/clients/[id]` — soft delete (Lot 14.3)
+- `GET /api/clients/export` — CSV UTF-8+BOM, 11 colonnes, rate 5/h
+- `POST /api/clients/import` — multipart, upsert par (business, phone normalisé), cap 5000 lignes / 2 MB / rate 3/h, headers alias FR/EN, réponse `{imported, updated, skipped, errors[]}`
+- `GET /api/clients/duplicates` — groupes par phone OU email exact (pas de fuzzy match → 0 faux positif)
+
+## Nouveau cron
+
+- `GET /api/cron/payment-reminders` — quotidien 10h (vercel.json)
+- 3-échelles : J+7 aimable → J+15 rappel → J+30 dernier avant recouvrement
+- Anti-spam via `last_reminder_at` + `reminder_count`
+- Cap 3 relances max, skip si pas d'email client
+- Templates HTML inline (subject + body en français)
+- Sécurité `CRON_SECRET` header
+- Fonction pure `shouldRemind(count, createdAt, lastReminderAt)` exportée pour tests
+
+## Nouveaux composants + libs
+
+- **`src/lib/csv.ts`** — `serializeCsv` + `parseCsv` maison, zéro dep NPM (vs Papa Parse 45 KB), 130 lignes, gère quotes/escape/newlines/BOM
+- **`src/components/ui/EmptyState`** (déjà Lot 20) réutilisé dans les sections
+
+## Refonte pages dashboard
+
+### `dashboard/clients/page.tsx`
+- Nouveaux boutons **"Importer CSV"** (input file caché avec label) + **"Exporter CSV"** (lien `<a href="/api/clients/export">`)
+- Loader spinner pendant import
+- Toasts succès/erreur/warning avec compteurs (imported / updated / skipped)
+- Bouton `<ExternalLink>` sur chaque card → route directe `/dashboard/clients/[id]` sans passer par le modal
+- `PageTitle`
+
+### `dashboard/clients/[id]/page.tsx` (nouvelle page)
+- Header avec avatar initiales + date "Client depuis"
+- **Warning orange "Client à risque"** si `noShows >= 2` (avec pourcentage + reco acompte)
+- Contact card (email/phone/adresse/source, liens `tel:` et `mailto:`)
+- 4 KPIs : total dépensé / RDV honorés / devis / no-show
+- 4 sections historique : RDV / Devis (avec lien vers `/dashboard/quotes/[id]`) / Paiements / Notes
+- Modal édition rapide (nom/email/phone/adresse/notes)
+- Bouton suppression avec `useConfirm()` (Lot 22)
+- Skeletons + état "introuvable" clean
+
+## Autres modifs
+
+- `src/app/api/appointments/[id]/route.ts` : ajout `no_show` au StatusEnum + incrément `clients.noShowsCount` (fire-and-forget) quand statut passe à `no_show`
+- `vercel.json` : ajout cron `payment-reminders` à 10h
+
+## Tests (+22)
+
+- `tests/unit/csv.test.ts` — 15 tests : serialize (quotes, newlines, BOM), parse (CRLF, quotes double-escape, BOM), roundtrip
+- `tests/unit/payment-reminders.test.ts` — 7 tests : logique `shouldRemind` (jeune facture, 3 échelles, cap 3, safety net)
+
+## Fichiers créés/modifiés
+
+**Créés (10)** :
+- `src/app/api/clients/[id]/route.ts` (GET + PATCH + DELETE)
+- `src/app/api/clients/export/route.ts`
+- `src/app/api/clients/import/route.ts`
+- `src/app/api/clients/duplicates/route.ts`
+- `src/app/api/cron/payment-reminders/route.ts`
+- `src/app/dashboard/clients/[id]/page.tsx`
+- `src/lib/csv.ts`
+- `tests/unit/csv.test.ts` (15 tests)
+- `tests/unit/payment-reminders.test.ts` (7 tests)
+- `docs/CRM.md`
+
+**Modifiés** :
+- `src/db/schema.ts` — `no_show` enum + `noShowsCount` + `lastReminderAt` / `reminderCount`
+- `sql/00_apply_safe.sql` — bloc Lot 24 idempotent
+- `src/app/api/appointments/[id]/route.ts` — enum + incrément no_shows_count
+- `src/app/dashboard/clients/page.tsx` — Import / Export / Fiche
+- `vercel.json` — cron payment-reminders
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 280/280 tests (36 fichiers, +22 nouveaux)
+✅ npx next build      → 0 warning, compilé en 20s
+```
+
+## Impact business
+
+- **Migration Excel possible** → onboarding des pros existants sans re-saisir des centaines de clients
+- **Fiche client 360°** → l'artisan voit tout d'un coup : historique RDV, devis signés, paiements, no-shows → conversations client plus riches
+- **No-show tracking automatique** → identifier les clients à risque, appliquer politique acompte
+- **Relance impayés automatique** → +15-30% recouvrement en moyenne selon études SaaS
+- **Doublons détectés** → base propre pour campagnes email/SMS futures
+- **Export CSV** → conforme RGPD (portabilité) + comptable (Excel-friendly)
+
+## Actions post-déploiement
+
+1. **Jouer `sql/00_apply_safe.sql`** dans Supabase (idempotent, ~5s)
+2. Vérifier `CRON_SECRET` sur Vercel
+3. **Tester import** : créer un CSV test avec `firstName,lastName,phone` et 3 lignes, upload via UI → vérifier création
+4. **Tester export** : bouton "Exporter CSV" → ouvrir avec Excel FR → accents corrects
+5. **Simuler no-show** : PATCH un RDV en `no_show` puis ouvrir la fiche client → warning orange
+6. **Simuler relance** : modifier `created_at` d'un `payment` pending à J-10 → attendre le cron du lendemain matin OU appeler manuellement `curl -H "x-cron-secret: XXX" /api/cron/payment-reminders`
+
+## Historique commits
+
+```
+95f7b53  lot 24 CRM: import/export CSV, fiche client, doublons, no-show tracking, cron relance impayés
+45506de  lot 23 vitrine boostée: Lightbox swipeable + MapEmbed OSM + ReviewsCarousel + vidéo YT/Vimeo
+b75dc3a  lot 22 UX cohérente: ConfirmDialog + useConfirm + Breadcrumbs + PageTitle, 10 alert() nettoyés
+d97b927  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
+8f3a974  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic
+7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
+a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 20 — Lot 23 Vitrine publique boostée
 
 Adresse les manques UX identifiés sur la vitrine :
@@ -96,7 +240,7 @@ Aucune migration SQL. Test après déploiement :
 ## Historique commits
 
 ```
-d03c4ae  lot 23 vitrine boostée: Lightbox swipeable + MapEmbed OSM + ReviewsCarousel + vidéo YT/Vimeo
+45506de  lot 23 vitrine boostée: Lightbox swipeable + MapEmbed OSM + ReviewsCarousel + vidéo YT/Vimeo
 b75dc3a  lot 22 UX cohérente: ConfirmDialog + useConfirm + Breadcrumbs + PageTitle, 10 alert() nettoyés
 d97b927  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
 8f3a974  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic

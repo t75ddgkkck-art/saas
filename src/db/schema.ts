@@ -19,7 +19,10 @@ import { relations, sql } from "drizzle-orm";
 
 export const roleEnum = pgEnum("role", ["admin", "professional", "employee", "assistant"]);
 export const subscriptionEnum = pgEnum("subscription", ["free", "pro", "premium"]);
-export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "confirmed", "cancelled", "completed"]);
+// Lot 24 : ajout de `no_show` (client absent au RDV). Utilisé par le CRM
+// pour incrémenter `clients.no_shows_count` et proposer une politique
+// (rappel obligatoire, acompte à l'avance…) pour les clients à risque.
+export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "confirmed", "cancelled", "completed", "no_show"]);
 export const quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "accepted", "rejected", "signed", "expired"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "completed", "failed", "refunded"]);
 export const paymentTypeEnum = pgEnum("payment_type", ["deposit", "full", "subscription"]);
@@ -426,6 +429,9 @@ export const clients = pgTable(
     totalSpent: decimal("total_spent", { precision: 10, scale: 2 }).default("0"),
     appointmentsCount: integer("appointments_count").default(0),
     quotesCount: integer("quotes_count").default(0),
+    // Lot 24 : incrémenté à chaque RDV passé en `no_show` par le pro.
+    // Le CRM affichera un badge "⚠️ 3 no-shows" pour identifier les clients à risque.
+    noShowsCount: integer("no_shows_count").default(0).notNull(),
     lastContact: timestamp("last_contact"),
     // Lot 14.3 soft delete
     deletedAt: timestamp("deleted_at"),
@@ -568,6 +574,10 @@ export const payments = pgTable(
     invoiceGenerated: boolean("invoice_generated").default(false),
     invoiceUrl: varchar("invoice_url", { length: 500 }),
     metadata: jsonb("metadata"),
+    // Lot 24 : relance impayés — J+7, J+15, J+30 via cron. Évite le spam
+    // en checkant l'écart depuis la dernière relance.
+    lastReminderAt: timestamp("last_reminder_at"),
+    reminderCount: integer("reminder_count").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

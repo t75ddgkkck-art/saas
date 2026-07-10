@@ -8,8 +8,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { appointments, clients } from "@/db/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { validateBody } from "@/lib/api-helpers";
 import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
@@ -17,7 +17,8 @@ import { dispatchWebhook } from "@/lib/webhooks-out";
 
 export const dynamic = "force-dynamic";
 
-const StatusEnum = z.enum(["pending", "confirmed", "cancelled", "completed"]);
+// Lot 24 : ajout `no_show` — quand un pro le sélectionne, on incrémente le compteur client
+const StatusEnum = z.enum(["pending", "confirmed", "cancelled", "completed", "no_show"]);
 
 const UpdateSchema = z.object({
   status: StatusEnum.optional(),
@@ -56,6 +57,21 @@ export async function PATCH(
       .returning();
 
     if (!updated) throw notFound("RDV introuvable");
+
+    // Lot 24 : incrément no_shows_count du client si passage à no_show.
+    // Fire-and-forget côté client — l'update RDV réussit même si l'incrément échoue.
+    if (data.status === "no_show" && updated.clientId) {
+      void db
+        .update(clients)
+        .set({
+          noShowsCount: sql`${clients.noShowsCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(clients.id, updated.clientId))
+        .catch(() => {
+          /* silent — l'audit trail reste dans les logs webhook */
+        });
+    }
 
     // Webhook selon type de changement
     if (data.status === "cancelled") {

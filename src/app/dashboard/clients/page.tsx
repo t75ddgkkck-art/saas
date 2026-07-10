@@ -20,8 +20,14 @@ import {
   MoreHorizontal,
   User,
   Loader2,
+  Upload,
+  Download,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
+import { useToast } from "@/components/ui/Toast";
+import { PageTitle } from "@/components/layout/PageTitle";
 
 interface Client {
   id: string;
@@ -37,15 +43,45 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  const toast = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  
+  const [importing, setImporting] = useState(false);
+
   // Form state
   const [newClient, setNewClient] = useState({ firstName: "", lastName: "", email: "", phone: "" });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Lot 24 : import CSV via <input type="file"> caché (déclenché par bouton)
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/clients/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur d'import");
+      toast.success(
+        `Import terminé — ${data.imported} créés, ${data.updated} mis à jour, ${data.skipped} ignorés`
+      );
+      if (data.errors?.length > 0) {
+        toast.warning(`${data.errors.length} lignes en erreur (voir console)`);
+        // eslint-disable-next-line no-console
+        console.warn("[import] erreurs:", data.errors);
+      }
+      fetchClients();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur d'import");
+    } finally {
+      setImporting(false);
+      e.target.value = ""; // reset input pour ré-import du même fichier possible
+    }
+  }
 
   useEffect(() => {
     fetchClients();
@@ -90,15 +126,45 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
+      <PageTitle title="Clients" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Clients</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Gérez votre base de clients (tous plans)</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Gérez votre base de clients — importez / exportez au format CSV
+          </p>
         </div>
-        <Button onClick={() => setShowNewModal(true)} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter un client
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {/* Lot 24 : import CSV (input file caché + label) */}
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleImport}
+              className="hidden"
+              disabled={importing}
+            />
+            <span className="inline-flex h-11 items-center rounded-xl border-2 border-slate-200 bg-transparent px-5 text-sm font-medium text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800">
+              {importing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Importer CSV
+            </span>
+          </label>
+          <a
+            href="/api/clients/export"
+            className="inline-flex h-11 items-center rounded-xl border-2 border-slate-200 bg-transparent px-5 text-sm font-medium text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+            Exporter CSV
+          </a>
+          <Button onClick={() => setShowNewModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Ajouter
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -132,9 +198,21 @@ export default function ClientsPage() {
                     <p className="text-xs text-slate-500 dark:text-slate-400">{client.email}</p>
                   </div>
                 </div>
-                <Badge variant={(client.totalSpent || 0) > 2000 ? "success" : (client.totalSpent || 0) > 500 ? "info" : "default"}>
-                  {client.source || "Direct"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={(client.totalSpent || 0) > 2000 ? "success" : (client.totalSpent || 0) > 500 ? "info" : "default"}>
+                    {client.source || "Direct"}
+                  </Badge>
+                  {/* Lot 24 : lien direct vers la fiche détaillée (stopPropagation
+                      pour ne pas ouvrir aussi le modal recap) */}
+                  <Link
+                    href={`/dashboard/clients/${client.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Voir la fiche de ${client.firstName} ${client.lastName}`}
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  >
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
               </div>
 
               <div className="mt-4 grid grid-cols-3 gap-3">
