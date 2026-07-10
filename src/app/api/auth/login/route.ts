@@ -45,6 +45,14 @@ export async function POST(request: NextRequest) {
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) throw invalidCreds;
 
+    // Lot 13 monitoring : compte banni par un admin → refus explicite.
+    // Message spécifique ok ici (info connue de l'user, pas d'énumération possible).
+    if (user.bannedAt) {
+      throw unauthorized(
+        "Ce compte a été suspendu. Contactez le support pour plus d'informations."
+      );
+    }
+
     const token = createSessionToken(user.id);
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_SEC * 1000);
     const secure =

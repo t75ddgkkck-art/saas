@@ -16,6 +16,7 @@ import {
   Zap,
   QrCode,
   Wrench,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
@@ -44,9 +45,17 @@ export function Sidebar() {
   const { td } = useLang();
   const plan = user?.subscription || "free";
   // Assistant IA réservé UNIQUEMENT au plan Premium
-  const navItems = plan === "premium"
+  let navItems = plan === "premium"
     ? [...baseNavItems.slice(0, 5), aiNavItem, baseNavItems[5]]
     : baseNavItems;
+
+  // Lot 13 : entrée admin uniquement pour les users role=admin
+  if (user?.role === "admin") {
+    navItems = [
+      ...navItems,
+      { href: "/dashboard/admin", labelKey: "adminNav", icon: Shield },
+    ];
+  }
 
   return (
     <>

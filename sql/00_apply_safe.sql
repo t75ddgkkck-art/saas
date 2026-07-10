@@ -87,10 +87,45 @@ DO $$ BEGIN
       ADD COLUMN IF NOT EXISTS subscription_status      varchar(30),
       ADD COLUMN IF NOT EXISTS subscription_expires_at  timestamp,
       ADD COLUMN IF NOT EXISTS email_verified           boolean DEFAULT false NOT NULL,
-      ADD COLUMN IF NOT EXISTS phone                    varchar(20);
+      ADD COLUMN IF NOT EXISTS phone                    varchar(20),
+      -- Lot 13 monitoring : soft ban admin
+      ADD COLUMN IF NOT EXISTS banned_at                timestamp,
+      ADD COLUMN IF NOT EXISTS ban_reason               varchar(500);
     CREATE INDEX IF NOT EXISTS users_subscription_expires_idx
       ON public.users (subscription_expires_at);
   END IF;
+END $$;
+
+-- admin_events (Lot 13 monitoring) : audit trail des actions admin
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.admin_events (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_user_id   uuid,
+    target_user_id  uuid,
+    action          varchar(60) NOT NULL,
+    payload         jsonb,
+    ip              varchar(45),
+    created_at      timestamp NOT NULL DEFAULT NOW()
+  );
+  -- FKs séparés (ON DELETE SET NULL) — ne bloque pas si users absent au premier apply
+  IF public.__vx_table_exists('users') THEN
+    BEGIN
+      ALTER TABLE public.admin_events
+        ADD CONSTRAINT admin_events_actor_fk
+        FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN
+      ALTER TABLE public.admin_events
+        ADD CONSTRAINT admin_events_target_fk
+        FOREIGN KEY (target_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  CREATE INDEX IF NOT EXISTS admin_events_actor_created_idx
+    ON public.admin_events (actor_user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS admin_events_target_created_idx
+    ON public.admin_events (target_user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS admin_events_action_created_idx
+    ON public.admin_events (action, created_at DESC);
 END $$;
 
 -- businesses

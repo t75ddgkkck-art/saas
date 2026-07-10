@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { captureException } from "@/lib/monitoring";
 
 /**
  * Gestion centralisée des erreurs API.
  * - Log complet côté serveur (avec stack).
  * - Réponse générique côté client (pas de fuite de détails internes).
  * - Support de codes HTTP typés via `HttpError`.
+ * - Erreurs 5xx transmises à Sentry via `captureException` (Lot 13).
  */
 export class HttpError extends Error {
   status: number;
@@ -40,13 +42,20 @@ export function handleApiError(
   if (err instanceof HttpError) {
     // Erreur métier attendue : on log en info/warn, pas en error
     logger.warn(`[api] ${err.status} ${err.message}`, { ...context, code: err.code });
+    // On ne remonte PAS les 4xx à Sentry (bruit inutile)
     return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
   }
 
   const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? err.stack : undefined;
 
-  logger.error("[api] Unhandled error", { ...context, message, stack });
+  // Erreur 5xx inattendue → Sentry + log + éventuelle alerte
+  // captureException log déjà en interne, pas besoin de logger.error en double
+  captureException(err, {
+    route: context?.route,
+    userId: context?.userId,
+    severity: "error",
+    extra: { message },
+  });
 
   // Message générique pour ne pas fuiter la stack / SQL
   return NextResponse.json(

@@ -17,9 +17,21 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Le vrai monitoring devrait passer par Sentry / Highlight ici
-    // eslint-disable-next-line no-console
-    console.error("[app] uncaught error", error);
+    // Lot 13 : import dynamique pour ne pas embarquer le monitoring
+    // dans le bundle initial (côté client). Le fallback logger tourne
+    // quand même via console.error si aucun Sentry configuré.
+    void import("@/lib/monitoring")
+      .then(({ captureException }) => {
+        captureException(error, {
+          route: "app/error.tsx",
+          severity: "error",
+          extra: { digest: error.digest },
+        });
+      })
+      .catch(() => {
+        // eslint-disable-next-line no-console
+        console.error("[app] uncaught error", error);
+      });
   }, [error]);
 
   return (

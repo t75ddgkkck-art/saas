@@ -48,6 +48,10 @@ export const users = pgTable(
     // même si Stripe indique past_due/unpaid. Downgrade auto après.
     subscriptionExpiresAt: timestamp("subscription_expires_at"),
     emailVerified: boolean("email_verified").default(false).notNull(),
+    // Lot 13 monitoring : ban admin (soft, ne supprime rien).
+    // Non-null = compte banni depuis cette date → login refusé.
+    bannedAt: timestamp("banned_at"),
+    banReason: varchar("ban_reason", { length: 500 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -899,5 +903,34 @@ export const aiUsage = pgTable(
     userCreatedIdx: index("ai_usage_user_created_idx").on(t.userId, t.createdAt),
     // Index pour agrégations admin ("quel modèle coûte le plus ?")
     modelCreatedIdx: index("ai_usage_model_created_idx").on(t.model, t.createdAt),
+  })
+);
+
+// ============== ADMIN EVENTS (Lot 13 monitoring) ==============
+// Journal d'audit des actions admin : ban/unban user, refund, override plan, etc.
+// - Traçabilité RGPD (qui a fait quoi sur quel compte, quand)
+// - Rejouable en cas d'incident
+// - Une seule table pour tous les types d'événements admin (payload jsonb)
+export const adminEvents = pgTable(
+  "admin_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // Admin qui a déclenché l'action (nullable si système / cron)
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    // User cible (nullable si l'action ne concerne pas un user précis)
+    targetUserId: uuid("target_user_id").references(() => users.id, { onDelete: "set null" }),
+    // Type d'action : ban_user, unban_user, override_plan, refund, delete_business, ...
+    action: varchar("action", { length: 60 }).notNull(),
+    // Détails libres (raison, montant refund, ancien/nouveau plan...)
+    payload: jsonb("payload"),
+    // IP source pour audit sécurité
+    ip: varchar("ip", { length: 45 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Filtres classiques admin panel
+    actorCreatedIdx: index("admin_events_actor_created_idx").on(t.actorUserId, t.createdAt),
+    targetCreatedIdx: index("admin_events_target_created_idx").on(t.targetUserId, t.createdAt),
+    actionCreatedIdx: index("admin_events_action_created_idx").on(t.action, t.createdAt),
   })
 );
