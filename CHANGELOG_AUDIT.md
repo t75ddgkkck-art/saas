@@ -4,134 +4,155 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
-# 🟢 Tour 8 — Lot 8 I18N (multilingue)
+# 🟢 Tour 9 — Lot 9 Emails & Communications
 
-## 8.1 — `src/lib/i18n.ts` refondu (source de vérité typée)
+## 9.1 — Config email centralisée + branding correct
 
-Avant : ~25 clés de vitrine + ~40 clés dashboard, dictionnaires inline non typés, aucune interpolation.
-Après : **116 clés** unifiées dans un module i18n complet :
+Nouveau **`src/lib/email-core.ts`** :
+- `sendEmailRaw(opts)` : transport pur (Resend), pas de logique métier
+- Config env : `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME`, `RESEND_REPLY_TO`
+- `from` par défaut : `"Vitrix <noreply@vitrix.fr>"` (nom affiché avant l'adresse)
+- **Support `replyTo`** : le client peut répondre au pro (pas au noreply)
+- **Support `headers` custom** : pour List-Unsubscribe RFC 8058
 
-- Type `TranslationKey` **dérivé automatiquement** de `TRANSLATIONS.fr` — si tu ajoutes une clé en FR, TS te force à la déclarer partout (ou fallback silencieux sur FR).
-- **Interpolation `{name}`** supportée : `t("fr", "emailFooterLegal", { business: "Nathan" })`.
-- **Fallback intelligent** : si la clé manque dans en/es/de, on prend la version FR (jamais de clé littérale visible côté user).
-- **4 langues** au complet : fr / en / es / de.
-- **Catégories de clés** : vitrine CTA, sections, réservation, devis, erreurs génériques, dashboard, éditeur vitrine, accessibilité, emails.
+## 9.2 — Queue email non-bloquante avec retry exponentiel
 
-Nouvelles fonctions exportées :
-- `t(lang, key, vars?)` — traduction principale typée
-- `td(lang, key)` — alias historique (compat dashboard)
-- `detectLangFromAcceptLanguage(header)` — parse `Accept-Language`
-- `formatLocaleDate(date, lang, opts?)` — format date locale
-- `formatLocaleCurrency(amount, lang, currency?)` — format devise locale
-- `allKeys()` — liste toutes les clés (utile aux outils)
-- Constantes `SUPPORTED_LANGS`, `DEFAULT_LANG`
+Nouveau **`src/lib/email-queue.ts`** :
+- `enqueueEmail(opts)` = fire-and-forget, jamais throw
+- **Retry** 3 tentatives : 1s → 5s → 30s (exponentiel)
+- **API répond immédiatement** au user ; l'email part quelques ms plus tard
+- **Skip automatique** si le destinataire a opt-out (sauf `transactional`)
+- **List-Unsubscribe** ajouté automatiquement pour marketing/reminders/review-request
 
-## 8.2 — Dashboard : `LangContext` enrichi
+`sendEmail(opts, meta?)` refondu :
+- Compat 100% ascendante (signature `sendEmail({to, subject, html})`)
+- 2ᵉ arg optionnel `{ category?, sync? }` pour opt-in
+- Par défaut passe par la queue ; `{ sync: true }` = envoi bloquant
 
-- `useLang()` expose maintenant `t(key, vars?)` en plus de `td(key)` — permet l'interpolation partout dans le dashboard.
-- L'ancien contrat `td` reste identique → **aucune régression**.
-- Détection auto de la langue au chargement (voir 8.5).
+## 9.3 — Templates : footer légal + wrapper i18n
 
-## 8.3 — Emails multilingues
+Le `baseWrapper` accepte maintenant :
+- `unsubscribeEmail`, `unsubscribeCategory` → lien de désabonnement en footer
+- `lang` → labels footer traduits ("Sent by / for / Unsubscribe")
 
-Nouveau **`src/lib/email-i18n.ts`** avec fonctions `e(lang, key)` + `ei(template, vars)` :
+Les templates existants restent inchangés (compat totale) mais peuvent maintenant recevoir ces options.
 
-- **7 sujets traduits** (booking, quote, review, reminder…)
-- **20+ labels traduits** (Date, Heure, Adresse, Téléphone, "Laisser un avis", "Merci de votre confiance"…)
-- **4 langues complètes** avec fallback FR
+## 9.4 — Budget SMS/WhatsApp Twilio
 
-`EmailTemplates.bookingConfirmationClient` accepte maintenant `lang?: Lang` :
-- Sujet, titre, tableau des infos, footer — tout traduit dans la langue passée.
-- Le nom du business et les données dynamiques restent inchangés.
+Nouveau **`src/lib/sms-budget.ts`** :
+- `checkAndRecordSmsSend(businessId, channel)` = check + increment atomique
+- **Limite quotidienne par business** : 100 SMS / 500 WhatsApp par défaut (env `SMS_DAILY_LIMIT`, `WHATSAPP_DAILY_LIMIT`)
+- **Compteur en mémoire** par instance (suffisant <1000 pros, sinon migrer Redis)
+- **Log coût estimé** (prix Twilio 2026 : 0.075 € / SMS, 0.005 € / WA)
+- **Alerte 80%** logguée quand un business approche sa limite
+- **Purge auto** des compteurs > 2 jours
 
-`/api/book-appointment` passe `emailLang = business.language || "fr"` — la vitrine anglophone envoie ses confirmations en anglais.
+Intégré dans `/api/cron/reminder-sms` : chaque envoi passe par `checkAndRecordSmsSend`. Un business qui saturerait sa limite ne peut plus dépenser (garde-fou anti-bug de facturation).
 
-*Les autres templates (`newBookingPro`, `quoteRequestClient`, `newQuoteRequestPro`) restent en FR pour l'instant (utilisés uniquement pour notifier le pro, qui parle presque toujours français dans le contexte Vitrix).*
+## 9.5 — Unsubscribe RGPD complet
 
-## 8.4 — Formats date/heure via `formatLocaleDate`
+Nouveau **`src/lib/unsubscribe.ts`** :
+- Token HMAC-SHA256 signé, format `base64url(email|category|expiry|sig)`
+- **5 catégories** : `transactional` (jamais désabonnable), `reminders`, `review-request`, `marketing`, `all`
+- **Expiration 1 an** (rechargeable en renvoyant un email)
+- **Comparaison temps constant** contre les timing attacks
+- **Stateless** : aucun stockage nécessaire pour créer/valider un token
+- Helper `buildListUnsubscribeHeaders()` pour headers RFC 8058 one-click Gmail/Yahoo
 
-- Nouvel helper `formatLocaleDate(date, lang, opts)` dans `src/lib/i18n.ts`
-- `/api/book-appointment` : la date de confirmation utilise maintenant la locale du pro (`business.language`) au lieu de `fr-FR` en dur
-- Variable renommée `dateFr` → `dateLocalized` pour refléter le comportement
+Nouvelle table **`email_optouts`** (schéma + SQL idempotent) :
+- Colonnes : `email`, `category`, `reason`, `createdAt`
+- Index unique `(lower(email), category)` : anti-doublon + lookup O(1)
+- Migration ajoutée dans `sql/00_apply_safe.sql`
 
-## 8.5 — Détection auto-langue
+Nouveau **`src/lib/email-optout-check.ts`** : `isEmailOptedOut(email, category)` utilisé par la queue avant chaque envoi non-transactional.
 
-**Client (`LangContext`)** :
-1. `localStorage.vitrix_lang` (choix explicite précédent)
-2. `navigator.language` (préférence navigateur)
-3. `business.language` via `/api/my-business` (si connecté et pas de choix précédent)
-4. `"fr"` par défaut
+Nouvelle route **`/api/unsubscribe`** :
+- `GET ?token=XYZ` → page HTML branded "vous êtes désabonné" (auto-inscrite en DB)
+- `POST ?token=XYZ` → RFC 8058 one-click Gmail/Yahoo (200 OK vide)
+- Refus explicite si catégorie = `transactional` (obligation contractuelle)
+- Message d'erreur clair si token expiré/malformé
 
-**Server (`src/lib/get-lang-from-request.ts` nouveau)** :
-1. `preferredLang` argument (ex: langue du business)
-2. Header `Accept-Language` du navigateur
-3. `"fr"` par défaut
+## 9.6 — Health check email DKIM/SPF/DMARC
 
-Utilisation dans les Server Components :
-```ts
-import { getLangFromRequest } from "@/lib/get-lang-from-request";
-const lang = await getLangFromRequest(business?.language);
+Nouvelle route **`/api/health/email`** :
+- Vérifie `RESEND_API_KEY` présent
+- Résout les records DNS TXT :
+  - **SPF** sur le domaine (`v=spf1 ... include:amazonses.com`)
+  - **DMARC** sur `_dmarc.<domain>` (`v=DMARC1; p=...`)
+  - **DKIM** sur `resend._domainkey.<domain>` (`v=DKIM1`)
+- Renvoie JSON avec `ok: bool` + **recommandations exactes** à ajouter si un record manque
+- Status 503 si un check échoue → intégrable à un monitoring externe (UptimeRobot)
+
+Exemple de sortie quand tout est OK :
+```json
+{
+  "ok": true,
+  "domain": "vitrix.fr",
+  "resend": { "apiKeyConfigured": true, "fromEmail": "noreply@vitrix.fr", "fromName": "Vitrix" },
+  "dns": { "spf": { "ok": true, "raw": "v=spf1 include:amazonses.com ~all" }, ... }
+}
 ```
 
-## Tests unitaires (+25 : 63 → 88)
+## Tests unitaires (+14 : 88 → 102)
 
-Nouveau `tests/unit/i18n.test.ts` — 25 tests couvrant :
-- `t()` par langue + fallback FR + interpolation `{var}` + placeholder non substitué
-- `td()` alias dashboard
-- `detectLangFromAcceptLanguage` (7 cas dont langue non supportée)
-- `formatLocaleDate` en fr/en
-- `formatLocaleCurrency` en fr/en
-- Cohérence dictionnaire : 4 langues, 116+ clés, chaque clé FR a une traduction
-- `email-i18n.e()` : subjects (fonctions) + labels (strings)
-- `email-i18n.ei()` : interpolation
+- `tests/unit/unsubscribe.test.ts` (8 tests) :
+  - Token créé/vérifié (normalisation email)
+  - Rejet signature altérée
+  - Rejet catégorie modifiée
+  - Rejet token vide/malformé
+  - `isValidCategory`
+  - `buildUnsubscribeUrl` génère URL avec token
+  - `buildListUnsubscribeHeaders` RFC 8058 (2 headers)
+
+- `tests/unit/sms-budget.test.ts` (6 tests) :
+  - Autorise le 1er envoi + increment
+  - Respect limite quotidienne (bloque au N+1)
+  - Isolation SMS/WhatsApp
+  - Isolation entre business
+  - `getSmsUsage` ne modifie pas le compteur
+  - Coût estimé cohérent (0.075 €/SMS)
 
 ## Validations finales
 
 ```
 tsc --noEmit  → 0 erreur
-vitest run    → 88/88 tests OK
+vitest run    → 102/102 tests OK
 next build    → Compiled successfully, 42/42 pages, 0 warning
+              → Nouvelles routes: /api/unsubscribe, /api/health/email
 ```
 
-## Utilisation
+## Variables d'environnement (à ajouter sur Vercel)
 
-**Vitrine publique** (Server Component) :
-```tsx
-import { t } from "@/lib/i18n";
-<h2>{t(business.language, "hours")}</h2>
-```
+Optionnelles mais recommandées :
 
-**Dashboard** (Client Component) :
-```tsx
-import { useLang } from "@/contexts/LangContext";
-const { t, td } = useLang();
-<button>{t("book")}</button>
-<span>{t("emailFooterLegal", { business: "Nathan" })}</span>
-```
+| Variable | Défaut | Description |
+|---|---|---|
+| `RESEND_FROM_NAME` | `"Vitrix"` | Nom affiché avant l'email dans la boîte de réception |
+| `RESEND_REPLY_TO` | — | Email de réponse par défaut (sinon = FROM) |
+| `SMS_DAILY_LIMIT` | `100` | Limite SMS par business par jour |
+| `WHATSAPP_DAILY_LIMIT` | `500` | Limite WhatsApp par business par jour |
 
-**Emails** :
-```ts
-import { EmailTemplates } from "@/lib/email";
-await sendEmail(EmailTemplates.bookingConfirmationClient({
-  ...data,
-  lang: business.language, // 👈 traduit automatiquement
-}));
-```
+## Migration DB requise (Supabase)
 
-## Reste à faire (roadmap incrémentale)
+Rejouer `sql/00_apply_safe.sql` sur ta DB : la nouvelle table `email_optouts` sera créée avec son index unique (safe rejouable, aucun impact sur les données existantes).
 
-Les templates emails **pro** (`newBookingPro`, `newQuoteRequestPro`) restent en FR — à traduire quand le premier pro non-francophone s'inscrit. Structure prête : il suffit d'ajouter les sujets/labels dans `email-i18n.ts` et de passer `lang` à ces templates.
+## À faire (roadmap suivante)
 
-Le dashboard utilise déjà `td()` à ~30 % — pour couvrir les 70 % restants (chaînes hardcodées type "Modifier", "Supprimer", "Annuler", "Ajouter", etc.), un pass ciblé sur `dashboard/vitrine/page.tsx` (1085 lignes) serait le plus rentable.
+- Templates emails via **React Email** (aujourd'hui HTML string monolithique)
+- Migrer la queue in-memory vers **Vercel KV / Redis** à mesure du trafic
+- Ajouter un dashboard "Consommation SMS/mois" pour les pros
+- Preview email dans le dashboard vitrine (avant envoi cron)
+- Bounce handling (webhook Resend `email.bounced` → auto-optout)
 
 ---
 
 # Historique tours précédents
 
-- `8fcc196` — Tour 7 : Lot 6 SEO (sitemap-index paginé, rich snippets, hreflang, slugs)
-- `7beadb6` — Tour 6 : Lot 5 perf (ISR, index DB, next/image, next/font, proxy.ts)
+- `11211b5` — Tour 8 : Lot 8 i18n (116 clés, interpolation, emails multi-langues)
+- `8fcc196` — Tour 7 : Lot 6 SEO (sitemap-index paginé, rich snippets)
+- `7beadb6` — Tour 6 : Lot 5 perf (ISR, index DB, next/image, next/font)
 - `2c928bb` — Tour 5 : Lot 4 a11y (WCAG AA)
-- `5380ed0` — Tour 4 : Lot 3 UI/UX
+- `5380ed0` — Tour 4 : Lot 3 UI/UX (theme, toast, skeletons, onboarding)
 - `f5b3f2b` — Tour 3 : Lots 1+2 (sécurité + code mort)
 - `096b2aa` — Fix SQL tolérant tables absentes
 - `89d448b` — SQL idempotent + audit v2

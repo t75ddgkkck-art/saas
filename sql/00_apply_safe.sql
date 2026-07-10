@@ -186,6 +186,17 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- email_optouts (nouvelle table RGPD, créée si absente)
+CREATE TABLE IF NOT EXISTS public.email_optouts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email varchar(255) NOT NULL,
+  category varchar(30) NOT NULL,
+  reason varchar(500),
+  created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS email_optouts_email_category_uidx
+  ON public.email_optouts (lower(email), category);
+
 -- -----------------------------------------------------------------------------
 -- 4. Index de performance (chacun conditionné à l'existence de la table)
 -- -----------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { appointments, businesses, clients } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { sendSMS, sendWhatsApp } from "@/lib/sms";
+import { checkAndRecordSmsSend } from "@/lib/sms-budget";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -56,13 +57,24 @@ async function handler(request: NextRequest) {
       const message = `Bonjour ${apt.clientFirstName}, rappel de votre RDV chez ${apt.businessName} demain à ${apt.startTime}. À bientôt !`;
 
       try {
+        // Check budget avant chaque envoi : garde-fou contre les bugs de boucle
         if (apt.smsEnabled) {
-          const r = await sendSMS({ to: apt.clientPhone, body: message });
-          if (r.success) smsSent += 1;
+          const budget = checkAndRecordSmsSend(apt.businessId, "sms");
+          if (!budget.allowed) {
+            errors.push({ appointmentId: apt.id, reason: budget.reason ?? "budget-exceeded" });
+          } else {
+            const r = await sendSMS({ to: apt.clientPhone, body: message });
+            if (r.success) smsSent += 1;
+          }
         }
         if (apt.whatsappEnabled) {
-          const r = await sendWhatsApp({ to: apt.clientPhone, body: message });
-          if (r.success) waSent += 1;
+          const budget = checkAndRecordSmsSend(apt.businessId, "whatsapp");
+          if (!budget.allowed) {
+            errors.push({ appointmentId: apt.id, reason: budget.reason ?? "budget-exceeded" });
+          } else {
+            const r = await sendWhatsApp({ to: apt.clientPhone, body: message });
+            if (r.success) waSent += 1;
+          }
         }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);

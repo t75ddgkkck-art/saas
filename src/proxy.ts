@@ -21,6 +21,7 @@ const PUBLIC_ROUTES = new Set([
 
 const PUBLIC_API_PREFIXES = [
   "/api/health",
+  "/api/health/email",
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/session",
@@ -33,6 +34,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/quote-request",
   "/api/quote-form-fields", // GET public : formulaire de devis affiché sur la vitrine
   "/api/ai-chat",
+  "/api/unsubscribe", // lien opt-out email (token signé, pas de session requise)
 ];
 
 const PUBLIC_PAGE_PREFIXES = ["/p/", "/ville/", "/metier/"];

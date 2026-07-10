@@ -1,52 +1,65 @@
-import { Resend } from "resend";
-import { logger } from "@/lib/logger";
 import { e, type EmailStringKey } from "@/lib/email-i18n";
 import type { Lang } from "@/lib/i18n";
+import { enqueueEmail } from "@/lib/email-queue";
+import { sendEmailRaw, type EmailOptions, type EmailResult } from "@/lib/email-core";
+import type { EmailCategory } from "@/lib/unsubscribe";
+import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-
-// Fallback historique. À terme, remplacer par noreply@<votre-domaine> configuré dans Resend.
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@vitrix.fr";
-
-interface EmailOptions {
-  to: string;
-  subject: string;
-  html: string;
-}
-
-export async function sendEmail({ to, subject, html }: EmailOptions) {
-  if (!resend) {
-    logger.warn("email.simulated", { to, subject, reason: "RESEND_API_KEY missing" });
-    return { success: true, simulated: true } as const;
+/**
+ * API principale d'envoi (compat ascendante avec l'ancienne signature).
+ *
+ * Historiquement `sendEmail` était synchrone bloquant. On garde la signature mais :
+ *  - En arrière-plan on utilise la queue non-bloquante avec retry exponentiel
+ *  - Le retour "success" indique juste que l'email a été mis en file
+ *  - Pour un vrai retour synchrone : utiliser `sendEmailRaw` de email-core
+ *
+ * Ajouts opt-in via 2ᵉ arg :
+ *   sendEmail({ to, subject, html }, { category: "marketing", replyTo, lang })
+ */
+export async function sendEmail(
+  opts: EmailOptions,
+  meta?: { category?: EmailCategory; sync?: boolean }
+): Promise<EmailResult> {
+  // Mode sync explicite (pour les tests, ou cas où on veut savoir immédiatement)
+  if (meta?.sync) {
+    return sendEmailRaw(opts);
   }
 
-  try {
-    const result = await resend.emails.send({
-      from: FROM_EMAIL,
-      to,
-      subject,
-      html,
-    });
-    return { success: true, id: result.data?.id } as const;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error("email.send_failed", { to, subject, message });
-    return { success: false, error: message } as const;
-  }
+  enqueueEmail({ ...opts, category: meta?.category ?? "transactional" });
+  return { success: true } as const;
 }
 
 // ==================== TEMPLATES ====================
 
-const baseWrapper = (content: string, businessName: string) => `
+/**
+ * Wrapper HTML commun à tous les templates.
+ * - Layout responsive (max-width 600px, table-friendly pour Outlook)
+ * - Footer légal : mentions Vitrix + lien unsubscribe (obligatoire RGPD art. 21
+ *   pour marketing, bonne pratique pour tout le reste)
+ * - Fournir `unsubscribeEmail` pour afficher le lien.
+ */
+const baseWrapper = (
+  content: string,
+  businessName: string,
+  opts?: { unsubscribeEmail?: string; unsubscribeCategory?: EmailCategory; lang?: Lang }
+) => {
+  const unsub =
+    opts?.unsubscribeEmail && opts.unsubscribeCategory
+      ? `<a href="${buildUnsubscribeUrl(opts.unsubscribeEmail, opts.unsubscribeCategory)}" style="color: #64748b; text-decoration: underline;">${e(opts.lang, "unsubscribe")}</a>`
+      : "";
+
+  return `
   <div style="font-family: -apple-system, system-ui, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc; padding: 24px;">
     <div style="background: #ffffff; border-radius: 16px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
       ${content}
     </div>
-    <p style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 16px;">
-      Envoyé via <a href="https://www.vitrix.fr" style="color: #64748b;">Vitrix</a> pour ${businessName}
+    <p style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 16px; line-height: 1.6;">
+      ${e(opts?.lang, "sentBy")} <a href="https://www.vitrix.fr" style="color: #64748b;">Vitrix</a> ${e(opts?.lang, "sentFor")} ${businessName}
+      ${unsub ? `<br/>${unsub}` : ""}
     </p>
   </div>
 `;
+};
 
 export const EmailTemplates = {
   // ========== CLIENT : confirmation de réservation ==========

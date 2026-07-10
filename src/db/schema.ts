@@ -843,3 +843,27 @@ export const serviceTypes = pgTable("service_types", {
 
 // Statuts de rendez-vous étendus
 export const appointmentStatuses = pgEnum("appointment_status", ["pending", "confirmed", "in_progress", "completed", "cancelled", "no_show"]);
+
+// ============== EMAIL OPT-OUTS (RGPD) ==============
+// Registre des désabonnements par catégorie (marketing, reminders, review-request, all).
+// - `email` normalisé lowercase, indexé
+// - `category` = la clé sur laquelle l'user s'est désabonné (peut être "all")
+// - Aucune donnée personnelle sensible : juste l'email + timestamp
+// - Consultable via GET /api/unsubscribe?token=XYZ, ajouté via POST du même endpoint
+export const emailOptouts = pgTable(
+  "email_optouts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    category: varchar("category", { length: 30 }).notNull(),
+    reason: varchar("reason", { length: 500 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Anti-doublon (email, catégorie) + lookup rapide "cet email est-il opt-out ?"
+    emailCategoryIdx: uniqueIndex("email_optouts_email_category_uidx").on(
+      sql`lower(${t.email})`,
+      t.category
+    ),
+  })
+);
