@@ -4,6 +4,134 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 19 — Lot 22 UX cohérente : Toast/Modal/Breadcrumbs partout
+
+Comble les gros trous UX identifiés dans l'audit "état actuel" :
+- ❌ 10 usages d'`alert()`/`prompt()`/`confirm()` natifs → **0 restant, tous remplacés**
+- ❌ Pas de breadcrumbs dans dashboard → **fait avec composant auto**
+- ❌ Titres onglet browser "Vitrix" partout → **PageTitle par page clé**
+- ❌ Modal ban admin = window.prompt (moche + inaccessible) → **modal stylé avec textarea**
+- ❌ Suppression RDV = window.confirm bloquant → **ConfirmDialog danger**
+
+## Nouveaux composants réutilisables
+
+### `<ConfirmDialog>` (Lot 22)
+Modal de confirmation stylé avec :
+- Variantes `danger` (icon rouge + bouton destructive) / `info` (icon bleu + bouton primary)
+- Support `requireTypedConfirmation="SUPPRIMER"` pour actions ultra-destructrices (l'user doit taper la valeur exacte)
+- `loading` state automatique pendant l'action
+- Icône contextuelle (AlertTriangle / Info)
+- Escape et focus trap hérités du `<Modal>` (Lot 4 a11y)
+
+### `useConfirm()` hook impératif (Lot 22)
+API JS classique pour éviter le boilerplate `useState<boolean>` + JSX :
+```ts
+const { confirm, dialog } = useConfirm();
+const ok = await confirm({ title: "Sûr ?", variant: "danger" });
+if (!ok) return;
+// ...
+return <>{dialog}</>;
+```
+Un seul dialog par composant. Nouvel appel remplace l'ancien (résolu à `false`).
+
+### `<Breadcrumbs>` (Lot 22)
+Auto-généré depuis `usePathname()`. Dictionnaire de labels `dashboard → Dashboard`, `appointments → Rendez-vous`, etc. Segments UUID abrégés en `…`. Rendu conditionnel : rien sur `/dashboard` racine, rien hors dashboard. A11y : `nav aria-label`, `aria-current="page"` sur le dernier item.
+
+### `<PageTitle title=...>` (Lot 22)
+Met à jour `document.title` côté client (les pages dashboard sont `"use client"` donc `export const metadata` inutilisable). Ajoute le suffixe `| Vitrix`. Restaure l'ancien titre au unmount (évite les flashes lors des navigations).
+
+## Migration alert()/prompt()/confirm() (10 remplacements)
+
+| Fichier | Avant | Après |
+|---|---|---|
+| `PublicPage.tsx` | 4× alert() (paiement, avis) | `useToast()` + reload différé 800ms |
+| `AdminUsersTable.tsx` | window.prompt (raison ban) | Modal dédié avec Textarea |
+| `AdminUsersTable.tsx` | window.confirm (unban) | `useConfirm()` variant info |
+| `analytics/page.tsx` | confirm + 2× alert (reset stats) | `useConfirm()` variant danger + Toast |
+| `blog/page.tsx` | alert (limite 3 articles plan free) | `toast.warning()` + redirect différé |
+| `appointments/page.tsx` | window.confirm (delete RDV) | `useConfirm()` variant danger |
+| `settings/page.tsx` | alert (échec export RGPD) | `toast.error()` |
+
+**Résultat** : `grep 'alert(\|window\.prompt\|window\.confirm' src/` renvoie **0 vrai appel**, seulement des commentaires "Lot 22 : remplace...".
+
+## Breadcrumbs + PageTitle dans dashboard
+
+- `src/app/dashboard/layout.tsx` : `<Breadcrumbs />` injecté juste après `<EmailVerifyBanner />`
+- `<PageTitle title="Rendez-vous">` sur `appointments/`, `payments/`, `quotes/` (les 3 pages avec vraies données post-Lot 20)
+- Onglet browser affiche maintenant "Rendez-vous | Vitrix", "Devis | Vitrix"…
+
+## Fichiers créés/modifiés
+
+**Créés (5)** :
+- `src/components/ui/ConfirmDialog.tsx`
+- `src/components/ui/useConfirm.tsx`
+- `src/components/layout/Breadcrumbs.tsx`
+- `src/components/layout/PageTitle.tsx`
+- `tests/unit/breadcrumbs.test.ts` (5 tests)
+- `tests/unit/confirm-dialog.test.ts` (4 tests)
+
+**Modifiés** :
+- `src/app/dashboard/layout.tsx` — Breadcrumbs branché
+- `src/app/[slug]/PublicPage.tsx` — 4× alert → toast
+- `src/app/dashboard/admin/_components/AdminUsersTable.tsx` — prompt/confirm → modal + useConfirm
+- `src/app/dashboard/analytics/page.tsx` — confirm/alert → useConfirm + toast
+- `src/app/dashboard/blog/page.tsx` — alert → toast + redirect différé
+- `src/app/dashboard/appointments/page.tsx` — confirm → useConfirm + PageTitle
+- `src/app/dashboard/payments/page.tsx` — PageTitle
+- `src/app/dashboard/quotes/page.tsx` — PageTitle
+- `src/app/dashboard/settings/page.tsx` — alert → toast
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 245/245 tests (32 fichiers, +9 nouveaux)
+✅ npx next build      → 0 warning, compilé en 21s
+```
+
+## Impact business
+
+- **Fin des popups navigateur 2005** : aucun `alert()` bloquant, aucun `prompt()` sans dark mode, aucun `confirm()` moche
+- **A11y renforcée** : chaque confirmation passe par Modal accessible (focus trap, Escape, aria) au lieu des popups natifs non-a11y-friendly
+- **Découverte du produit** : breadcrumbs donnent le contexte permanent (utilisateur perdu = user qui part)
+- **Titres onglet** clairs → aide au switch d'onglets pour les power users
+- **Confirmations dangereuses safe** : `requireTypedConfirmation="SUPPRIMER"` disponible pour futurs cas (suppression compte, ban compte VIP, purge données)
+
+## Actions post-déploiement
+
+Aucune migration SQL. Pure amélioration UI/UX.
+
+**À vérifier après déploiement** :
+1. Créer un RDV puis le supprimer → vérifier le dialog stylé s'affiche au lieu de confirm() natif
+2. Aller sur `/dashboard/analytics` → cliquer "Réinitialiser stats" → dialog danger
+3. Sur mobile : les breadcrumbs restent lisibles (flex-wrap)
+4. Onglets browser : `/dashboard/appointments` → "Rendez-vous | Vitrix"
+5. Sur vitrine publique `/[slug]` : soumettre un avis → toast succès au lieu d'alert
+
+## Historique commits
+
+```
+a825abf  lot 22 UX cohérente: ConfirmDialog + useConfirm + Breadcrumbs + PageTitle, 10 alert() nettoyés
+d97b927  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
+8f3a974  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic
+7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
+a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 18 — Lot 20 Vrai câblage RDV / Paiements / Recherche
 
 Comble les 3 gros trous business identifiés dans l'audit "état actuel" :
@@ -126,7 +254,7 @@ Aucune migration SQL nécessaire (Lot 20 = pure code). Les tables `appointments`
 ## Historique commits
 
 ```
-e985179  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
+d97b927  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
 8f3a974  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic
 7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
 a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage

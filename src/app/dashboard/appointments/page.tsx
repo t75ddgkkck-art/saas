@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/useConfirm";
+import { PageTitle } from "@/components/layout/PageTitle";
 import {
   Calendar,
   Clock,
@@ -70,6 +72,7 @@ function todayLocalISO(): string {
 
 export default function AppointmentsPage() {
   const toast = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [items, setItems] = useState<AppointmentRow[] | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [showNewModal, setShowNewModal] = useState(false);
@@ -207,7 +210,14 @@ export default function AppointmentsPage() {
   }
 
   async function removeAppointment(id: string) {
-    if (!window.confirm("Supprimer ce rendez-vous ? (récupérable 30 jours)")) return;
+    // Lot 22 : ConfirmDialog stylé au lieu de window.confirm()
+    const ok = await confirm({
+      title: "Supprimer ce rendez-vous ?",
+      description: "Récupérable pendant 30 jours avant purge définitive.",
+      variant: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/appointments/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Erreur");
@@ -220,6 +230,7 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
+      <PageTitle title="Rendez-vous" />
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -465,6 +476,9 @@ export default function AppointmentsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Lot 22 : dialog impératif pour suppression */}
+      {confirmDialog}
     </div>
   );
 }

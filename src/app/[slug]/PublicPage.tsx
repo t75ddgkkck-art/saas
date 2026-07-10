@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
+import { useToast } from "@/components/ui/Toast";
 import { formatPrice } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { getTemplate } from "@/lib/vitrine-templates";
@@ -107,6 +108,8 @@ const categoryEmojis: Record<string, string> = {
 };
 
 export function PublicPage({ business, hours, reviews, faqs, gallery, socials, slots, ownerPlan = "free", initialServices = [] }: PublicPageProps) {
+  // Lot 22 : Toast global à la place des alert() natifs
+  const toast = useToast();
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [showBooking, setShowBooking] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
@@ -156,10 +159,11 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.error || "Erreur lors du paiement");
+        // Lot 22 : Toast au lieu d'alert() bloquant
+        toast.error(data.error || "Erreur lors du paiement");
       }
     } catch {
-      alert("Erreur de connexion");
+      toast.error("Erreur de connexion. Réessayez.");
     } finally {
       setPayLoading(false);
     }
@@ -182,16 +186,16 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi de l'avis");
-      alert("Merci ! Votre avis a été publié.");
+      // Lot 22 : Toast succès + petit délai avant reload pour que l'user le voie
+      toast.success("Merci ! Votre avis a été publié.");
       setShowReviewForm(false);
       setReviewName("");
       setReviewEmail("");
       setReviewText("");
       setReviewRating(5);
-      // simple refresh client-side pour voir l'avis
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 800);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Erreur lors de l'envoi de l'avis");
+      toast.error(e instanceof Error ? e.message : "Erreur lors de l'envoi de l'avis");
     } finally {
       setReviewSubmitting(false);
     }

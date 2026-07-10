@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/Toast";
 import { SecurityTab } from "./_components/SecurityTab";
 import {
   User, Globe, CreditCard, Trash2, Check, AlertTriangle, FileText, Lock, Download,
@@ -29,6 +30,7 @@ const PLANS = [
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const toast = useToast();
   const plan = user?.subscription || "free";
   // Lot 19 : nouvel onglet "sécurité" (changer mdp + email verify)
   const [tab, setTab] = useState<
@@ -134,7 +136,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/account/export");
       if (!res.ok) {
-        alert("Erreur lors de l'export. Réessayez dans quelques minutes.");
+        toast.error("Erreur lors de l'export. Réessayez dans quelques minutes.");
         return;
       }
       // Télécharge le fichier via un lien blob (évite de repasser par le serveur)

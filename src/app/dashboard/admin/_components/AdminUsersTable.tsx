@@ -8,7 +8,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/useConfirm";
 
 interface AdminUserRow {
   id: string;
@@ -36,6 +39,11 @@ export function AdminUsersTable() {
   const [data, setData] = useState<UsersResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+  const { confirm, dialog } = useConfirm();
+  // Lot 22 : modal ban avec raison (remplace window.prompt)
+  const [banTarget, setBanTarget] = useState<string | null>(null);
+  const [banReason, setBanReason] = useState("");
+  const [banning, setBanning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,25 +66,48 @@ export function AdminUsersTable() {
     void load();
   }, [load]);
 
-  async function ban(id: string) {
-    const reason = window.prompt("Raison du bannissement (min. 3 caractères) :");
-    if (!reason || reason.length < 3) return;
-    const res = await fetch(`/api/admin/users/${id}/ban`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
-    });
-    if (res.ok) {
-      toast.success("Utilisateur banni");
-      void load();
-    } else {
-      const j = await res.json().catch(() => ({}));
-      toast.error(j.error || "Erreur");
+  // Lot 22 : ban = ouvrir modal dédié (raison requise, UX pro vs window.prompt)
+  function openBan(id: string) {
+    setBanTarget(id);
+    setBanReason("");
+  }
+
+  async function submitBan() {
+    if (!banTarget) return;
+    if (banReason.trim().length < 3) {
+      toast.error("La raison doit contenir au moins 3 caractères");
+      return;
+    }
+    setBanning(true);
+    try {
+      const res = await fetch(`/api/admin/users/${banTarget}/ban`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: banReason.trim() }),
+      });
+      if (res.ok) {
+        toast.success("Utilisateur banni");
+        setBanTarget(null);
+        setBanReason("");
+        void load();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j.error || "Erreur");
+      }
+    } finally {
+      setBanning(false);
     }
   }
 
+  // Lot 22 : unban via ConfirmDialog stylé (remplace window.confirm)
   async function unban(id: string) {
-    if (!window.confirm("Débannir cet utilisateur ?")) return;
+    const ok = await confirm({
+      title: "Réactiver ce compte ?",
+      description: "L'utilisateur pourra à nouveau se connecter immédiatement.",
+      variant: "info",
+      confirmLabel: "Débannir",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/admin/users/${id}/ban`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Utilisateur réactivé");
@@ -155,7 +186,7 @@ export function AdminUsersTable() {
                       Débannir
                     </Button>
                   ) : (
-                    <Button size="sm" variant="destructive" onClick={() => ban(u.id)}>
+                    <Button size="sm" variant="destructive" onClick={() => openBan(u.id)}>
                       Bannir
                     </Button>
                   )}
@@ -198,6 +229,46 @@ export function AdminUsersTable() {
           </div>
         </div>
       )}
+
+      {/* Lot 22 : dialog impératif pour unban (remplace window.confirm) */}
+      {dialog}
+
+      {/* Lot 22 : modal ban avec raison textarea (remplace window.prompt) */}
+      <Modal
+        isOpen={banTarget !== null}
+        onClose={() => {
+          setBanTarget(null);
+          setBanReason("");
+        }}
+        title="Bannir cet utilisateur"
+        description="Le compte sera immédiatement suspendu. L'utilisateur ne pourra plus se connecter mais ses données restent intactes."
+        size="md"
+      >
+        <div className="space-y-4">
+          <Textarea
+            label="Raison du bannissement"
+            placeholder="Ex : violation CGU section 8 (faux avis)"
+            value={banReason}
+            onChange={(e) => setBanReason(e.target.value)}
+            required
+            minLength={3}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBanTarget(null);
+                setBanReason("");
+              }}
+            >
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={submitBan} loading={banning}>
+              Bannir
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

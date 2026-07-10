@@ -8,6 +8,7 @@ import { LangProvider } from "@/contexts/LangContext";
 import { LangHtmlSync } from "@/components/layout/LangHtmlSync";
 import { SupportBubble } from "@/components/layout/SupportBubble";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { EmailVerifyBanner } from "@/components/dashboard/EmailVerifyBanner";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="mb-4">
               <EmailVerifyBanner />
             </div>
+            {/* Lot 22 : breadcrumbs auto sur toutes les sous-pages dashboard */}
+            <Breadcrumbs />
             {children}
           </div>
         </main>

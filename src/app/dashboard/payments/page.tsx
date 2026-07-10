@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
+import { PageTitle } from "@/components/layout/PageTitle";
 import {
   CreditCard,
   DollarSign,
@@ -154,6 +155,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
+      <PageTitle title="Paiements" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Paiements</h1>

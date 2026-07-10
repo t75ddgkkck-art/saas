@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toast";
 import { generateBlogArticles, BlogArticle } from "@/lib/blog-generator";
 import { useAuth } from "@/contexts/AuthContext";
 import type { BlogTemplate } from "@/lib/blog-templates";
@@ -27,6 +28,7 @@ interface Post {
 
 export default function BlogPage() {
   const { user } = useAuth();
+  const toast = useToast();
   const plan = user?.subscription || "free";
   const maxArticles = plan === "free" ? 3 : Infinity; // 3 modèles pour le plan gratuit
   const [posts, setPosts] = useState<Post[]>([]);
@@ -72,8 +74,13 @@ export default function BlogPage() {
   const handleSave = async () => {
     if (!formData.title || !formData.content) return;
     if (plan === "free" && !editingPost && posts.length >= 3) {
-      alert("Plan gratuit : 3 articles maximum. Passez au plan Pro pour des articles illimités.");
-      window.location.href = "/dashboard/settings?tab=abonnement";
+      // Lot 22 : toast au lieu d'alert bloquant, laisse le temps de le lire
+      toast.warning(
+        "Plan gratuit : 3 articles max. Passez au plan Pro pour des articles illimités."
+      );
+      setTimeout(() => {
+        window.location.href = "/dashboard/settings?tab=abonnement";
+      }, 1200);
       return;
     }
 

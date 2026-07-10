@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/useConfirm";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
@@ -35,19 +37,29 @@ const deviceData = [
 
 export default function AnalyticsPage() {
   const [resetting, setResetting] = useState(false);
+  // Lot 22 : toast + confirm dialog stylé au lieu de confirm()/alert() natifs
+  const toast = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const handleReset = async () => {
-    if (confirm("Voulez-vous vraiment réinitialiser toutes les statistiques de visites ?")) {
-      setResetting(true);
-      try {
-        await fetch("/api/my-availability", { method: "DELETE" });
-        alert("Statistiques réinitialisées avec succès !");
-        window.location.reload();
-      } catch (e) {
-        alert("Erreur lors de la réinitialisation.");
-      } finally {
-        setResetting(false);
-      }
+    const ok = await confirm({
+      title: "Réinitialiser les statistiques ?",
+      description:
+        "Le compteur de visites repartira à 0. Les données passées ne sont pas supprimées, elles ne sont juste plus comptées dans l'affichage.",
+      variant: "danger",
+      confirmLabel: "Réinitialiser",
+    });
+    if (!ok) return;
+    setResetting(true);
+    try {
+      const res = await fetch("/api/my-availability", { method: "DELETE" });
+      if (!res.ok) throw new Error("Erreur serveur");
+      toast.success("Statistiques réinitialisées");
+      setTimeout(() => window.location.reload(), 600);
+    } catch {
+      toast.error("Erreur lors de la réinitialisation");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -212,6 +224,9 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lot 22 : dialog impératif pour "réinitialiser stats" */}
+      {confirmDialog}
     </div>
   );
 }

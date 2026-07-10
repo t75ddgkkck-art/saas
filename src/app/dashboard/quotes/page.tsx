@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { PageTitle } from "@/components/layout/PageTitle";
 import { FileText, Plus, Eye, Download, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -179,6 +180,7 @@ export default function QuotesPage() {
 
   return (
     <div className="space-y-6">
+      <PageTitle title="Devis" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Devis</h1>
