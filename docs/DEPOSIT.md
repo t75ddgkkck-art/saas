@@ -65,6 +65,7 @@ CHECK : `deposit_type IN ('fixed','percent') OR NULL` + si `percent`, `1 ≤ dep
 - `stripe_checkout_session_id VARCHAR(255)`
 
 Index :
+
 - `appointments_deposit_scan_idx` sur `(deposit_status, created_at) WHERE deposit_status = 'pending'` — pour le cron d'expiration
 - `appointments_stripe_session_idx` sur `stripe_checkout_session_id` — lookup rapide webhook
 

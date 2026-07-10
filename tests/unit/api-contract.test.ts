@@ -183,6 +183,71 @@ const validErrorResponse = { error: "Vous devez être connecté", code: "UNAUTHO
 // Table des contrats — le cœur du test
 // ---------------------------------------------------------------------------
 
+// F3 (Lot 31) — contract des routes de l'espace client final
+const clientMeSchema = z.object({
+  email: z.string().email(),
+  businesses: z.array(
+    z.object({
+      id: uuid,
+      slug: z.string(),
+      name: z.string(),
+      city: z.string().nullable(),
+      category: z.string().nullable(),
+      profileImage: z.string().nullable(),
+    })
+  ),
+});
+
+const validClientMe = {
+  email: "user@example.com",
+  businesses: [
+    {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "plomberie-dupont",
+      name: "Plomberie Dupont",
+      city: "Argentré",
+      category: "Plombier",
+      profileImage: null,
+    },
+  ],
+};
+
+const clientAppointmentSchema = z.object({
+  id: uuid,
+  businessId: uuid,
+  businessName: z.string(),
+  businessSlug: z.string(),
+  businessCity: z.string().nullable(),
+  title: z.string(),
+  description: z.string().nullable(),
+  date: z.string(), // YYYY-MM-DD, format DB legacy
+  startTime: z.string(),
+  endTime: z.string(),
+  status: z.enum(["pending", "confirmed", "cancelled", "completed", "no_show"]),
+  depositRequired: z.boolean(),
+  depositAmountCents: z.number().int().nullable(),
+  depositStatus: z.enum(["pending", "paid", "refunded", "forfeited"]).nullable(),
+  createdAt: isoDate,
+});
+
+const validClientAppointment = {
+  id: "11111111-1111-4111-8111-111111111111",
+  businessId: "22222222-2222-4222-8222-222222222222",
+  businessName: "Plomberie Dupont",
+  businessSlug: "plomberie-dupont",
+  businessCity: "Argentré",
+  title: "Réparation fuite",
+  description: null,
+  date: "2026-07-15",
+  startTime: "09:00",
+  endTime: "10:00",
+  status: "confirmed" as const,
+  depositRequired: true,
+  depositAmountCents: 2000,
+  depositStatus: "paid" as const,
+  createdAt: "2026-07-10T12:00:00.000Z",
+};
+
 const CONTRACTS = [
   { name: "GET /api/appointments/[id]", schema: appointmentSchema, sample: validAppointment },
   { name: "GET /api/payments (item)", schema: paymentSchema, sample: validPayment },
@@ -190,6 +255,12 @@ const CONTRACTS = [
   { name: "GET /api/clients/[id]", schema: clientSchema, sample: validClient },
   { name: "GET /api/search", schema: searchResponseSchema, sample: validSearchResponse },
   { name: "Error response (any 4xx/5xx)", schema: errorResponseSchema, sample: validErrorResponse },
+  { name: "GET /api/client/me", schema: clientMeSchema, sample: validClientMe },
+  {
+    name: "GET /api/client/appointments (item)",
+    schema: clientAppointmentSchema,
+    sample: validClientAppointment,
+  },
 ] as const;
 
 describe("API contract — response shapes", () => {

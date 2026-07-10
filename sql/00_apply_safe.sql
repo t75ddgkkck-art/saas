@@ -731,6 +731,49 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4septies. Lot 31 (F3) — Espace client final (magic-link + sessions)
+-- -----------------------------------------------------------------------------
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    CREATE TABLE IF NOT EXISTS public.client_auth_tokens (
+      id           uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+      email        varchar(255)  NOT NULL,
+      token_hash   varchar(64)   NOT NULL,
+      expires_at   timestamp     NOT NULL,
+      used_at      timestamp,
+      ip           varchar(45),
+      business_id  uuid          REFERENCES public.businesses(id) ON DELETE SET NULL,
+      created_at   timestamp     NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS client_auth_tokens_hash_uidx
+      ON public.client_auth_tokens (token_hash);
+    CREATE INDEX IF NOT EXISTS client_auth_tokens_email_scan_idx
+      ON public.client_auth_tokens (email, used_at, expires_at);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.client_sessions (
+    id            uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         varchar(255)  NOT NULL,
+    token_hash    varchar(64)   NOT NULL,
+    expires_at    timestamp     NOT NULL,
+    ip            varchar(45),
+    user_agent    varchar(500),
+    created_at    timestamp     NOT NULL DEFAULT now(),
+    last_seen_at  timestamp     NOT NULL DEFAULT now(),
+    revoked_at    timestamp
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS client_sessions_hash_uidx
+    ON public.client_sessions (token_hash);
+  CREATE INDEX IF NOT EXISTS client_sessions_email_idx
+    ON public.client_sessions (email);
+  CREATE INDEX IF NOT EXISTS client_sessions_expiry_idx
+    ON public.client_sessions (expires_at);
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (

@@ -365,4 +365,46 @@ export const EmailTemplates = {
       "Vitrix"
     ),
   }),
+
+  // ========== F3 (Lot 31) : magic-link espace client final ==========
+  // Utilisé par POST /api/client/magic-link — envoie un lien de connexion
+  // temporaire (15 min) au client final (pas au pro). Aucun mot de passe.
+  clientMagicLink: (data: {
+    magicUrl: string;
+    expiryMinutes: number;
+    businessName?: string | null;
+    ip?: string | null;
+  }) => ({
+    subject: "Votre lien de connexion Vitrix",
+    html: baseWrapper(
+      `
+      <h1 style="color: #0f172a; font-size: 22px; margin: 0 0 16px;">Connexion à votre espace</h1>
+      <p style="color: #334155; margin: 0 0 16px;">Bonjour,</p>
+      <p style="color: #334155; margin: 0 0 24px;">
+        ${
+          data.businessName
+            ? `Vous avez demandé à vous connecter à votre espace client pour retrouver vos rendez-vous, devis et factures chez <strong>${data.businessName}</strong> et vos autres professionnels Vitrix.`
+            : "Vous avez demandé à vous connecter à votre espace client pour retrouver vos rendez-vous, devis et factures."
+        }
+      </p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${data.magicUrl}" style="display: inline-block; background: #0f172a; color: white; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 600;">
+          Me connecter
+        </a>
+      </div>
+      <p style="color: #64748b; font-size: 13px; margin: 0 0 8px;">
+        Ce lien expire dans ${data.expiryMinutes} minutes et ne peut être utilisé qu'une seule fois.
+      </p>
+      <p style="color: #64748b; font-size: 13px; margin: 0 0 16px;">
+        Si vous n'êtes pas à l'origine de cette demande, ignorez cet email — aucun compte ne sera créé.
+        ${data.ip ? `<br/>Demande envoyée depuis l'IP <code style="font-family: monospace;">${data.ip}</code>.` : ""}
+      </p>
+      <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0; word-break: break-all;">
+        Lien de secours :<br/>
+        <a href="${data.magicUrl}" style="color: #64748b;">${data.magicUrl}</a>
+      </p>
+    `,
+      "Vitrix"
+    ),
+  }),
 };

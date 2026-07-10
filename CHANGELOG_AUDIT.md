@@ -4,6 +4,149 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 27 — F3 Espace client final + magic-link auth
+
+Ouvre la rétention côté visiteur. Avant : chaque prise de RDV = re-saisir nom/tel/mail, aucun moyen pour un client de consulter ses futurs RDV, aucun historique. Après : magic-link email → `/mon-compte` qui unifie **tous les pros Vitrix fréquentés par l'email**. Effet plateforme.
+
+## Design découplé (choix architectural fort)
+
+Le client final N'EST PAS dans la table `users` (réservée aux pros). Il vit dans `clients` (par businessId), unifié côté espace client par **email case-insensitive**.
+
+Deux nouvelles tables :
+- **`client_auth_tokens`** — magic-link (TTL 15min, single-use)
+- **`client_sessions`** — cookie signé HMAC (TTL 30j, révocable)
+
+Cookie `vx_client_session` DISTINCT du cookie pro (`auth_token`) → un navigateur peut avoir les 2 sessions simultanément. Aucun conflit.
+
+## Lib crypto (`src/lib/client-auth.ts` + `src/lib/client-session.ts`)
+
+Réutilise le pattern éprouvé de `auth-tokens.ts` (Lot 19) mais sans FK vers `users` :
+
+- Token brut = 32 bytes hex (256 bits entropie)
+- Stockage = SHA-256 (fuite DB ⇒ tokens inexploitables)
+- Anti-spam : 3 tokens actifs max par email
+- Anti-énumération : même réponse "Si un compte existe..." avec délai artificiel 250-500ms
+- Cookie HMAC-signé (réutilise `NEXTAUTH_SECRET`) avec `timingSafeEqual`
+
+## 7 nouvelles routes API `/api/client/*`
+
+| Route | Méthode | Rate | Détail |
+|---|---|---|---|
+| `/api/client/magic-link` | POST | 3/10min/IP | Envoie le lien, ne révèle pas si l'email existe |
+| `/api/client/verify` | GET | 10/min/IP | Consomme token, pose cookie, redirect |
+| `/api/client/logout` | POST | - | Révoque cookie + session DB |
+| `/api/client/me` | GET | 60/min | email + businesses fréquentés (join) |
+| `/api/client/appointments` | GET | 60/min | RDV tous businesses (filtres upcoming, businessId) |
+| `/api/client/quotes` | GET | 60/min | Devis tous businesses |
+| `/api/client/appointments/[id]/cancel` | POST | 5/heure/IP | Annulation avec refund F2 |
+
+## Intégration F2 dans le cancel (le point fort)
+
+Le POST cancel :
+
+1. Vérifie ownership (email session match `clients.email` du RDV via join)
+2. Refuse si RDV `cancelled`/`completed`/`no_show` ou passé
+3. **Si `depositStatus === "paid"`** → applique `decideRefundOnCancel({refundHours, appointmentStart})` de F2
+4. Update RDV : `status=cancelled`, `depositStatus=refunded|forfeited`
+5. Libère le slot
+6. Si `refunded` + Stripe Connect actif : appelle `refundDeposit()` (non-throwing — si Stripe fail, le pro traite manuel)
+
+Le client voit le résultat dans le toast : "RDV annulé. Le remboursement est en cours de traitement (2-5 jours ouvrés)."
+
+## Nouveau template email
+
+`EmailTemplates.clientMagicLink` — design cohérent avec `passwordReset` et `emailVerify` (baseWrapper "Vitrix"). Mentionne le businessName si fourni pour contextualiser.
+
+## Pages publiques (`src/app/mon-compte/*`)
+
+- **`/mon-compte/layout.tsx`** — layout minimaliste, `noindex` (RGPD + UX propre)
+- **`/mon-compte/login/page.tsx`** — formulaire email uniquement (aucun mot de passe), état "sent" avec instructions post-envoi, gestion `?error=invalid`
+- **`/mon-compte/page.tsx`** — server component, redirect vers login si pas de session, header avec logout form
+- **`/mon-compte/_components/ClientDashboard.tsx`** — client component qui charge en parallèle me/appointments/quotes, affiche :
+  - Section **Mes pros** — cartes cliquables vers `/[slug]`
+  - Section **RDV à venir** — cards avec badge statut + info deposit + bouton "Annuler"
+  - Section **Historique** — 20 derniers RDV
+  - Section **Devis** — total, statut, quoteNumber
+
+Composants riches inline : `AppointmentCard`, `AppointmentStatusBadge`, `QuoteStatusBadge`, `DepositLine`.
+
+## SQL idempotent bloc `4septies`
+
+Nouvelles tables `client_auth_tokens` (avec FK loose vers businesses `ON DELETE SET NULL`) et `client_sessions`. Index unique sur `token_hash`, scans par email/expiration.
+
+## Fichiers créés / modifiés
+
+**Créés** :
+- `src/lib/client-auth.ts` (155 lignes)
+- `src/lib/client-session.ts` (200 lignes)
+- `src/app/api/client/magic-link/route.ts`
+- `src/app/api/client/verify/route.ts`
+- `src/app/api/client/logout/route.ts`
+- `src/app/api/client/me/route.ts`
+- `src/app/api/client/appointments/route.ts`
+- `src/app/api/client/appointments/[id]/cancel/route.ts`
+- `src/app/api/client/quotes/route.ts`
+- `src/app/mon-compte/layout.tsx`
+- `src/app/mon-compte/page.tsx`
+- `src/app/mon-compte/login/page.tsx`
+- `src/app/mon-compte/_components/ClientDashboard.tsx` (370 lignes)
+- `docs/CLIENT_AREA.md`
+- `tests/unit/client-auth.test.ts` (14 tests)
+- `tests/unit/client-session.test.ts` (7 tests)
+
+**Modifiés** :
+- `src/db/schema.ts` — tables `clientAuthTokens` + `clientSessions` + index
+- `sql/00_apply_safe.sql` — bloc 4septies idempotent
+- `src/lib/email.ts` — template `clientMagicLink`
+- `tests/unit/api-contract.test.ts` — schemas `/api/client/me` + `/api/client/appointments`
+
+## Tests (23 nouveaux, 428 total)
+
+- **`client-auth.test.ts`** : 14 tests avec mock DB fluide
+  - Génération token (64 chars hex, non-devinable — 100 tirages uniques)
+  - Hash SHA-256 déterministe
+  - `createClientAuthToken` : lowercase/trim email, anti-spam, stocke hash pas brut
+  - `consumeClientAuthToken` : not_found / expired / already_used / nominal / token vide/court
+- **`client-session.test.ts`** : 7 tests des primitives crypto cookie
+  - Roundtrip encode/decode
+  - Rejet signature altérée (timingSafeEqual)
+  - Rejet expiration passée
+  - Rejet payload malformé
+  - Rejet longueur invalide
+  - Rejet expiry non numérique
+  - base64url pur (URL-safe, pas de +/)
+- **`api-contract.test.ts`** : +2 contrats (client.me + client.appointments)
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 195 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **428 tests / 45 fichiers, tous verts** (+23 vs Lot 30)
+- ✅ `npm run test:coverage` — lines 44.87% (stable), branches 82.52%
+- ✅ `npm run build` — succès, `/mon-compte` (ƒ dynamic) + `/mon-compte/login` (○ static)
+
+## Impact business
+
+- **Rétention client** : un client qui a un compte revient x2-x3 (industrie : e-commerce SaaS)
+- **Cross-pro** : un email = accès à tous les pros Vitrix fréquentés → effet plateforme, argument différenciateur
+- **Réduction charge support** : le client annule/reprogramme lui-même
+- **Argument commercial pro** : "vos clients ont leur espace personnel" = perception pro
+- **Réutilisation F2** : le refund d'acompte à l'annulation client fonctionne automatiquement selon la politique du pro — anti no-show × auto-service
+
+## Actions post-déploiement
+
+1. **Appliquer le SQL** : `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4septies (tables + index)
+2. **Communiquer côté visiteurs** : ajouter un lien "Mon espace" dans le footer public ou header de la vitrine `/[slug]`
+3. **Email de bienvenue post-1er RDV** (v2) : envoyer automatiquement un magic-link au client après sa 1re réservation pour l'inciter à créer son espace
+4. **Analytics** : mesurer % de RDV créés depuis un client existant vs anonyme, mesurer taux d'annulation self-service
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 26 — F2 Acompte Stripe à la réservation (+ bonus B27 idempotence webhook)
 
 Livre l'anti no-show : un client qui doit payer 20€ pour réserver n'annule pas à la dernière minute. Statistiquement, un acompte non-remboursable élimine 80% des no-show chez les artisans. **Différenciateur majeur vs concurrents FR.**

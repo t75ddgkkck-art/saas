@@ -1099,6 +1099,65 @@ export const aiUsage = pgTable(
 // - Traçabilité RGPD (qui a fait quoi sur quel compte, quand)
 // - Rejouable en cas d'incident
 // - Une seule table pour tous les types d'événements admin (payload jsonb)
+// -----------------------------------------------------------------------------
+// F3 (Lot 31) — Espace client final (magic-link auth découplée des users pro)
+// -----------------------------------------------------------------------------
+//
+// DESIGN : les clients finaux (visiteurs des vitrines) NE sont PAS dans `users`
+// (qui est réservé aux professionnels). Ils vivent dans `clients` (déjà existant
+// par businessId). Un client peut avoir plusieurs entrées `clients` s'il est
+// client de plusieurs pros — on unifie côté espace client par EMAIL.
+//
+// Auth : magic-link envoyé par email uniquement. Aucun mot de passe.
+// Session : cookie HMAC-signé (comme `vx_session` des pros mais séparé) —
+// nom cookie `vx_client_session`.
+
+export const clientAuthTokens = pgTable(
+  "client_auth_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // Email cible (normalisé lowercase). Pas de FK vers `clients` car un email
+    // peut apparaître dans plusieurs businesses — on garde le lien loose.
+    email: varchar("email", { length: 255 }).notNull(),
+    // Hash SHA-256 du token brut (identique au pattern des auth_tokens pros)
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    usedAt: timestamp("used_at"),
+    ip: varchar("ip", { length: 45 }),
+    // Optionnel : business qui a servi de "point d'entrée" (utile pour analytics)
+    businessId: uuid("business_id").references(() => businesses.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Lookup par hash (consommation)
+    hashIdx: uniqueIndex("client_auth_tokens_hash_uidx").on(t.tokenHash),
+    // Anti-spam : compter tokens actifs par (email, non expirés, non utilisés)
+    emailScanIdx: index("client_auth_tokens_email_scan_idx").on(t.email, t.usedAt, t.expiresAt),
+  })
+);
+
+export const clientSessions = pgTable(
+  "client_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    // Hash du session-id envoyé au cookie (le token brut du cookie n'est jamais stocké)
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    ip: varchar("ip", { length: 45 }),
+    userAgent: varchar("user_agent", { length: 500 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => ({
+    hashIdx: uniqueIndex("client_sessions_hash_uidx").on(t.tokenHash),
+    emailIdx: index("client_sessions_email_idx").on(t.email),
+    // Purge (expirés + révoqués)
+    expiryIdx: index("client_sessions_expiry_idx").on(t.expiresAt),
+  })
+);
+
 // F2 (Lot 30, bonus B27) — Idempotence des webhooks Stripe.
 // Stripe retente les webhooks pendant 3 jours sur 5xx / timeout. Certains handlers
 // (crédit parrain, upsert paiement) NE SONT PAS strictement idempotents et
