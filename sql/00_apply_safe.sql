@@ -186,6 +186,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- ai_usage (nouvelle table quotas IA, créée si absente)
+CREATE TABLE IF NOT EXISTS public.ai_usage (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  route varchar(80) NOT NULL,
+  model varchar(60) NOT NULL,
+  prompt_tokens integer NOT NULL DEFAULT 0,
+  completion_tokens integer NOT NULL DEFAULT 0,
+  total_tokens integer NOT NULL DEFAULT 0,
+  estimated_cost_usd numeric(10, 6),
+  created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ai_usage_user_created_idx
+  ON public.ai_usage (user_id, created_at);
+CREATE INDEX IF NOT EXISTS ai_usage_model_created_idx
+  ON public.ai_usage (model, created_at);
+
 -- email_optouts (nouvelle table RGPD, créée si absente)
 CREATE TABLE IF NOT EXISTS public.email_optouts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

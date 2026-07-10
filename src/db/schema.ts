@@ -867,3 +867,28 @@ export const emailOptouts = pgTable(
     ),
   })
 );
+
+// ============== AI USAGE (quotas & tracking) ==============
+// Une ligne par appel IA (chat, blog, tools, review-reply).
+// Sommée sur 30j pour calculer le quota mensuel du user.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    route: varchar("route", { length: 80 }).notNull(),
+    model: varchar("model", { length: 60 }).notNull(),
+    promptTokens: integer("prompt_tokens").default(0).notNull(),
+    completionTokens: integer("completion_tokens").default(0).notNull(),
+    totalTokens: integer("total_tokens").default(0).notNull(),
+    // USD avec 6 décimales — précision suffisante (< 0.000001 $)
+    estimatedCostUsd: decimal("estimated_cost_usd", { precision: 10, scale: 6 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Index critique : quota check = sum(tokens) WHERE user_id = ? AND createdAt >= 30j
+    userCreatedIdx: index("ai_usage_user_created_idx").on(t.userId, t.createdAt),
+    // Index pour agrégations admin ("quel modèle coûte le plus ?")
+    modelCreatedIdx: index("ai_usage_model_created_idx").on(t.model, t.createdAt),
+  })
+);

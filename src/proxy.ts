@@ -34,6 +34,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/quote-request",
   "/api/quote-form-fields", // GET public : formulaire de devis affiché sur la vitrine
   "/api/ai-chat",
+  "/api/ai-chat/stream",
   "/api/unsubscribe", // lien opt-out email (token signé, pas de session requise)
 ];
 

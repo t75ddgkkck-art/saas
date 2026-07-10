@@ -7,16 +7,15 @@ import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { handleApiError, forbidden, notFound, unauthorized } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
-import { logger } from "@/lib/logger";
+import { aiComplete, isAiConfigured } from "@/lib/ai/client";
+import { reviewReplySystemPrompt } from "@/lib/ai/prompts";
+import { checkAiQuota, recordAiUsage } from "@/lib/ai/usage";
+import type { SubscriptionPlan } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
-// Cette route consomme OpenAI : cap 20/heure/utilisateur (via IP).
 const RATE = { key: "reviews:ai-reply", limit: 20, windowSec: 3600 } as const;
-
-const Schema = z.object({
-  reviewId: z.string().uuid("reviewId invalide"),
-});
+const Schema = z.object({ reviewId: z.string().uuid("reviewId invalide") });
 
 export async function POST(request: NextRequest) {
   const rl = checkRateLimit(request, RATE);
@@ -31,8 +30,10 @@ export async function POST(request: NextRequest) {
       throw forbidden("La réponse aux avis par IA est réservée aux plans Pro et Premium");
     }
 
-    const { reviewId } = await validateBody(request, Schema);
+    const quota = await checkAiQuota(user.id, user.subscription as SubscriptionPlan);
+    if (!quota.allowed) throw forbidden(quota.reason ?? "Quota IA atteint");
 
+    const { reviewId } = await validateBody(request, Schema);
     const [review] = await db
       .select()
       .from(reviews)
@@ -42,57 +43,46 @@ export async function POST(request: NextRequest) {
 
     const isPositive = review.rating >= 4;
     const isNeutral = review.rating === 3;
-
     let reply: string | null = null;
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+
+    if (isAiConfigured()) {
+      const result = await aiComplete({
+        messages: [
+          { role: "system", content: reviewReplySystemPrompt(business) },
+          {
+            role: "user",
+            content: `Avis de ${review.clientName} (${review.rating}/5 étoiles) : "${review.comment || "Aucun commentaire"}"`,
           },
-          body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `Tu rédiges des réponses aux avis clients pour ${business.name}, ${business.category} à ${business.city || "France"}. Règles : français parfait, ton professionnel et chaleureux, 2-3 phrases maximum, personnalisé (mentionne le prénom du client), sans promesse commerciale exagérée. Pour les avis négatifs : excuse sincère + proposition de contact direct pour résoudre le problème.`,
-              },
-              {
-                role: "user",
-                content: `Avis de ${review.clientName} (${review.rating}/5 étoiles) : "${review.comment || "Aucun commentaire"}"`,
-              },
-            ],
-            max_tokens: 200,
-            temperature: 0.7,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          reply = data.choices?.[0]?.message?.content || null;
-        } else {
-          logger.warn("reviews.ai-reply.openai.http_error", { status: res.status });
-        }
-      } catch (openAiErr) {
-        logger.warn("reviews.ai-reply.openai.fetch_failed", {
-          message: openAiErr instanceof Error ? openAiErr.message : String(openAiErr),
+        ],
+        maxTokens: 200,
+        temperature: 0.7,
+      });
+      if (result.ok) {
+        reply = result.content;
+        recordAiUsage({
+          userId: user.id,
+          route: "/api/reviews/ai-reply",
+          promptTokens: result.usage.promptTokens,
+          completionTokens: result.usage.completionTokens,
+          totalTokens: result.usage.totalTokens,
+          model: result.usage.model,
         });
       }
     }
 
+    // Fallback si IA absente/en erreur (règles par note)
     if (!reply) {
       const firstName = review.clientName.split(" ")[0];
       if (isPositive) {
-        reply = `Merci beaucoup ${firstName} pour ce retour chaleureux ! C'est un plaisir de savoir que notre intervention vous a donné entière satisfaction. Au plaisir de vous accompagner à nouveau. — L'équipe ${business.name}`;
+        reply = `Merci beaucoup ${firstName} pour ce retour chaleureux ! Au plaisir de vous accompagner à nouveau. — L'équipe ${business.name}`;
       } else if (isNeutral) {
-        reply = `Merci ${firstName} pour votre retour. Nous prenons note de vos remarques pour nous améliorer. N'hésitez pas à nous contacter directement pour nous en dire plus : votre satisfaction est notre priorité. — L'équipe ${business.name}`;
+        reply = `Merci ${firstName} pour votre retour. N'hésitez pas à nous contacter directement pour nous en dire plus : votre satisfaction est notre priorité. — L'équipe ${business.name}`;
       } else {
-        reply = `Bonjour ${firstName}, nous sommes sincèrement désolés que votre expérience n'ait pas été à la hauteur de vos attentes. Nous aimerions comprendre ce qui s'est passé et trouver une solution : contactez-nous directement${business.phone ? ` au ${business.phone}` : ""}. — L'équipe ${business.name}`;
+        reply = `Bonjour ${firstName}, nous sommes sincèrement désolés que votre expérience n'ait pas été à la hauteur. Contactez-nous directement${business.phone ? ` au ${business.phone}` : ""} pour trouver une solution. — L'équipe ${business.name}`;
       }
     }
 
-    return NextResponse.json({ reply, generatedByAI: !!process.env.OPENAI_API_KEY });
+    return NextResponse.json({ reply, generatedByAI: isAiConfigured() });
   } catch (err) {
     return handleApiError(err, { route: "POST /api/reviews/ai-reply" });
   }

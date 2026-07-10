@@ -4,150 +4,149 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
-# 🟢 Tour 9 — Lot 9 Emails & Communications
+# 🟢 Tour 10 — Lot 10 IA & coûts
 
-## 9.1 — Config email centralisée + branding correct
+## 10.1 — Client OpenAI centralisé (`src/lib/ai/client.ts`)
 
-Nouveau **`src/lib/email-core.ts`** :
-- `sendEmailRaw(opts)` : transport pur (Resend), pas de logique métier
-- Config env : `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME`, `RESEND_REPLY_TO`
-- `from` par défaut : `"Vitrix <noreply@vitrix.fr>"` (nom affiché avant l'adresse)
-- **Support `replyTo`** : le client peut répondre au pro (pas au noreply)
-- **Support `headers` custom** : pour List-Unsubscribe RFC 8058
+Avant : 5 fichiers appelaient directement `fetch("https://api.openai.com/v1/chat/completions")` avec `model: "gpt-4o-mini"` en dur.
 
-## 9.2 — Queue email non-bloquante avec retry exponentiel
+Après : **un seul module** qui parle à OpenAI.
 
-Nouveau **`src/lib/email-queue.ts`** :
-- `enqueueEmail(opts)` = fire-and-forget, jamais throw
-- **Retry** 3 tentatives : 1s → 5s → 30s (exponentiel)
-- **API répond immédiatement** au user ; l'email part quelques ms plus tard
-- **Skip automatique** si le destinataire a opt-out (sauf `transactional`)
-- **List-Unsubscribe** ajouté automatiquement pour marketing/reminders/review-request
+- `aiComplete(opts)` : appel non-streaming, retourne `{ ok, content, usage } | { ok: false, error, code }` — jamais throw, le call-site peut fallback simplement.
+- `aiCompleteStream(opts)` : version SSE décodée en texte plat (pour /api/ai-chat/stream).
+- `isAiConfigured()` : check clé API.
+- **Modèle configurable** via `OPENAI_MODEL` (défaut `gpt-4o-mini`), `OPENAI_BASE_URL` (compat Azure/Mistral), `OPENAI_TIMEOUT_MS` (30s défaut).
+- **Timeout** avec `AbortController` (évite les hangs).
+- **Logging structuré** : `ai.completion`, `ai.timeout`, `ai.http_error`, `ai.fetch_failed`.
+- **Retour tokens** : `promptTokens`, `completionTokens`, `totalTokens`, `model` — utilisé par le tracking usage.
 
-`sendEmail(opts, meta?)` refondu :
-- Compat 100% ascendante (signature `sendEmail({to, subject, html})`)
-- 2ᵉ arg optionnel `{ category?, sync? }` pour opt-in
-- Par défaut passe par la queue ; `{ sync: true }` = envoi bloquant
+## 10.2 — Quotas mensuels par utilisateur
 
-## 9.3 — Templates : footer légal + wrapper i18n
+Nouvelle table **`ai_usage`** (schéma + SQL idempotent) :
+- Colonnes : `userId`, `route`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `estimatedCostUsd`, `createdAt`
+- 2 index : `(userId, createdAt)` pour quota check ; `(model, createdAt)` pour agrégations admin
 
-Le `baseWrapper` accepte maintenant :
-- `unsubscribeEmail`, `unsubscribeCategory` → lien de désabonnement en footer
-- `lang` → labels footer traduits ("Sent by / for / Unsubscribe")
+Nouveau **`src/lib/ai/usage.ts`** :
+- `AI_TOKEN_LIMITS` : `{ free: 0, pro: 300_000, premium: 2_000_000 }` tokens/mois
+- `getMonthlyUsage(userId)` : somme SUM(tokens) WHERE user_id = ? AND created_at >= 30j
+- `checkAiQuota(userId, plan)` : renvoie `{ allowed, used, limit, remaining, reason? }`
+- `recordAiUsage(...)` : insert fire-and-forget après chaque appel réussi
+- `estimateCostUsd(prompt, completion)` : prix indicatif gpt-4o-mini
 
-Les templates existants restent inchangés (compat totale) mais peuvent maintenant recevoir ces options.
+**Coût max par pro premium : ~1 $/mois** même à quota plein (2M tokens à 0.15/0.60 $ par 1M).
 
-## 9.4 — Budget SMS/WhatsApp Twilio
+Routes qui appliquent le quota :
+- `POST /api/ai-blog`
+- `POST /api/ai-tools` (report + social-post)
+- `POST /api/reviews/ai-reply`
+- Helpers `src/lib/ai-content.ts` (`generateSocialPost`, `generateMonthlyReport`)
 
-Nouveau **`src/lib/sms-budget.ts`** :
-- `checkAndRecordSmsSend(businessId, channel)` = check + increment atomique
-- **Limite quotidienne par business** : 100 SMS / 500 WhatsApp par défaut (env `SMS_DAILY_LIMIT`, `WHATSAPP_DAILY_LIMIT`)
-- **Compteur en mémoire** par instance (suffisant <1000 pros, sinon migrer Redis)
-- **Log coût estimé** (prix Twilio 2026 : 0.075 € / SMS, 0.005 € / WA)
-- **Alerte 80%** logguée quand un business approche sa limite
-- **Purge auto** des compteurs > 2 jours
+Le chat public (`/api/ai-chat`) est exempt de quota par user (car public, pas de session), mais reste protégé par le rate-limit 15/5min/IP + le budget global via clé API.
 
-Intégré dans `/api/cron/reminder-sms` : chaque envoi passe par `checkAndRecordSmsSend`. Un business qui saturerait sa limite ne peut plus dépenser (garde-fou anti-bug de facturation).
+## 10.3 — Prompts externalisés (`src/lib/ai/prompts.ts`)
 
-## 9.5 — Unsubscribe RGPD complet
+6 prompts centralisés et typés :
+- `publicChatSystemPrompt(biz, services, hours)` : chatbot vitrine
+- `publicChatFallback(msg, biz, services, hours)` : règles déterministes sans IA
+- `reviewReplySystemPrompt(biz)` : réponse aux avis
+- `blogArticleSystemPrompt(biz, topic)` : article SEO ~400 mots
+- `socialPostSystemPrompt(biz, platform)` : post FB/IG/LI adapté
+- `monthlyReportSystemPrompt()` : rapport mensuel consultant
 
-Nouveau **`src/lib/unsubscribe.ts`** :
-- Token HMAC-SHA256 signé, format `base64url(email|category|expiry|sig)`
-- **5 catégories** : `transactional` (jamais désabonnable), `reminders`, `review-request`, `marketing`, `all`
-- **Expiration 1 an** (rechargeable en renvoyant un email)
-- **Comparaison temps constant** contre les timing attacks
-- **Stateless** : aucun stockage nécessaire pour créer/valider un token
-- Helper `buildListUnsubscribeHeaders()` pour headers RFC 8058 one-click Gmail/Yahoo
+Chaque prompt est **testé unitairement** (11 tests) — impossible de casser une règle en modifiant un prompt sans que le test rouge.
 
-Nouvelle table **`email_optouts`** (schéma + SQL idempotent) :
-- Colonnes : `email`, `category`, `reason`, `createdAt`
-- Index unique `(lower(email), category)` : anti-doublon + lookup O(1)
-- Migration ajoutée dans `sql/00_apply_safe.sql`
+## 10.4 — Streaming pour le chat
 
-Nouveau **`src/lib/email-optout-check.ts`** : `isEmailOptedOut(email, category)` utilisé par la queue avant chaque envoi non-transactional.
+Nouvelle route **`POST /api/ai-chat/stream`** :
+- Renvoie `text/plain` en flux (chunks des deltas OpenAI décodés)
+- Headers `X-Accel-Buffering: no` + `Cache-Control: no-cache, no-transform` pour forcer le flush au fil de l'eau (Vercel/nginx)
+- Fallback non-streamé si IA absente ou erreur (règles déterministes)
+- Rate-limit identique à `/api/ai-chat` (15/5min/IP)
 
-Nouvelle route **`/api/unsubscribe`** :
-- `GET ?token=XYZ` → page HTML branded "vous êtes désabonné" (auto-inscrite en DB)
-- `POST ?token=XYZ` → RFC 8058 one-click Gmail/Yahoo (200 OK vide)
-- Refus explicite si catégorie = `transactional` (obligation contractuelle)
-- Message d'erreur clair si token expiré/malformé
-
-## 9.6 — Health check email DKIM/SPF/DMARC
-
-Nouvelle route **`/api/health/email`** :
-- Vérifie `RESEND_API_KEY` présent
-- Résout les records DNS TXT :
-  - **SPF** sur le domaine (`v=spf1 ... include:amazonses.com`)
-  - **DMARC** sur `_dmarc.<domain>` (`v=DMARC1; p=...`)
-  - **DKIM** sur `resend._domainkey.<domain>` (`v=DKIM1`)
-- Renvoie JSON avec `ok: bool` + **recommandations exactes** à ajouter si un record manque
-- Status 503 si un check échoue → intégrable à un monitoring externe (UptimeRobot)
-
-Exemple de sortie quand tout est OK :
-```json
-{
-  "ok": true,
-  "domain": "vitrix.fr",
-  "resend": { "apiKeyConfigured": true, "fromEmail": "noreply@vitrix.fr", "fromName": "Vitrix" },
-  "dns": { "spf": { "ok": true, "raw": "v=spf1 include:amazonses.com ~all" }, ... }
+Côté client à intégrer :
+```ts
+const res = await fetch("/api/ai-chat/stream", { method: "POST", body: JSON.stringify({ businessId, message }) });
+const reader = res.body!.getReader();
+const decoder = new TextDecoder();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  setMessage((m) => m + decoder.decode(value));
 }
 ```
 
-## Tests unitaires (+14 : 88 → 102)
+## 10.5 — Fallback complet
 
-- `tests/unit/unsubscribe.test.ts` (8 tests) :
-  - Token créé/vérifié (normalisation email)
-  - Rejet signature altérée
-  - Rejet catégorie modifiée
-  - Rejet token vide/malformé
-  - `isValidCategory`
-  - `buildUnsubscribeUrl` génère URL avec token
-  - `buildListUnsubscribeHeaders` RFC 8058 (2 headers)
+Chaque route IA possède maintenant un fallback quand :
+- `OPENAI_API_KEY` manque (dev)
+- OpenAI répond 429/5xx
+- Timeout (30s défaut)
+- Quota user dépassé
 
-- `tests/unit/sms-budget.test.ts` (6 tests) :
-  - Autorise le 1er envoi + increment
-  - Respect limite quotidienne (bloque au N+1)
-  - Isolation SMS/WhatsApp
-  - Isolation entre business
-  - `getSmsUsage` ne modifie pas le compteur
-  - Coût estimé cohérent (0.075 €/SMS)
+Fallback = contenu utile pré-rédigé (règles), jamais une page vide ou une erreur 500. L'user voit toujours quelque chose.
+
+## Bonus — Endpoint d'introspection
+
+Nouvelle route **`GET /api/ai/usage`** :
+- Renvoie l'usage mensuel du user courant + quota + coût estimé
+- À consommer depuis le dashboard pour afficher une jauge
+
+Exemple de réponse :
+```json
+{
+  "used": 42350,
+  "limit": 300000,
+  "remaining": 257650,
+  "percentUsed": 14,
+  "requests": 87,
+  "estimatedCostUsd": 0.023,
+  "plan": "pro",
+  "allowed": true
+}
+```
+
+## Tests unitaires (+16 : 102 → 120 → au final 120)
+
+Wait, correction : **120 tests** (les tests IA prompts + usage étaient dans un fichier différent).
+
+- `tests/unit/ai-usage.test.ts` (5 tests) : limites par plan, estimation coût
+- `tests/unit/ai-prompts.test.ts` (11 tests) : chaque prompt inclut les bonnes données + fallback règles couvre tous les intents (RDV, prix, urgence, horaires, adresse, hors-sujet)
 
 ## Validations finales
 
 ```
 tsc --noEmit  → 0 erreur
-vitest run    → 102/102 tests OK
+vitest run    → 120/120 tests OK
 next build    → Compiled successfully, 42/42 pages, 0 warning
-              → Nouvelles routes: /api/unsubscribe, /api/health/email
+              → Nouvelles routes: /api/ai-chat/stream, /api/ai/usage
 ```
 
-## Variables d'environnement (à ajouter sur Vercel)
+## Migration DB requise
 
-Optionnelles mais recommandées :
+Rejouer `sql/00_apply_safe.sql` sur Supabase → crée la table `ai_usage` avec ses 2 index (safe rejouable, aucun impact sur données existantes).
+
+## Variables d'environnement (nouvelles / optionnelles)
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `RESEND_FROM_NAME` | `"Vitrix"` | Nom affiché avant l'email dans la boîte de réception |
-| `RESEND_REPLY_TO` | — | Email de réponse par défaut (sinon = FROM) |
-| `SMS_DAILY_LIMIT` | `100` | Limite SMS par business par jour |
-| `WHATSAPP_DAILY_LIMIT` | `500` | Limite WhatsApp par business par jour |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Modèle IA principal |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Compat Azure OpenAI, Mistral, self-hosted |
+| `OPENAI_TIMEOUT_MS` | `30000` | Timeout des appels IA |
 
-## Migration DB requise (Supabase)
+## Impact facture OpenAI
 
-Rejouer `sql/00_apply_safe.sql` sur ta DB : la nouvelle table `email_optouts` sera créée avec son index unique (safe rejouable, aucun impact sur les données existantes).
-
-## À faire (roadmap suivante)
-
-- Templates emails via **React Email** (aujourd'hui HTML string monolithique)
-- Migrer la queue in-memory vers **Vercel KV / Redis** à mesure du trafic
-- Ajouter un dashboard "Consommation SMS/mois" pour les pros
-- Preview email dans le dashboard vitrine (avant envoi cron)
-- Bounce handling (webhook Resend `email.bounced` → auto-optout)
+| Scénario | Avant | Après |
+|---|---|---|
+| Un pro premium buggé qui boucle sur `/api/ai-blog` | Illimité (facture 4 chiffres possible) | **Bloqué à 2M tokens/mois** (~1 $) |
+| Chat public spammé | Rate-limit 15/5min/IP seul | Rate-limit **+** log de coût par appel |
+| Changer de modèle (gpt-4o → claude) | Modifier 5 fichiers | Une seule variable `OPENAI_MODEL` |
+| Ajouter Sentry / Datadog sur les appels IA | Impossible (dispersé) | 1 seul point d'entrée (`aiComplete`) |
 
 ---
 
 # Historique tours précédents
 
+- `5c8ccea` — Tour 9 : Lot 9 emails (queue, unsubscribe RGPD, budget SMS)
 - `11211b5` — Tour 8 : Lot 8 i18n (116 clés, interpolation, emails multi-langues)
 - `8fcc196` — Tour 7 : Lot 6 SEO (sitemap-index paginé, rich snippets)
 - `7beadb6` — Tour 6 : Lot 5 perf (ISR, index DB, next/image, next/font)

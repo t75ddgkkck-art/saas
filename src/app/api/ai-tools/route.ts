@@ -5,13 +5,18 @@ import { appointments, quotes, payments, pageVisits, reviews } from "@/db/schema
 import { and, eq, gte } from "drizzle-orm";
 import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { handleApiError, unauthorized, forbidden, badRequest } from "@/lib/api-error";
+import { handleApiError, unauthorized, forbidden } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
-import { logger } from "@/lib/logger";
+import { aiComplete, isAiConfigured } from "@/lib/ai/client";
+import {
+  monthlyReportSystemPrompt,
+  socialPostSystemPrompt,
+} from "@/lib/ai/prompts";
+import { checkAiQuota, recordAiUsage } from "@/lib/ai/usage";
+import type { SubscriptionPlan } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
-// 15 outils IA / heure / IP.
 const RATE = { key: "ai-tools", limit: 15, windowSec: 3600 } as const;
 
 const Schema = z.discriminatedUnion("tool", [
@@ -23,37 +28,31 @@ const Schema = z.discriminatedUnion("tool", [
   }),
 ]);
 
-async function callOpenAI(system: string, prompt: string): Promise<string | null> {
-  if (!process.env.OPENAI_API_KEY) return null;
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: prompt },
-        ],
-        max_tokens: 800,
-        temperature: 0.7,
-      }),
-    });
-    if (!res.ok) {
-      logger.warn("ai-tools.openai.http_error", { status: res.status });
-      return null;
-    }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
-  } catch (err) {
-    logger.warn("ai-tools.openai.fetch_failed", {
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
+async function callAi(
+  system: string,
+  userMsg: string,
+  userId: string,
+  route: string
+): Promise<string | null> {
+  if (!isAiConfigured()) return null;
+  const result = await aiComplete({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: userMsg },
+    ],
+    maxTokens: 800,
+    temperature: 0.7,
+  });
+  if (!result.ok) return null;
+  recordAiUsage({
+    userId,
+    route,
+    promptTokens: result.usage.promptTokens,
+    completionTokens: result.usage.completionTokens,
+    totalTokens: result.usage.totalTokens,
+    model: result.usage.model,
+  });
+  return result.content;
 }
 
 export async function POST(request: NextRequest) {
@@ -68,9 +67,11 @@ export async function POST(request: NextRequest) {
       throw forbidden("Les outils IA sont réservés au plan Premium");
     }
 
+    const quota = await checkAiQuota(user.id, user.subscription as SubscriptionPlan);
+    if (!quota.allowed) throw forbidden(quota.reason ?? "Quota IA atteint");
+
     const data = await validateBody(request, Schema);
 
-    // ===== RAPPORT MENSUEL =====
     if (data.tool === "report") {
       const monthAgo = new Date();
       monthAgo.setDate(monthAgo.getDate() - 30);
@@ -112,9 +113,11 @@ export async function POST(request: NextRequest) {
 
       const dataText = `Activité (${business.category}) sur 30 jours : ${visits.length} visites (source principale : ${topSource}), ${apts.length} RDV, ${qts.length} devis dont ${quotesSigned} signés (${conversionRate}%), CA ${revenue.toFixed(0)}€, note moyenne ${avgRating}/5.`;
 
-      const aiReport = await callOpenAI(
-        "Tu es un consultant business pour artisans français. Rédige un rapport mensuel court (5 points max), concret et actionnable, en français parfait. Utilise des émojis. Termine par 3 recommandations précises.",
-        dataText
+      const aiReport = await callAi(
+        monthlyReportSystemPrompt(),
+        dataText,
+        user.id,
+        "/api/ai-tools:report"
       );
 
       const report =
@@ -128,32 +131,27 @@ export async function POST(request: NextRequest) {
 ⭐ **Réputation** : note moyenne de ${avgRating}/5.
 
 **3 recommandations :**
-1. ${visits.length < 50 ? "Partagez votre QR code et votre lien sur vos réseaux pour augmenter vos visites." : "Bonne visibilité ! Publiez un article de blog pour renforcer votre référencement Google."}
-2. ${conversionRate < 50 && qts.length > 0 ? "Répondez aux devis sous 24h : les devis rapides signent 3x plus." : "Continuez à répondre rapidement à vos demandes de devis."}
-3. ${rvws.length < 5 ? "Activez la demande d'avis automatique après chaque RDV pour renforcer votre réputation." : "Excellente réputation, mettez vos avis en avant !"}`;
+1. ${visits.length < 50 ? "Partagez votre QR code et votre lien pour augmenter vos visites." : "Bonne visibilité ! Publiez un article de blog."}
+2. ${conversionRate < 50 && qts.length > 0 ? "Répondez aux devis sous 24h : les devis rapides signent 3× plus." : "Continuez à répondre rapidement aux demandes."}
+3. ${rvws.length < 5 ? "Activez la demande d'avis automatique après chaque RDV." : "Excellente réputation, mettez vos avis en avant !"}`;
 
       return NextResponse.json({ report, generatedByAI: !!aiReport });
     }
 
-    // ===== GÉNÉRATEUR DE POSTS =====
-    if (data.tool === "social-post") {
-      const { description, platform } = data;
-      if (!description) throw badRequest("Décrivez votre réalisation");
+    // ===== social-post =====
+    const aiPost = await callAi(
+      socialPostSystemPrompt(business, data.platform),
+      data.description,
+      user.id,
+      "/api/ai-tools:social-post"
+    );
 
-      const aiPost = await callOpenAI(
-        `Tu es community manager pour artisans français. Rédige un post ${platform === "instagram" ? "Instagram (avec hashtags pertinents)" : "Facebook (ton chaleureux, sans hashtags excessifs)"} court et engageant, en français parfait, pour promouvoir le travail d'un(e) ${business.category} nommé(e) ${business.name} à ${business.city || "France"}. Termine par un appel à l'action vers la prise de rendez-vous.`,
-        description
-      );
+    const fallback =
+      data.platform === "instagram"
+        ? `✨ Nouvelle réalisation chez ${business.name} !\n\n${data.description}\n\nUn projet similaire ? Réservez en ligne, lien en bio. 📲\n\n#artisan #${(business.category || "artisanat").replace(/\s/g, "")} #${(business.city || "france").toLowerCase().replace(/\s/g, "")}`
+        : `✨ Nouvelle réalisation signée ${business.name} !\n\n${data.description}\n\nUn projet similaire ? Nous serions ravis de vous accompagner. Prenez RDV en ligne — réponse rapide garantie ! 😊`;
 
-      const fallback =
-        platform === "instagram"
-          ? `✨ Nouvelle réalisation chez ${business.name} !\n\n${description}\n\nVous avez un projet similaire ? Réservez votre créneau en ligne, lien dans la bio. 📲\n\n#artisan #${(business.category || "artisanat").replace(/\s/g, "")} #${(business.city || "france").toLowerCase().replace(/\s/g, "")} #faitmain #qualité #avantapres`
-          : `✨ Nouvelle réalisation signée ${business.name} !\n\n${description}\n\nVous avez un projet similaire ? Nous serions ravis de vous accompagner. Prenez rendez-vous directement en ligne sur notre page — réponse rapide garantie ! 😊`;
-
-      return NextResponse.json({ post: aiPost || fallback, generatedByAI: !!aiPost });
-    }
-
-    throw badRequest("Outil inconnu");
+    return NextResponse.json({ post: aiPost || fallback, generatedByAI: !!aiPost });
   } catch (err) {
     return handleApiError(err, { route: "POST /api/ai-tools" });
   }
