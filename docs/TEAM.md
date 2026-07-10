@@ -10,18 +10,19 @@
 
 ### 4 rôles
 
-| Rôle | Description |
-|---|---|
-| **owner** | Propriétaire (implicite via `businesses.ownerId`). Accès total, seul à pouvoir supprimer le business ou gérer l'abonnement. |
-| **admin** | Bras droit. Peut inviter/révoquer, éditer tout, mais pas supprimer le business ni changer d'abonnement. |
-| **employee** | Opérationnel. Voit tout, crée RDV/devis/clients, édite ce qui lui est assigné. Pas d'export RGPD, pas de refund. |
-| **viewer** | Comptable, stagiaire. Lecture seule stricte. |
+| Rôle         | Description                                                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| **owner**    | Propriétaire (implicite via `businesses.ownerId`). Accès total, seul à pouvoir supprimer le business ou gérer l'abonnement. |
+| **admin**    | Bras droit. Peut inviter/révoquer, éditer tout, mais pas supprimer le business ni changer d'abonnement.                     |
+| **employee** | Opérationnel. Voit tout, crée RDV/devis/clients, édite ce qui lui est assigné. Pas d'export RGPD, pas de refund.            |
+| **viewer**   | Comptable, stagiaire. Lecture seule stricte.                                                                                |
 
 Le **owner** N'EST PAS dans `team_members` (implicite). Les autres sont dans `team_members` avec le rôle stocké dans `member_role`.
 
 ### Modèle de données
 
 **`team_members`** (refonte) :
+
 ```sql
 id, business_id (cascade)
 user_id            -- NULL avant acceptation, rempli quand le user se connecte
@@ -36,6 +37,7 @@ deleted_at         -- soft-delete Lot 14
 Index : `(business_id, lower(email)) UNIQUE`, `user_id`, `business_id`.
 
 **`team_invitations`** (nouveau) :
+
 ```sql
 id, business_id, email, member_role
 token_hash         -- SHA-256 du token brut envoyé par email
@@ -45,6 +47,7 @@ invited_by_user_id, created_at
 ```
 
 **Extensions** :
+
 - `appointments.assigned_to_user_id` (FK users, nullable) — assignation
 - `quotes.assigned_to_user_id` — idem
 
@@ -57,6 +60,7 @@ invited_by_user_id, created_at
 - **Combinaison finale = plan (entitlements F1) ET rôle (F5)**
 
 Fonctions :
+
 - `roleHas(role, cap)` — check simple
 - `canManageRole(actor, target)` — un admin peut gérer employee/viewer, jamais admin/owner
 - `listCapabilities(role)` — liste exhaustive (renvoie une copie)
@@ -64,6 +68,7 @@ Fonctions :
 ## Contexte équipe
 
 `src/lib/team-context.ts` :
+
 - **`getCurrentTeamContext()`** — résout le business actif + rôle pour l'user courant
   - Priorité : owner d'un business, sinon premier team_members actif
   - Renvoie `{user, business, role, isOwner}`
@@ -97,15 +102,15 @@ Fonctions :
 
 ## Routes API
 
-| Route | Méthode | Cap requise | Rate |
-|---|---|---|---|
-| `/api/team` | GET | `team.view` | - |
-| `/api/team/invite` | POST | `team.invite` + entitlement `team.enable` + quota | 10/h/IP |
-| `/api/team/accept?token=` | GET | Publique | 10/h/IP |
-| `/api/team/accept` | POST | Auth (email match) | 10/h/IP |
-| `/api/team/[id]` | PATCH | `team.change_role` + `canManageRole(actor, target)` | 30/h/IP |
-| `/api/team/[id]` | DELETE | `team.remove` + `canManageRole(actor, target)` | 30/h/IP |
-| `/api/team/context` | GET | Auth | 60/min |
+| Route                     | Méthode | Cap requise                                         | Rate    |
+| ------------------------- | ------- | --------------------------------------------------- | ------- |
+| `/api/team`               | GET     | `team.view`                                         | -       |
+| `/api/team/invite`        | POST    | `team.invite` + entitlement `team.enable` + quota   | 10/h/IP |
+| `/api/team/accept?token=` | GET     | Publique                                            | 10/h/IP |
+| `/api/team/accept`        | POST    | Auth (email match)                                  | 10/h/IP |
+| `/api/team/[id]`          | PATCH   | `team.change_role` + `canManageRole(actor, target)` | 30/h/IP |
+| `/api/team/[id]`          | DELETE  | `team.remove` + `canManageRole(actor, target)`      | 30/h/IP |
+| `/api/team/context`       | GET     | Auth                                                | 60/min  |
 
 ## UI
 

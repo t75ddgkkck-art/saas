@@ -16,6 +16,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api-helpers";
 import { handleApiError, badRequest, unauthorized } from "@/lib/api-error";
 import { dispatchWebhook } from "@/lib/webhooks-out";
+// F4 (Lot 33) : push sync Google Calendar (best-effort, non-throwing)
+import { pushCreateGoogleEvent } from "@/lib/google-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,8 @@ const CreateSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/, "Format attendu HH:MM"),
   endTime: z.string().regex(/^\d{2}:\d{2}$/, "Format attendu HH:MM"),
   status: StatusEnum.default("confirmed"),
+  // F4 (Lot 33) : assignation à un membre d'équipe (optionnel)
+  assignedToUserId: z.string().uuid().nullable().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -74,6 +78,9 @@ export async function GET(req: NextRequest) {
         clientFirstName: clients.firstName,
         clientLastName: clients.lastName,
         clientPhone: clients.phone,
+        // F4 : assignation et googleCalendarId pour la vue calendrier
+        assignedToUserId: appointments.assignedToUserId,
+        googleCalendarId: appointments.googleCalendarId,
       })
       .from(appointments)
       .leftJoin(clients, eq(clients.id, appointments.clientId))
@@ -169,8 +176,35 @@ export async function POST(req: NextRequest) {
         startTime: data.startTime,
         endTime: data.endTime,
         status: data.status,
+        assignedToUserId: data.assignedToUserId ?? null,
       })
       .returning();
+
+    // F4 (Lot 33) : push best-effort vers Google Calendar si connecté.
+    // On stocke l'eventId dans googleCalendarId pour permettre update/delete plus tard.
+    // Fire-and-forget : ne bloque pas la réponse ni ne throw si Google refuse.
+    void (async () => {
+      try {
+        const gEventId = await pushCreateGoogleEvent(business.id, {
+          summary: created.title,
+          description: created.description ?? undefined,
+          location: business.address
+            ? `${business.address}${business.city ? ", " + business.city : ""}`
+            : undefined,
+          start: `${created.date}T${created.startTime}:00`,
+          end: `${created.date}T${created.endTime}:00`,
+          timeZone: "Europe/Paris",
+        });
+        if (gEventId) {
+          await db
+            .update(appointments)
+            .set({ googleCalendarId: gEventId })
+            .where(eq(appointments.id, created.id));
+        }
+      } catch {
+        // Silencieux : Google sync est best-effort
+      }
+    })();
 
     dispatchWebhook("appointment.created", business.id, {
       id: created.id,

@@ -14,6 +14,9 @@ import { getCurrentBusiness } from "@/lib/session";
 import { validateBody } from "@/lib/api-helpers";
 import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
 import { dispatchWebhook } from "@/lib/webhooks-out";
+// F4 (Lot 33) : push sync Google Calendar (best-effort)
+import { pushUpdateGoogleEvent, pushDeleteGoogleEvent } from "@/lib/google-calendar";
+import { businesses } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +39,9 @@ const UpdateSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/)
     .optional(),
+  // F4 (Lot 33) : reprogrammation via drag&drop change date + startTime + endTime.
+  // Assignation à un membre (nullable pour désassigner).
+  assignedToUserId: z.string().uuid().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -93,6 +99,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
+    // F4 (Lot 33) : sync Google Calendar best-effort
+    // - Si statut = cancelled → DELETE côté Google
+    // - Sinon → PATCH côté Google (nouveau date/heure/titre)
+    if (updated.googleCalendarId) {
+      void (async () => {
+        try {
+          if (data.status === "cancelled") {
+            await pushDeleteGoogleEvent(business.id, updated.googleCalendarId!);
+          } else {
+            // Charge l'adresse du business (location Google) — via query rapide
+            const [biz] = await db
+              .select({ address: businesses.address, city: businesses.city })
+              .from(businesses)
+              .where(eq(businesses.id, business.id))
+              .limit(1);
+            await pushUpdateGoogleEvent(business.id, updated.googleCalendarId!, {
+              summary: updated.title,
+              description: updated.description ?? undefined,
+              location: biz?.address
+                ? `${biz.address}${biz.city ? ", " + biz.city : ""}`
+                : undefined,
+              start: `${updated.date}T${updated.startTime}:00`,
+              end: `${updated.date}T${updated.endTime}:00`,
+              timeZone: "Europe/Paris",
+            });
+          }
+        } catch {
+          // Best effort — silent
+        }
+      })();
+    }
+
     return NextResponse.json({ appointment: updated });
   } catch (err) {
     return handleApiError(err, { route: `PATCH /api/appointments/${id}` });
@@ -116,9 +154,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
           isNull(appointments.deletedAt)
         )
       )
-      .returning({ id: appointments.id });
+      .returning({ id: appointments.id, googleCalendarId: appointments.googleCalendarId });
 
     if (!updated) throw notFound("RDV introuvable");
+
+    // F4 (Lot 33) : suppression Google Calendar best-effort
+    if (updated.googleCalendarId) {
+      void pushDeleteGoogleEvent(business.id, updated.googleCalendarId).catch(() => {});
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

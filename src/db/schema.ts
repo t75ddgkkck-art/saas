@@ -208,6 +208,10 @@ export const businesses = pgTable(
     // automatique. Ex : 48 → annulation 48h avant = remboursé, sinon forfeited.
     // NULL = pas de politique définie (jamais remboursé automatiquement, à la main).
     depositRefundHours: integer("deposit_refund_hours"),
+    // F4 (Lot 33) : secret opaque pour l'URL ICS publique (CalDAV/Apple/Outlook).
+    // Format hex 32 chars, généré à la demande via /api/calendar/ics-secret rotate.
+    // Route publique `/api/calendar/[secret].ics` renvoie les RDV en iCalendar.
+    icsSecret: varchar("ics_secret", { length: 64 }),
     // Programme de fidélité (Premium)
     loyaltyEnabled: boolean("loyalty_enabled").default(false),
     loyaltyPointsPerEuro: integer("loyalty_points_per_euro").default(1),
@@ -299,6 +303,60 @@ export const teamMembers = pgTable(
     ),
   })
 );
+
+// F4 (Lot 33) — Blocs d'indisponibilité (déjeuner, congés, chantier long, etc.).
+// Séparés de `appointments` car ce ne sont pas des RDV clients :
+//  - Pas de clientId, pas de status, pas de deposit
+//  - Peuvent être récurrents (v2 : ajout `rrule`) — pour v1, one-shot
+//  - Assignables à un membre (bloque UNIQUEMENT son calendrier)
+export const unavailabilities = pgTable(
+  "unavailabilities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    // NULL = bloque toute l'équipe. Sinon uniquement ce membre.
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    // Format YYYY-MM-DD (aligné avec appointments.date pour cohérence)
+    date: varchar("date", { length: 10 }).notNull(),
+    // Format HH:MM. NULL sur les 2 = journée entière.
+    startTime: varchar("start_time", { length: 5 }),
+    endTime: varchar("end_time", { length: 5 }),
+    /** Optionnel : rappel visuel (couleur hex #RRGGBB) */
+    color: varchar("color", { length: 7 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Scan calendrier : range de dates pour un business
+    businessDateIdx: index("unavailabilities_business_date_idx").on(t.businessId, t.date),
+    // Filtre "les miennes"
+    userIdx: index("unavailabilities_user_idx").on(t.userId),
+  })
+);
+
+// F4 (Lot 33) — Tokens Google Calendar par business (OAuth Calendar API).
+// Distinct de google/callback qui gère Google Business Profile (avis). Ici on
+// stocke refresh_token + calendarId (primary par défaut) pour pousser les RDV.
+//
+// Chaque business a AU PLUS un token Calendar (1:1). Refresh_token conservé
+// tant que le user n'a pas révoqué côté Google.
+export const calendarTokens = pgTable("calendar_tokens", {
+  businessId: uuid("business_id")
+    .primaryKey()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 20 }).default("google").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  accessToken: text("access_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at"),
+  calendarId: varchar("calendar_id", { length: 255 }).default("primary").notNull(),
+  scope: text("scope"),
+  connectedAt: timestamp("connected_at").defaultNow().notNull(),
+  lastSyncAt: timestamp("last_sync_at"),
+});
 
 // F5 (Lot 32) — Invitations magic-link pour l'équipe.
 // Séparé de auth_tokens (pros) et client_auth_tokens (clients finaux) pour

@@ -25,7 +25,20 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/useConfirm";
 import { PageTitle } from "@/components/layout/PageTitle";
-import { Calendar, Clock, Plus, CheckCircle2, XCircle, User, Trash2, Phone } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  User,
+  Trash2,
+  Phone,
+  List,
+  LayoutGrid,
+} from "lucide-react";
+// F4 (Lot 33) : vue calendrier drag&drop
+import { AppointmentsCalendarPanel } from "@/components/calendar/AppointmentsCalendarPanel";
 
 type Status = "pending" | "confirmed" | "cancelled" | "completed";
 type FilterStatus = Status | "all";
@@ -67,6 +80,10 @@ export default function AppointmentsPage() {
   const [items, setItems] = useState<AppointmentRow[] | null>(null);
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [showNewModal, setShowNewModal] = useState(false);
+  // F4 (Lot 33) : basculement Liste / Calendrier (default = calendrier, plus visuel)
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
+  // Signal reload calendrier après create/update/delete (incrémenter → refetch)
+  const [calendarReload, setCalendarReload] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   // Form
@@ -177,6 +194,8 @@ export default function AppointmentsPage() {
       setShowNewModal(false);
       resetForm();
       void load();
+      // F4 : signal reload calendrier
+      setCalendarReload((n) => n + 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -256,132 +275,189 @@ export default function AppointmentsPage() {
         />
       </div>
 
-      {/* Filtres */}
-      <div className="flex flex-wrap gap-2">
-        {(["all", "pending", "confirmed", "completed", "cancelled"] as const).map((s) => (
+      {/* F4 : toggle Liste / Calendrier */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {viewMode === "list" ? (
+          <div className="flex flex-wrap gap-2">
+            {(["all", "pending", "confirmed", "completed", "cancelled"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setFilter(s)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  filter === s
+                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                }`}
+              >
+                {s === "all" ? "Tous" : statusConfig[s].label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500">
+            💡 Glissez-déposez un RDV pour le reprogrammer. Cliquez sur un créneau vide pour créer.
+          </div>
+        )}
+        <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
           <button
-            key={s}
             type="button"
-            onClick={() => setFilter(s)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === s
-                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            onClick={() => setViewMode("calendar")}
+            className={`inline-flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium transition ${
+              viewMode === "calendar"
+                ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
+                : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
-            {s === "all" ? "Tous" : statusConfig[s].label}
+            <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
+            Calendrier
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            className={`inline-flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium transition ${
+              viewMode === "list"
+                ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
+                : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <List className="h-3.5 w-3.5" aria-hidden />
+            Liste
+          </button>
+        </div>
       </div>
 
-      {/* Liste */}
-      {filtered === null ? (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<Calendar className="h-10 w-10" />}
-          title={filter === "all" ? "Aucun rendez-vous" : "Aucun RDV pour ce filtre"}
-          description={
-            filter === "all"
-              ? "Créez votre premier rendez-vous pour commencer à organiser votre agenda."
-              : "Essayez un autre filtre ou créez un nouveau rendez-vous."
-          }
-          action={
-            <Button onClick={() => setShowNewModal(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nouveau RDV
-            </Button>
-          }
-        />
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((a) => {
-            const clientLabel =
-              a.clientFirstName || a.clientLastName
-                ? `${a.clientFirstName ?? ""} ${a.clientLastName ?? ""}`.trim()
-                : "Client supprimé";
-            return (
-              <Card key={a.id}>
-                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-6">
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    <Calendar className="h-6 w-6" aria-hidden="true" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-medium text-slate-900 dark:text-slate-100">{a.title}</h3>
-                      <Badge variant={statusConfig[a.status].variant}>
-                        {statusConfig[a.status].label}
-                      </Badge>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                        {a.date} · {a.startTime} → {a.endTime}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" aria-hidden="true" />
-                        {clientLabel}
-                      </span>
-                      {a.clientPhone && (
-                        <a
-                          href={`tel:${a.clientPhone}`}
-                          className="flex items-center gap-1 hover:text-slate-900 hover:underline dark:hover:text-slate-100"
-                        >
-                          <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                          {a.clientPhone}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {a.status === "pending" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => updateStatus(a.id, "confirmed")}
-                        aria-label="Confirmer"
-                      >
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      </Button>
-                    )}
-                    {(a.status === "pending" || a.status === "confirmed") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => updateStatus(a.id, "completed")}
-                        aria-label="Marquer terminé"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {a.status !== "cancelled" && a.status !== "completed" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => updateStatus(a.id, "cancelled")}
-                        aria-label="Annuler"
-                      >
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAppointment(a.id)}
-                      aria-label="Supprimer"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-400" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+      {/* F4 : Vue Calendrier */}
+      {viewMode === "calendar" && (
+        <AppointmentsCalendarPanel
+          reloadKey={calendarReload}
+          onSlotClick={(date, startTime) => {
+            // Pré-remplit le modal nouveau RDV avec le slot cliqué
+            const endH = String(Math.min(23, parseInt(startTime.slice(0, 2), 10) + 1)).padStart(
+              2,
+              "0"
             );
-          })}
-        </div>
+            setForm((f) => ({ ...f, date, startTime, endTime: `${endH}${startTime.slice(2)}` }));
+            setShowNewModal(true);
+          }}
+        />
+      )}
+
+      {/* Liste (uniquement en mode Liste) */}
+      {viewMode === "list" && (
+        <>
+          {/* Contenu de la liste */}
+          {filtered === null ? (
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={<Calendar className="h-10 w-10" />}
+              title={filter === "all" ? "Aucun rendez-vous" : "Aucun RDV pour ce filtre"}
+              description={
+                filter === "all"
+                  ? "Créez votre premier rendez-vous pour commencer à organiser votre agenda."
+                  : "Essayez un autre filtre ou créez un nouveau rendez-vous."
+              }
+              action={
+                <Button onClick={() => setShowNewModal(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nouveau RDV
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((a) => {
+                const clientLabel =
+                  a.clientFirstName || a.clientLastName
+                    ? `${a.clientFirstName ?? ""} ${a.clientLastName ?? ""}`.trim()
+                    : "Client supprimé";
+                return (
+                  <Card key={a.id}>
+                    <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-6">
+                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        <Calendar className="h-6 w-6" aria-hidden="true" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-medium text-slate-900 dark:text-slate-100">
+                            {a.title}
+                          </h3>
+                          <Badge variant={statusConfig[a.status].variant}>
+                            {statusConfig[a.status].label}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                            {a.date} · {a.startTime} → {a.endTime}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <User className="h-3.5 w-3.5" aria-hidden="true" />
+                            {clientLabel}
+                          </span>
+                          {a.clientPhone && (
+                            <a
+                              href={`tel:${a.clientPhone}`}
+                              className="flex items-center gap-1 hover:text-slate-900 hover:underline dark:hover:text-slate-100"
+                            >
+                              <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                              {a.clientPhone}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {a.status === "pending" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updateStatus(a.id, "confirmed")}
+                            aria-label="Confirmer"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          </Button>
+                        )}
+                        {(a.status === "pending" || a.status === "confirmed") && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updateStatus(a.id, "completed")}
+                            aria-label="Marquer terminé"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {a.status !== "cancelled" && a.status !== "completed" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updateStatus(a.id, "cancelled")}
+                            aria-label="Annuler"
+                          >
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAppointment(a.id)}
+                          aria-label="Supprimer"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-400" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal création */}

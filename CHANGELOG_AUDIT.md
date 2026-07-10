@@ -4,6 +4,161 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 29 — F4 Calendrier avancé (jour/semaine/mois + drag&drop + Google Calendar + ICS)
+
+Critère bloquant marché débloqué : tout pro avec > 10 RDV/semaine (coiffeur, kiné, plombier) exigeait une vue calendrier. Livré avec **0 dépendance externe** — grid CSS pur, HTML5 drag&drop natif, iCalendar RFC 5545 maison, client Google Calendar en fetch direct.
+
+## Vues calendrier livrées
+
+3 vues sur `/dashboard/appointments` avec toggle Liste/Calendrier (calendrier par défaut) :
+
+- **Jour** : grille horaire 7h-21h, 1 colonne, ligne "now" rouge
+- **Semaine** : grille 7 colonnes lundi-dimanche (Europe = lundi first)
+- **Mois** : grille 7×6 (42 cases), max 3 events + "+N autres"
+
+Interactions :
+- **Drag & drop natif** pour reprogrammer (snap 15 min en jour/semaine)
+- **Clic sur slot vide** → pré-remplit modal "Nouveau RDV" avec date/heure
+- **Codes couleur** par membre assigné (palette 8 couleurs stable via hash déterministe)
+- Cancelled → line-through opacity-50
+
+## Modèle de données (3 nouvelles tables + 2 colonnes)
+
+- **`unavailabilities`** — blocs "déjeuner/congés/chantier" (avec `user_id` optionnel pour bloquer un seul membre)
+- **`calendar_tokens`** (1:1 par business) — refresh_token Google + access_token cached
+- **`businesses.ics_secret`** — secret hex 32 chars pour URL CalDAV publique
+- **`appointments.assigned_to_user_id`** (F5 réutilisé) + **`googleCalendarId`** (existait, câblé)
+
+SQL idempotent bloc **4nonies** dans `sql/00_apply_safe.sql`.
+
+## Sync Google Calendar (push v1)
+
+**`src/lib/google-calendar.ts`** — client fetch direct API v3 (0 dep) :
+
+- `getFreshAccessToken(businessId)` — refresh automatique via `refresh_token` (marge 5 min)
+- `pushCreateGoogleEvent` / `pushUpdateGoogleEvent` / `pushDeleteGoogleEvent` — best-effort strict, jamais throw
+- `buildGoogleCalendarAuthUrl(state)` — génère URL OAuth avec scope `calendar.events`
+- `hasGoogleCalendarConnection`, `disconnectGoogleCalendar`
+
+**Flow OAuth** (`/api/google/calendar/connect` + `.../callback`) :
+- State signé HMAC (`NEXTAUTH_SECRET`) → anti-CSRF + transporte businessId
+- `access_type=offline` + `prompt=consent` → refresh_token garanti
+- Upsert `calendar_tokens` avec `onConflictDoUpdate`
+
+**Câblage automatique** dans les routes `appointments/*` :
+- POST create → push CREATE Google + stocke `googleCalendarId`
+- PATCH update → push PATCH Google (ou DELETE si cancelled)
+- DELETE soft-delete → push DELETE Google
+
+Toutes en `void (async...)` fire-and-forget. Google down = Vitrix continue.
+
+## Export iCalendar (URL secrète CalDAV)
+
+**`src/lib/ical.ts`** — génération RFC 5545 conforme, 100% maison :
+
+- `escapeIcsText` : backslash first, `\;` `\,` `\n`
+- `foldIcsLine` : lignes > 75 chars foldées avec `CRLF + espace`
+- `formatIcsUtc` : `YYYYMMDDTHHMMSSZ`
+- `buildIcsEvent(event)` : VEVENT complet (UID/DTSTAMP/DTSTART/DTEND/SUMMARY/DESCRIPTION/LOCATION/ORGANIZER/URL/STATUS)
+- `buildIcsCalendar(events, opts)` : wrapper VCALENDAR avec PRODID Vitrix
+
+**Route `/api/calendar/{secret}.ics`** — publique, retourne le calendrier complet :
+- URL abonnable dans Apple Calendar, Outlook, Google Calendar, Thunderbird
+- Fenêtre ±1 an, inclut RDV + indisponibilités
+- Toujours **404** si mauvais secret (jamais 401 → aucun leak)
+- `Cache-Control: public, max-age=300` (5 min, économise DB pour polling CalDAV)
+- Rate-limit 30/min/IP
+
+**Gestion secret** `/api/calendar/ics-secret` (GET/POST/DELETE) — auth `business.edit`, rotation en 1 clic invalide toutes les abonnements.
+
+## Nouvelles routes API (8)
+
+| Route | Méthode | Auth |
+|---|---|---|
+| `/api/unavailabilities` | GET / POST | `appointments.view` / `.create` |
+| `/api/unavailabilities/[id]` | DELETE | `appointments.delete` |
+| `/api/google/calendar` | GET / DELETE | `business.edit` |
+| `/api/google/calendar/connect` | GET | `business.edit` |
+| `/api/google/calendar/callback` | GET | Publique (state HMAC) |
+| `/api/calendar/[secret]` | GET | Publique (secret) |
+| `/api/calendar/ics-secret` | GET/POST/DELETE | `business.edit` |
+
+## Composants livrés
+
+- **`src/components/calendar/calendar-utils.ts`** — 15 fonctions pures testables (dates, grille, couleurs)
+- **`src/components/calendar/CalendarView.tsx`** — vue principale avec toggle + drag&drop + ligne "now"
+- **`src/components/calendar/AppointmentsCalendarPanel.tsx`** — wrapper fetch appointments+unavailabilities + gestion drop→PATCH avec rollback
+
+## Extensions page `/dashboard/appointments`
+
+- Toggle **Liste / Calendrier** en haut à droite (Calendrier par défaut)
+- Vue Calendrier + hint drag&drop en filtre bar
+- Clic slot → modal "Nouveau RDV" pré-rempli
+- Signal `calendarReload` incrémenté après create → refetch
+
+## Fichiers créés / modifiés
+
+**Créés** (14 fichiers) :
+- `src/lib/ical.ts` (140 lignes)
+- `src/lib/google-calendar.ts` (250 lignes)
+- `src/components/calendar/calendar-utils.ts` (150 lignes)
+- `src/components/calendar/CalendarView.tsx` (380 lignes)
+- `src/components/calendar/AppointmentsCalendarPanel.tsx` (130 lignes)
+- `src/app/api/unavailabilities/route.ts`
+- `src/app/api/unavailabilities/[id]/route.ts`
+- `src/app/api/google/calendar/route.ts`
+- `src/app/api/google/calendar/connect/route.ts`
+- `src/app/api/google/calendar/callback/route.ts`
+- `src/app/api/calendar/[secret]/route.ts`
+- `src/app/api/calendar/ics-secret/route.ts`
+- `docs/CALENDAR.md`
+- `tests/unit/calendar-utils.test.ts` (28 tests)
+- `tests/unit/ical.test.ts` (17 tests)
+
+**Modifiés** :
+- `src/db/schema.ts` — tables `unavailabilities` + `calendarTokens`, colonne `businesses.icsSecret`
+- `sql/00_apply_safe.sql` — bloc 4nonies idempotent
+- `src/app/api/appointments/route.ts` — accepte `assignedToUserId` + push Google
+- `src/app/api/appointments/[id]/route.ts` — sync Google update/delete + accepte `assignedToUserId`
+- `src/app/dashboard/appointments/page.tsx` — toggle Liste/Calendrier + intégration panel
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 234 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **502 tests / 49 fichiers, tous verts** (+45 vs Lot 32) 🎯 barre 500 franchie
+- ✅ `npm run test:coverage` — lines 45.31%, functions 62.06%, branches 82.78%
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **Critère marché bloquant débloqué** — coiffeurs / kinés / plombiers avec agenda chargé peuvent enfin utiliser Vitrix
+- **Différenciateur vs Simplébo/Solocal** qui n'ont pas de sync Google Calendar bidirectionnelle native (Vitrix v1 = push, v2 = pull)
+- **Réduction charge admin pro** : drag&drop pour reprogrammer sans dialog
+- **Interopérabilité** : URL CalDAV = un client Apple Calendar voit ses RDV Vitrix sans installer d'app
+- **Réutilise F5** : coloration par membre assigné dans la vue calendrier
+
+## Actions post-déploiement
+
+1. **Appliquer le SQL** : `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4nonies (tables + colonnes)
+2. **Configurer Google Cloud Console** : ajouter `https://www.vitrix.fr/api/google/calendar/callback` dans les redirect URIs OAuth (en plus du Google Business Profile existant), activer l'API `Calendar API`
+3. **Env vars Vercel** :
+   - `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (partagés avec le flow Business Profile)
+   - `GOOGLE_CALENDAR_REDIRECT_URI` (optionnel — sinon dérivé de `NEXT_PUBLIC_APP_URL`)
+4. **Test E2E manuel** :
+   - Connecter Google Calendar depuis dashboard
+   - Créer un RDV → vérifier qu'il apparaît dans Google Calendar en < 5s
+   - Drag&drop dans la vue Semaine → vérifier update Google
+   - Générer secret ICS → abonner Apple Calendar / Thunderbird avec l'URL
+5. **Communication users pro** : "Nouveauté : vue Calendrier drag&drop + sync Google. Réservé Pro+."
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 28 — F5 Équipe & rôles multi-utilisateurs
 
 Ouvre le marché TPE 2-10 personnes. Avant : `team_members` en DB avec 0 UI, memberRole vaguement "assistant"/"employee" sans permissions réelles, aucun système d'invitation, aucun link user_id. Après : 4 rôles clairs (owner/admin/employee/viewer), matrice permissions 30 capabilities figée, invitations magic-link 7 jours, UI complète, bandeau contextuel dans le dashboard.

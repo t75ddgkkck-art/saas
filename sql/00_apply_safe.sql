@@ -845,6 +845,72 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4nonies. Lot 33 (F4) — Calendrier avancé (indispos + sync Google + ICS)
+-- -----------------------------------------------------------------------------
+
+-- Table indisponibilités (blocs déjeuner / congés / bloc perso)
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    CREATE TABLE IF NOT EXISTS public.unavailabilities (
+      id           uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+      business_id  uuid          NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+      user_id      uuid          REFERENCES public.users(id) ON DELETE SET NULL,
+      title        varchar(200)  NOT NULL,
+      date         varchar(10)   NOT NULL,
+      start_time   varchar(5),
+      end_time     varchar(5),
+      color        varchar(7),
+      notes        text,
+      created_at   timestamp     NOT NULL DEFAULT now(),
+      updated_at   timestamp     NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS unavailabilities_business_date_idx
+      ON public.unavailabilities (business_id, date);
+    CREATE INDEX IF NOT EXISTS unavailabilities_user_idx
+      ON public.unavailabilities (user_id);
+  END IF;
+END $$;
+
+-- Table tokens Google Calendar (par business, 1:1)
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    CREATE TABLE IF NOT EXISTS public.calendar_tokens (
+      business_id             uuid          PRIMARY KEY REFERENCES public.businesses(id) ON DELETE CASCADE,
+      provider                varchar(20)   NOT NULL DEFAULT 'google',
+      refresh_token           text          NOT NULL,
+      access_token            text,
+      access_token_expires_at timestamp,
+      calendar_id             varchar(255)  NOT NULL DEFAULT 'primary',
+      scope                   text,
+      connected_at            timestamp     NOT NULL DEFAULT now(),
+      last_sync_at            timestamp
+    );
+  END IF;
+END $$;
+
+-- Colonne icsSecret sur businesses (URL secrète calendrier)
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    ALTER TABLE public.businesses
+      ADD COLUMN IF NOT EXISTS ics_secret varchar(64);
+    CREATE UNIQUE INDEX IF NOT EXISTS businesses_ics_secret_uidx
+      ON public.businesses (ics_secret)
+      WHERE ics_secret IS NOT NULL;
+  END IF;
+END $$;
+
+-- Colonne googleEventId sur appointments (pour sync bidirectionnel plus tard,
+-- v1 sert uniquement à identifier ce qu'on a poussé et éviter les doublons)
+DO $$ BEGIN
+  IF public.__vx_table_exists('appointments') THEN
+    -- google_calendar_id existe déjà côté schema (varchar 500) — on l'utilise
+    -- comme "ID de l'event dans Google Calendar" pour la sync push.
+    -- Rien à ajouter.
+    NULL;
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (
