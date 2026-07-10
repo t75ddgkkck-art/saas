@@ -82,10 +82,14 @@ $$;
 DO $$ BEGIN
   IF public.__vx_table_exists('users') THEN
     ALTER TABLE public.users
-      ADD COLUMN IF NOT EXISTS stripe_customer_id     varchar(255),
-      ADD COLUMN IF NOT EXISTS stripe_subscription_id varchar(255),
-      ADD COLUMN IF NOT EXISTS email_verified         boolean DEFAULT false NOT NULL,
-      ADD COLUMN IF NOT EXISTS phone                  varchar(20);
+      ADD COLUMN IF NOT EXISTS stripe_customer_id       varchar(255),
+      ADD COLUMN IF NOT EXISTS stripe_subscription_id   varchar(255),
+      ADD COLUMN IF NOT EXISTS subscription_status      varchar(30),
+      ADD COLUMN IF NOT EXISTS subscription_expires_at  timestamp,
+      ADD COLUMN IF NOT EXISTS email_verified           boolean DEFAULT false NOT NULL,
+      ADD COLUMN IF NOT EXISTS phone                    varchar(20);
+    CREATE INDEX IF NOT EXISTS users_subscription_expires_idx
+      ON public.users (subscription_expires_at);
   END IF;
 END $$;
 

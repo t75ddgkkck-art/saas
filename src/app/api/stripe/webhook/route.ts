@@ -1,22 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import type Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { logger } from "@/lib/logger";
+import {
+  handleCheckoutCompleted,
+  handleSubscriptionUpdated,
+  handleSubscriptionDeleted,
+  handleInvoicePaymentFailed,
+  handleInvoiceUpcoming,
+  handleInvoicePaid,
+  handleTrialWillEnd,
+  handleDisputeCreated,
+} from "@/lib/stripe-events";
 
 export const dynamic = "force-dynamic";
 
-// Singleton Stripe : évite d'instancier à chaque webhook (hot path).
-let stripeSingleton: Stripe | null = null;
-function getStripe(): Stripe {
-  if (!stripeSingleton) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("STRIPE_SECRET_KEY missing");
-    stripeSingleton = new Stripe(key);
-  }
-  return stripeSingleton;
-}
+/**
+ * Webhook Stripe complet — traite 7 types d'événements clés.
+ *
+ * Sécurité :
+ *  - Vérif signature via constructEvent (rejette toute requête falsifiée)
+ *  - Body brut requis (jamais parsé par Next avant vérif)
+ *
+ * Idempotence :
+ *  - Stripe retente automatiquement en cas de 5xx (jusqu'à 3 jours)
+ *  - Nos handlers DB sont idempotents (UPDATE sur user_id)
+ *  - On répond toujours 200 après traitement (même si logique interne échoue)
+ *    → évite les boucles de retry sur des erreurs qu'un retry ne résoudrait pas
+ */
+
+const HANDLERS: Record<string, (event: Stripe.Event) => Promise<void>> = {
+  "checkout.session.completed": handleCheckoutCompleted,
+  "customer.subscription.updated": handleSubscriptionUpdated,
+  "customer.subscription.deleted": handleSubscriptionDeleted,
+  "customer.subscription.trial_will_end": handleTrialWillEnd,
+  "invoice.paid": handleInvoicePaid,
+  "invoice.payment_succeeded": handleInvoicePaid, // alias historique
+  "invoice.payment_failed": handleInvoicePaymentFailed,
+  "invoice.upcoming": handleInvoiceUpcoming,
+  "charge.dispute.created": handleDisputeCreated,
+};
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -42,62 +65,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
   }
 
+  const handler = HANDLERS[event.type];
+  if (!handler) {
+    logger.debug("stripe.webhook.unhandled", { type: event.type });
+    return NextResponse.json({ received: true, handled: false });
+  }
+
   try {
-    const { type, data } = event;
-
-    switch (type) {
-      case "checkout.session.completed": {
-        const session = data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.userId;
-        const plan = session.metadata?.plan;
-
-        if (userId && (plan === "pro" || plan === "premium")) {
-          await db.update(users).set({ subscription: plan }).where(eq(users.id, userId));
-          logger.info("stripe.subscription.upgraded", { userId, plan });
-        }
-        break;
-      }
-
-      case "customer.subscription.updated": {
-        const subscription = data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
-
-        if (
-          userId &&
-          (subscription.status === "canceled" || subscription.status === "unpaid")
-        ) {
-          await db.update(users).set({ subscription: "free" }).where(eq(users.id, userId));
-          logger.info("stripe.subscription.downgraded", { userId, reason: subscription.status });
-        }
-        break;
-      }
-
-      case "customer.subscription.deleted": {
-        const subscription = data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
-
-        if (userId) {
-          await db
-            .update(users)
-            .set({ subscription: "free", stripeSubscriptionId: null })
-            .where(eq(users.id, userId));
-          logger.info("stripe.subscription.deleted", { userId });
-        }
-        break;
-      }
-
-      default:
-        logger.debug("stripe.webhook.unhandled", { type });
-    }
-
-    return NextResponse.json({ received: true });
+    await handler(event);
+    return NextResponse.json({ received: true, handled: true });
   } catch (err) {
     logger.error("stripe.webhook.processing_failed", {
-      message: err instanceof Error ? err.message : String(err),
       type: event.type,
+      eventId: event.id,
+      message: err instanceof Error ? err.message : String(err),
     });
-    // On renvoie 200 quand même pour éviter que Stripe ne retente en boucle
-    // sur une erreur DB que le retry ne résoudra pas. Le log permet le fix manuel.
+    // 200 OK volontaire pour éviter les retry en boucle sur une erreur DB
+    // qui ne sera pas résolue par un retry (ex: contrainte violée).
+    // L'événement est loggué → resolution manuelle possible.
     return NextResponse.json({ received: true, warning: "processing_failed" });
   }
 }

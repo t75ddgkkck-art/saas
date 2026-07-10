@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getStripePriceId, PLANS, type PlanId, type BillingCycle } from "@/lib/plans";
 
 // Initialisation Stripe sécurisée
 let stripeInstance: Stripe | null = null;
@@ -78,21 +79,14 @@ export async function createCheckoutSession(params: {
 // Créer une session d'abonnement (Pro / Premium)
 export async function createSubscriptionSession(params: {
   userId: string;
-  plan: "pro" | "premium";
-  billing: "monthly" | "yearly";
+  plan: Exclude<PlanId, "free">;
+  billing: BillingCycle;
   successUrl: string;
   cancelUrl: string;
 }) {
   const stripe = getStripe();
 
-  const priceMap: Record<string, string> = {
-    "pro-monthly": process.env.STRIPE_PRICE_ID_PRO_MONTHLY || "",
-    "pro-yearly": process.env.STRIPE_PRICE_ID_PRO_YEARLY || "",
-    "premium-monthly": process.env.STRIPE_PRICE_ID_PREMIUM_MONTHLY || "",
-    "premium-yearly": process.env.STRIPE_PRICE_ID_PREMIUM_YEARLY || "",
-  };
-
-  const priceId = priceMap[`${params.plan}-${params.billing}`];
+  const priceId = getStripePriceId(params.plan, params.billing);
   if (!priceId) {
     throw new Error(`Price not configured for ${params.plan}-${params.billing}`);
   }
@@ -113,20 +107,65 @@ export async function createSubscriptionSession(params: {
     }
   }
 
+  // Trial period : si le user n'a jamais eu de subscription active, on lui offre
+  // le trial défini côté PLANS. S'il a déjà eu un trial, Stripe le refusera
+  // silencieusement (protection contre l'abus).
+  const trialDays = PLANS[params.plan].trialDays;
+  const isFirstSubscription = !userData?.stripeSubscriptionId;
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
+    // Activation du trial UNIQUEMENT sur la 1ère souscription
+    subscription_data:
+      isFirstSubscription && trialDays > 0
+        ? {
+            trial_period_days: trialDays,
+            trial_settings: {
+              end_behavior: {
+                // Si le user n'a pas mis de CB à la fin du trial → annulation
+                // automatique (au lieu de facturer sans consentement clair)
+                missing_payment_method: "cancel",
+              },
+            },
+            metadata: { userId: params.userId, plan: params.plan },
+          }
+        : {
+            metadata: { userId: params.userId, plan: params.plan },
+          },
+    // Force la collecte de la CB dès le trial (obligatoire pour trial + auto-charge)
+    payment_method_collection: "always",
+    // Permet au user de revoir/modifier ses infos billing depuis Stripe Portal
+    billing_address_collection: "auto",
+    // Métadonnées reprises côté webhook checkout.session.completed
     metadata: {
       userId: params.userId,
       plan: params.plan,
       billing: params.billing,
     },
+    // URL de retour après paiement + lien vers le Customer Portal Stripe
+    allow_promotion_codes: true,
   });
 
   return session;
+}
+
+/**
+ * Ouvre le Customer Portal Stripe pour un user (facture, CB, historique).
+ * → Zéro UI custom à maintenir, Stripe gère tout.
+ */
+export async function createPortalSession(params: {
+  customerId: string;
+  returnUrl: string;
+}) {
+  const stripe = getStripe();
+  return stripe.billingPortal.sessions.create({
+    customer: params.customerId,
+    return_url: params.returnUrl,
+  });
 }
 
 // Annuler un abonnement à la fin de la période

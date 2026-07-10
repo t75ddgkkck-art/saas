@@ -4,154 +4,168 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
-# 🟢 Tour 10 — Lot 10 IA & coûts
+# 🟢 Tour 11 — Lot 11 Stripe & Facturation
 
-## 10.1 — Client OpenAI centralisé (`src/lib/ai/client.ts`)
+## 11.1 — Webhook Stripe complet (7 events)
 
-Avant : 5 fichiers appelaient directement `fetch("https://api.openai.com/v1/chat/completions")` avec `model: "gpt-4o-mini"` en dur.
+Avant : 3 events (`checkout.session.completed`, `subscription.updated`, `subscription.deleted`).
+Après : **9 events** couvrant tout le cycle de vie SaaS :
 
-Après : **un seul module** qui parle à OpenAI.
+| Event | Handler | Effet |
+|---|---|---|
+| `checkout.session.completed` | `handleCheckoutCompleted` | Active le plan payant |
+| `customer.subscription.updated` | `handleSubscriptionUpdated` | Gère active/past_due + grace period |
+| `customer.subscription.deleted` | `handleSubscriptionDeleted` | Downgrade `free` |
+| `customer.subscription.trial_will_end` | `handleTrialWillEnd` | Email J-3 avant fin de trial |
+| `invoice.paid` | `handleInvoicePaid` | **Email de reçu + lien PDF facture Stripe** |
+| `invoice.payment_succeeded` | `handleInvoicePaid` | Alias historique |
+| `invoice.payment_failed` | `handleInvoicePaymentFailed` | Log (email envoyé par subscription.updated) |
+| `invoice.upcoming` | `handleInvoiceUpcoming` | **Email rappel J-3 avant renouvellement** |
+| `charge.dispute.created` | `handleDisputeCreated` | Log ERROR + alerte support par email |
 
-- `aiComplete(opts)` : appel non-streaming, retourne `{ ok, content, usage } | { ok: false, error, code }` — jamais throw, le call-site peut fallback simplement.
-- `aiCompleteStream(opts)` : version SSE décodée en texte plat (pour /api/ai-chat/stream).
-- `isAiConfigured()` : check clé API.
-- **Modèle configurable** via `OPENAI_MODEL` (défaut `gpt-4o-mini`), `OPENAI_BASE_URL` (compat Azure/Mistral), `OPENAI_TIMEOUT_MS` (30s défaut).
-- **Timeout** avec `AbortController` (évite les hangs).
-- **Logging structuré** : `ai.completion`, `ai.timeout`, `ai.http_error`, `ai.fetch_failed`.
-- **Retour tokens** : `promptTokens`, `completionTokens`, `totalTokens`, `model` — utilisé par le tracking usage.
+Handlers extraits dans **`src/lib/stripe-events.ts`** (testables unitairement, mockables).
 
-## 10.2 — Quotas mensuels par utilisateur
+Le webhook `/api/stripe/webhook` devient un **simple dispatcher** de 40 lignes qui vérifie la signature et route vers le bon handler.
 
-Nouvelle table **`ai_usage`** (schéma + SQL idempotent) :
-- Colonnes : `userId`, `route`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `estimatedCostUsd`, `createdAt`
-- 2 index : `(userId, createdAt)` pour quota check ; `(model, createdAt)` pour agrégations admin
+## 11.2 — Grace period (paiement échoué)
 
-Nouveau **`src/lib/ai/usage.ts`** :
-- `AI_TOKEN_LIMITS` : `{ free: 0, pro: 300_000, premium: 2_000_000 }` tokens/mois
-- `getMonthlyUsage(userId)` : somme SUM(tokens) WHERE user_id = ? AND created_at >= 30j
-- `checkAiQuota(userId, plan)` : renvoie `{ allowed, used, limit, remaining, reason? }`
-- `recordAiUsage(...)` : insert fire-and-forget après chaque appel réussi
-- `estimateCostUsd(prompt, completion)` : prix indicatif gpt-4o-mini
+Nouvelles colonnes DB `users` :
+- `subscription_status` — miroir du statut Stripe (`active` / `past_due` / `trialing` / `canceled` / `unpaid`)
+- `subscription_expires_at` — date de fin de grace period (NULL en temps normal)
 
-**Coût max par pro premium : ~1 $/mois** même à quota plein (2M tokens à 0.15/0.60 $ par 1M).
+**Logique** :
+1. `invoice.payment_failed` → Stripe envoie aussi `subscription.updated` avec `status: past_due`
+2. Notre handler calcule `now() + GRACE_PERIOD_DAYS[plan]` (3j Pro, 7j Premium) et l'écrit
+3. **L'user garde son plan** pendant N jours
+4. Email envoyé : "votre paiement a échoué, mettez à jour votre carte"
+5. Si le user paye → `subscription.updated` avec `active` → on nettoie `expires_at`
+6. Sinon Stripe retente auto (jusqu'à 4× en 3 semaines) → si final échec → `subscription.deleted` → downgrade
+7. **Filet de sécurité** : nouveau cron `/api/cron/grace-period-expired` (1×/jour à 3h) downgrade les grace periods expirées si le webhook a été manqué
 
-Routes qui appliquent le quota :
-- `POST /api/ai-blog`
-- `POST /api/ai-tools` (report + social-post)
-- `POST /api/reviews/ai-reply`
-- Helpers `src/lib/ai-content.ts` (`generateSocialPost`, `generateMonthlyReport`)
+## 11.3 — Facture PDF envoyée automatiquement
 
-Le chat public (`/api/ai-chat`) est exempt de quota par user (car public, pas de session), mais reste protégé par le rate-limit 15/5min/IP + le budget global via clé API.
+Nouveau handler `handleInvoicePaid` :
+- Récupère l'URL du PDF facture Stripe (`invoice.invoice_pdf` — URL signée temporaire)
+- Envoie un email "✅ Facture Vitrix — 29 €" avec bouton "Télécharger la facture PDF" + lien vers l'hosted invoice URL
+- Utilise le système de queue email (Lot 9) → non-bloquant + retry si Resend down
 
-## 10.3 — Prompts externalisés (`src/lib/ai/prompts.ts`)
+Pas besoin de générer un PDF nous-mêmes, Stripe le fait mieux (mention légale FR, TVA, numérotation propre).
 
-6 prompts centralisés et typés :
-- `publicChatSystemPrompt(biz, services, hours)` : chatbot vitrine
-- `publicChatFallback(msg, biz, services, hours)` : règles déterministes sans IA
-- `reviewReplySystemPrompt(biz)` : réponse aux avis
-- `blogArticleSystemPrompt(biz, topic)` : article SEO ~400 mots
-- `socialPostSystemPrompt(biz, platform)` : post FB/IG/LI adapté
-- `monthlyReportSystemPrompt()` : rapport mensuel consultant
+## 11.4 — Stripe Customer Portal
 
-Chaque prompt est **testé unitairement** (11 tests) — impossible de casser une règle en modifiant un prompt sans que le test rouge.
+Nouvelle route **`POST /api/stripe/portal`** :
+- Ouvre le Stripe Customer Portal pour le user courant
+- Le user peut y : mettre à jour sa CB, télécharger l'historique factures PDF, annuler son abonnement, changer de plan
+- Zéro UI custom à maintenir côté nous (Stripe gère tout)
+- Retour : `{ url }` que le front redirige
 
-## 10.4 — Streaming pour le chat
+À brancher côté dashboard : bouton "Gérer mon abonnement" → POST puis `window.location = url`.
 
-Nouvelle route **`POST /api/ai-chat/stream`** :
-- Renvoie `text/plain` en flux (chunks des deltas OpenAI décodés)
-- Headers `X-Accel-Buffering: no` + `Cache-Control: no-cache, no-transform` pour forcer le flush au fil de l'eau (Vercel/nginx)
-- Fallback non-streamé si IA absente ou erreur (règles déterministes)
-- Rate-limit identique à `/api/ai-chat` (15/5min/IP)
+## 11.5 — Source unique des plans (`src/lib/plans.ts`)
 
-Côté client à intégrer :
-```ts
-const res = await fetch("/api/ai-chat/stream", { method: "POST", body: JSON.stringify({ businessId, message }) });
-const reader = res.body!.getReader();
-const decoder = new TextDecoder();
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  setMessage((m) => m + decoder.decode(value));
-}
-```
+Avant : prix éclatés dans `PricingSection.tsx`, `utils.ts`, Stripe Dashboard → divergence garantie.
+Après : **module canonique** :
 
-## 10.5 — Fallback complet
+- `PLANS: Record<PlanId, PlanDefinition>` = source de vérité (nom, tagline, prix mensuel/annuel, trial, features)
+- `getDisplayPlans()` : plans + économies annuelles pour la UI
+- `getStripePriceId(plan, billing)` : lookup Stripe Price ID depuis env
+- `getPriceCents(plan, billing)` : cents attendus par Stripe (pour vérif)
+- `GRACE_PERIOD_DAYS` : `{ pro: 3, premium: 7 }`
 
-Chaque route IA possède maintenant un fallback quand :
-- `OPENAI_API_KEY` manque (dev)
-- OpenAI répond 429/5xx
-- Timeout (30s défaut)
-- Quota user dépassé
+`stripe.ts createSubscriptionSession()` refondu :
+- Utilise `getStripePriceId()` (plus de duplication du mapping)
+- **Active le trial 14 jours** sur la 1ère subscription (`isFirstSubscription`)
+- `end_behavior.missing_payment_method: "cancel"` → si pas de CB à J-14 → annulation propre (RGPD friendly)
+- `payment_method_collection: "always"` → CB requise dès inscription
+- `allow_promotion_codes: true` → codes promos disponibles au checkout
+- Nouvelle fonction `createPortalSession()` pour le Customer Portal
 
-Fallback = contenu utile pré-rédigé (règles), jamais une page vide ou une erreur 500. L'user voit toujours quelque chose.
+## 11.6 — Doc `stripe listen` complète
 
-## Bonus — Endpoint d'introspection
+Nouveau **`docs/STRIPE.md`** (400+ lignes) :
+- Configuration Stripe Dashboard (Products, Prices, Webhook endpoint)
+- Installation Stripe CLI (macOS + Linux)
+- Commandes `stripe login` + `stripe listen --forward-to`
+- 6 commandes `stripe trigger` pour tester chaque event
+- Cartes de test Stripe utiles (succès, refus, 3DS, dispute)
+- Explication détaillée du flow grace period
+- Section trial 14 jours
+- Debugging (webhook 400, past_due éternel, vérif SQL état d'un user)
+- Coûts Stripe
 
-Nouvelle route **`GET /api/ai/usage`** :
-- Renvoie l'usage mensuel du user courant + quota + coût estimé
-- À consommer depuis le dashboard pour afficher une jauge
+## Cron additionnel : grace-period-expired
 
-Exemple de réponse :
-```json
-{
-  "used": 42350,
-  "limit": 300000,
-  "remaining": 257650,
-  "percentUsed": 14,
-  "requests": 87,
-  "estimatedCostUsd": 0.023,
-  "plan": "pro",
-  "allowed": true
-}
-```
+Nouvelle route **`/api/cron/grace-period-expired`** :
+- Sélectionne les users avec `subscription != 'free' AND subscription_expires_at < now()`
+- Downgrade en `free`
+- Envoie un email "votre compte est repassé en Gratuit"
+- Ajouté à `vercel.json` avec cron `0 3 * * *` (3h du matin, hors pic Stripe)
 
-## Tests unitaires (+16 : 102 → 120 → au final 120)
+## Tests unitaires (+22 : 120 → 142)
 
-Wait, correction : **120 tests** (les tests IA prompts + usage étaient dans un fichier différent).
+- `tests/unit/plans.test.ts` (12 tests) :
+  - Définition des 3 plans + trial + rabais annuel (-20%)
+  - `getPriceCents` → 2900, 27800, 7900, 75800
+  - `getDisplayPlans` : ordre + économies + effectiveMonthly
+  - `getStripePriceId` (free → null, lecture env, env vide)
+  - `GRACE_PERIOD_DAYS` : pro=3, premium=7
 
-- `tests/unit/ai-usage.test.ts` (5 tests) : limites par plan, estimation coût
-- `tests/unit/ai-prompts.test.ts` (11 tests) : chaque prompt inclut les bonnes données + fallback règles couvre tous les intents (RDV, prix, urgence, horaires, adresse, hors-sujet)
+- `tests/unit/stripe-events.test.ts` (10 tests) avec **mocks db/email/logger** :
+  - `handleCheckoutCompleted` : active pro, ignore metadata manquant, ignore plan invalide
+  - `handleSubscriptionUpdated` past_due → grace 3j (Pro) ou 7j (Premium)
+  - `handleSubscriptionUpdated` active → nettoie expiration
+  - `handleSubscriptionUpdated` free en past_due → no-op
+  - `handleSubscriptionDeleted` → downgrade immédiat
 
 ## Validations finales
 
 ```
 tsc --noEmit  → 0 erreur
-vitest run    → 120/120 tests OK
+vitest run    → 142/142 tests OK
 next build    → Compiled successfully, 42/42 pages, 0 warning
-              → Nouvelles routes: /api/ai-chat/stream, /api/ai/usage
+              → Nouvelles routes: /api/stripe/portal, /api/cron/grace-period-expired
 ```
 
 ## Migration DB requise
 
-Rejouer `sql/00_apply_safe.sql` sur Supabase → crée la table `ai_usage` avec ses 2 index (safe rejouable, aucun impact sur données existantes).
+Rejouer `sql/00_apply_safe.sql` sur Supabase → ajoute 2 colonnes à `users` :
+- `subscription_status varchar(30)`
+- `subscription_expires_at timestamp`
++ un index `users_subscription_expires_idx`
 
-## Variables d'environnement (nouvelles / optionnelles)
+## Nouvelles variables d'environnement (optionnelles)
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `OPENAI_MODEL` | `gpt-4o-mini` | Modèle IA principal |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Compat Azure OpenAI, Mistral, self-hosted |
-| `OPENAI_TIMEOUT_MS` | `30000` | Timeout des appels IA |
+| `STRIPE_SUPPORT_EMAIL` | — | Email d'alerte reçoit les notifications `charge.dispute.created` |
 
-## Impact facture OpenAI
+Les 4 `STRIPE_PRICE_ID_*` étaient déjà attendus.
 
-| Scénario | Avant | Après |
-|---|---|---|
-| Un pro premium buggé qui boucle sur `/api/ai-blog` | Illimité (facture 4 chiffres possible) | **Bloqué à 2M tokens/mois** (~1 $) |
-| Chat public spammé | Rate-limit 15/5min/IP seul | Rate-limit **+** log de coût par appel |
-| Changer de modèle (gpt-4o → claude) | Modifier 5 fichiers | Une seule variable `OPENAI_MODEL` |
-| Ajouter Sentry / Datadog sur les appels IA | Impossible (dispersé) | 1 seul point d'entrée (`aiComplete`) |
+## Configuration Dashboard Stripe requise
+
+Ajouter ces events dans Webhooks → Add endpoint :
+- `checkout.session.completed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `customer.subscription.trial_will_end`
+- `invoice.paid` (ou `invoice.payment_succeeded`)
+- `invoice.payment_failed`
+- `invoice.upcoming` *(nécessite d'activer dans Settings → Billing → Notifications)*
+- `charge.dispute.created`
+
+Activer aussi Settings → Billing → Customer Portal (voir `docs/STRIPE.md`).
 
 ---
 
 # Historique tours précédents
 
+- `6fc7625` — Tour 10 : Lot 10 IA & coûts (client centralisé, quotas, streaming, prompts)
 - `5c8ccea` — Tour 9 : Lot 9 emails (queue, unsubscribe RGPD, budget SMS)
-- `11211b5` — Tour 8 : Lot 8 i18n (116 clés, interpolation, emails multi-langues)
-- `8fcc196` — Tour 7 : Lot 6 SEO (sitemap-index paginé, rich snippets)
-- `7beadb6` — Tour 6 : Lot 5 perf (ISR, index DB, next/image, next/font)
-- `2c928bb` — Tour 5 : Lot 4 a11y (WCAG AA)
-- `5380ed0` — Tour 4 : Lot 3 UI/UX (theme, toast, skeletons, onboarding)
+- `11211b5` — Tour 8 : Lot 8 i18n
+- `8fcc196` — Tour 7 : Lot 6 SEO
+- `7beadb6` — Tour 6 : Lot 5 perf
+- `2c928bb` — Tour 5 : Lot 4 a11y
+- `5380ed0` — Tour 4 : Lot 3 UI/UX
 - `f5b3f2b` — Tour 3 : Lots 1+2 (sécurité + code mort)
 - `096b2aa` — Fix SQL tolérant tables absentes
 - `89d448b` — SQL idempotent + audit v2

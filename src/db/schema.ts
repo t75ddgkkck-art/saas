@@ -40,6 +40,13 @@ export const users = pgTable(
     subscription: subscriptionEnum("subscription").default("free").notNull(),
     stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
     stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+    // Statut fin de la subscription Stripe : active | trialing | past_due |
+    // canceled | unpaid | incomplete. Différent de `subscription` (free/pro/premium)
+    // qui reste le plan effectif après grace period.
+    subscriptionStatus: varchar("subscription_status", { length: 30 }),
+    // Grace period : date jusqu'à laquelle l'accès premium/pro est maintenu
+    // même si Stripe indique past_due/unpaid. Downgrade auto après.
+    subscriptionExpiresAt: timestamp("subscription_expires_at"),
     emailVerified: boolean("email_verified").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -47,6 +54,8 @@ export const users = pgTable(
   (t) => ({
     // Recherche login case-insensitive
     emailLowerIdx: uniqueIndex("users_email_lower_uidx").on(sql`lower(${t.email})`),
+    // Cron de downgrade : "who has grace period expired ?"
+    subscriptionExpiresIdx: index("users_subscription_expires_idx").on(t.subscriptionExpiresAt),
   })
 );
 
