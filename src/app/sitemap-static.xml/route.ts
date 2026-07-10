@@ -19,6 +19,7 @@ const STATIC: UrlEntry[] = [
   { path: "/cgu", changefreq: "yearly", priority: 0.3 },
   { path: "/confidentialite", changefreq: "yearly", priority: 0.3 },
   { path: "/mentions-legales", changefreq: "yearly", priority: 0.3 },
+  { path: "/status", changefreq: "weekly", priority: 0.2 },
 ];
 
 export function GET() {

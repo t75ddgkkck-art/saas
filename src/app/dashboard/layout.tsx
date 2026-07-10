@@ -6,6 +6,7 @@ import { PWAInstallBanner } from "@/components/layout/PWAInstallBanner";
 import { PWARegister } from "@/components/layout/PWARegister";
 import { LangProvider } from "@/contexts/LangContext";
 import { LangHtmlSync } from "@/components/layout/LangHtmlSync";
+import { SupportBubble } from "@/components/layout/SupportBubble";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +24,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="mx-auto max-w-7xl px-4 py-8 pt-20 lg:px-8 lg:pt-8">{children}</div>
         </main>
         <PWAInstallBanner />
+        {/* Lot 16.5 : bouton support (Crisp/Intercom si env défini, sinon mailto) */}
+        <SupportBubble />
       </div>
     </LangProvider>
   );

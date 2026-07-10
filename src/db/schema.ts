@@ -11,6 +11,7 @@ import {
   pgEnum,
   index,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -57,6 +58,15 @@ export const users = pgTable(
     // doivent filtrer WHERE deleted_at IS NULL (voir helpers `notDeleted()`
     // dans src/lib/soft-delete.ts).
     deletedAt: timestamp("deleted_at"),
+    // Lot 16.3 parrainage : code unique attribué à l'inscription (ex: "VX-A3F7K2").
+    // Le user peut le partager → chaque filleul qui souscrit un plan payant
+    // débloque 1 mois gratuit pour le parrain.
+    referralCode: varchar("referral_code", { length: 20 }),
+    // User qui a parrainé celui-ci (nullable si inscription directe)
+    referredBy: uuid("referred_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    // Nombre de mois de crédit accumulés (non encore appliqués sur la souscription).
+    // Le webhook Stripe checkout.completed du filleul incrémente +1 sur le parrain.
+    referralCreditMonths: integer("referral_credit_months").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -67,6 +77,12 @@ export const users = pgTable(
     subscriptionExpiresIdx: index("users_subscription_expires_idx").on(t.subscriptionExpiresAt),
     // Lot 14.3 : listing "users actifs" scanne uniquement les non-supprimés
     deletedAtIdx: index("users_deleted_at_idx").on(t.deletedAt),
+    // Lot 16.3 : lookup "à qui appartient ce code parrain ?" (unique global)
+    referralCodeIdx: uniqueIndex("users_referral_code_uidx")
+      .on(t.referralCode)
+      .where(sql`${t.referralCode} is not null`),
+    // Reverse lookup : "qui a été parrainé par X ?" (dashboard parrainage)
+    referredByIdx: index("users_referred_by_idx").on(t.referredBy),
   })
 );
 
@@ -959,5 +975,103 @@ export const adminEvents = pgTable(
     actorCreatedIdx: index("admin_events_actor_created_idx").on(t.actorUserId, t.createdAt),
     targetCreatedIdx: index("admin_events_target_created_idx").on(t.targetUserId, t.createdAt),
     actionCreatedIdx: index("admin_events_action_created_idx").on(t.action, t.createdAt),
+  })
+);
+
+// ============== API KEYS (Lot 16.4 API publique) ==============
+// Clés d'authentification pour l'API publique v1. Un user peut en créer plusieurs
+// (ex: prod + dev + intégration Zapier), chacune scopée à un business.
+//
+// SÉCURITÉ :
+// - Seul le HASH est stocké (SHA-256) — la clé claire n'est montrée qu'une fois à la création
+// - Prefix visible en dur pour identifier une clé dans les logs sans exposer le secret
+// - `lastUsedAt` pour révoquer les clés inactives
+// - Révocation soft (revokedAt) plutôt que DELETE → audit
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // Business auquel la clé donne accès (une clé = un business, isolation stricte)
+    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    // Nom lisible ("Prod API", "Zapier", "Test dev") — l'user gère
+    name: varchar("name", { length: 100 }).notNull(),
+    // Prefix visible : "vx_live_xxxx..." → on stocke "vx_live_A3F7" pour affichage
+    keyPrefix: varchar("key_prefix", { length: 20 }).notNull(),
+    // Hash SHA-256 de la clé complète (jamais la clé claire)
+    keyHash: varchar("key_hash", { length: 64 }).notNull(),
+    // Portée : "read" (GET only) ou "read_write" (GET + POST/PUT)
+    scope: varchar("scope", { length: 20 }).default("read").notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    lastUsedIp: varchar("last_used_ip", { length: 45 }),
+    // Révocation soft : null = active, non-null = révoquée
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Lookup par hash pour l'auth (chaque requête API) — critique pour la perf
+    hashIdx: uniqueIndex("api_keys_hash_uidx").on(t.keyHash),
+    // Dashboard : "mes clés"
+    userCreatedIdx: index("api_keys_user_created_idx").on(t.userId, t.createdAt),
+  })
+);
+
+// ============== WEBHOOK ENDPOINTS (Lot 16.4 webhooks sortants) ==============
+// URLs vers lesquelles Vitrix POST les events business du user (RDV créé,
+// paiement reçu, devis signé…). Permet aux pros de brancher Zapier / Make /
+// leur propre backend / n8n.
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    // URL cible : DOIT être en HTTPS (validé côté API create/update)
+    url: varchar("url", { length: 500 }).notNull(),
+    // Liste des events auxquels ce endpoint s'abonne (ex: ["appointment.created", "payment.received"])
+    // Vide → tous les events (pratique pour Zapier)
+    events: jsonb("events").$type<string[]>().default([]).notNull(),
+    // Secret HMAC pour signer le body → le receveur peut vérifier l'auth
+    signingSecret: varchar("signing_secret", { length: 64 }).notNull(),
+    // Compteur d'échecs consécutifs. Après 5 → désactivation auto (voir `disabledAt`)
+    failureCount: integer("failure_count").default(0).notNull(),
+    disabledAt: timestamp("disabled_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Dispatcher : "quels endpoints notifier pour ce business ?" (hot path)
+    businessIdx: index("webhook_endpoints_business_idx").on(t.businessId),
+    userIdx: index("webhook_endpoints_user_idx").on(t.userId),
+  })
+);
+
+// ============== WEBHOOK DELIVERIES (audit + retry) ==============
+// Une ligne par tentative d'envoi. Sert à :
+//  - Debug côté user ("mon webhook ne reçoit rien")
+//  - Retry (cron qui reprend les échoués récents)
+//  - Compter les échecs consécutifs (disable auto)
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    endpointId: uuid("endpoint_id").notNull().references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    event: varchar("event", { length: 60 }).notNull(),
+    // Body envoyé (JSON stringifié, tronqué à ~10KB si énorme)
+    payload: jsonb("payload"),
+    // Réponse HTTP : status + body tronqué à 500 chars pour debug
+    responseStatus: integer("response_status"),
+    responseBody: varchar("response_body", { length: 500 }),
+    // null = pas encore envoyé (queue), false = échoué, true = succès (2xx)
+    success: boolean("success"),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    deliveredAt: timestamp("delivered_at"),
+  },
+  (t) => ({
+    // Dashboard user : "historique livraisons de mon endpoint"
+    endpointCreatedIdx: index("webhook_deliveries_endpoint_created_idx").on(t.endpointId, t.createdAt),
+    // Cron retry : SELECT ... WHERE success = false AND attempt_count < 5
+    retryIdx: index("webhook_deliveries_retry_idx").on(t.success, t.attemptCount),
   })
 );

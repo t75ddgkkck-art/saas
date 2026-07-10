@@ -10,6 +10,7 @@ import { createSessionToken } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { badRequest, conflict, handleApiError } from "@/lib/api-error";
 import { logger } from "@/lib/logger";
+import { generateUniqueReferralCode, resolveReferralCode } from "@/lib/referral";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,9 @@ const RegisterSchema = z.object({
   city: z.string().trim().min(1).max(100),
   postalCode: z.string().trim().max(20).optional().nullable(),
   description: z.string().trim().max(2000).optional().nullable(),
+  // Lot 16.3 parrainage : code fourni via ?ref=... au register.
+  // Résolu côté serveur (jamais confiance au client).
+  referralCode: z.string().trim().max(20).optional().nullable(),
 });
 
 const DEFAULT_HOURS = [
@@ -84,6 +88,22 @@ export async function POST(request: NextRequest) {
 
     const passwordHash = await hashPassword(data.password);
 
+    // Lot 16.3 parrainage : résolution du code AVANT la transaction (une seule
+    // requête SELECT, échec silencieux si code invalide → on ne bloque pas
+    // le register, on ne met juste pas de referredBy).
+    let referredById: string | null = null;
+    if (data.referralCode) {
+      referredById = await resolveReferralCode(data.referralCode);
+      if (!referredById) {
+        logger.info("[register] referral code invalide, ignoré", { code: data.referralCode });
+      }
+    }
+
+    // Génération d'un code parrain unique pour le nouveau user.
+    // Fait hors transaction : safe car la contrainte UNIQUE en DB protègera
+    // la cohérence en cas de collision improbable.
+    const newReferralCode = await generateUniqueReferralCode();
+
     // Transaction : tout ou rien pour éviter un utilisateur orphelin
     const created = await db.transaction(async (tx) => {
       const [user] = await tx
@@ -97,6 +117,8 @@ export async function POST(request: NextRequest) {
           role: "professional",
           subscription: "free",
           emailVerified: false, // ⚠️  ne pas marquer vérifié sans double opt-in
+          referralCode: newReferralCode,
+          referredBy: referredById,
         })
         .returning();
 

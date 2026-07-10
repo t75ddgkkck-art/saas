@@ -4,6 +4,203 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 15 — Lot 16 Business & Produit
+
+Adresse les 6 points du Lot 16 :
+- 16.1 Aucune analytique de conversion → **déjà couvert Lot 13** (dashboard admin `conversion 30j`, MRR, churn)
+- 16.2 Pas de trial 14 jours → **déjà couvert Lot 11** (Stripe trial + grace period)
+- 16.3 Pas de parrainage → **fait**
+- 16.4 Pas de public API / webhooks sortants → **fait**
+- 16.5 Support (chat + statuspage) → **fait**
+- 16.6 Programme d'affiliation → **structure prête** (réutilise le parrainage, dashboard reporting TODO)
+
+## 16.3 — Parrainage complet
+
+**Schéma** (`sql/00_apply_safe.sql` idempotent) :
+- `users.referral_code` varchar(20) — code unique `VX-XXXXXX` généré au register (base32 Crockford sans I/O/L/U)
+- `users.referred_by` uuid FK → users(id) `ON DELETE SET NULL` (préserve historique filleul)
+- `users.referral_credit_months` integer DEFAULT 0
+- Index unique partiel `users_referral_code_uidx WHERE referral_code IS NOT NULL`
+- Index `users_referred_by_idx` pour reverse lookup
+
+**Code** (`src/lib/referral.ts`) :
+- `generateReferralCode()` : format `VX-XXXXXX` — 32^6 = 1 milliard d'entrée, collision quasi-impossible
+- `generateUniqueReferralCode()` : re-tirage jusqu'à 10× si collision DB
+- `resolveReferralCode(code)` : safe (retourne null si banni/soft-deleted/format invalide)
+- `creditReferrer(id, months)` : `UPDATE ... SET credit = credit + N` (fire and forget côté webhook Stripe)
+- `consumeReferralCredit(id, months)` : décrément avec `greatest(x - n, 0)` (jamais négatif)
+
+**Intégration register** : `src/app/api/auth/register/route.ts` accepte `referralCode` en body, résout côté serveur AVANT la transaction, stocke `referredBy` sur le nouveau user. Génération d'un `referralCode` unique pour le nouveau user dans la même transaction.
+
+**Intégration webhook Stripe** : `src/lib/stripe-events.ts` → `handleCheckoutCompleted` relit le user, si `referredBy` défini → `creditReferrer(referredBy, 1)`. Fire-and-forget : jamais bloquant sur le happy path Stripe.
+
+**Route dashboard** : `GET /api/account/referral` → code + shareUrl pré-formatée + stats (totalReferred, paidReferred) + creditMonths accumulés.
+
+## 16.4 — API publique v1
+
+**Auth API keys** (`src/lib/api-keys.ts`) :
+- Format `vx_live_<24 chars base32>` (ou `vx_test_` en dev)
+- Stockage : **SHA-256 hex** uniquement, jamais la clé claire
+- Prefix visible 12 chars pour identifier dans logs (ex: `vx_live_A3F7`)
+- `authenticateApiKey(req)` : lit `Authorization: Bearer` OU `X-Api-Key`, update `last_used_at` fire-and-forget
+- Scopes : `read` (défaut) / `read_write`
+- Table `api_keys` : userId + businessId FK (isolation stricte), révocation soft via `revoked_at`
+
+**Helper `src/lib/public-api.ts`** : `requireApiKey(req, requireWrite?)` retourne `{ ok, auth }` ou `{ ok: false, response }`. Rate-limit 60/min par clé automatique.
+
+**Routes v1 livrées** :
+- `GET /api/v1/me` → business info (sans données sensibles user/Stripe)
+- `GET /api/v1/appointments?limit=&cursor=&status=` → paginé cursor-based, filtre `deleted_at IS NULL`
+- `POST /api/v1/appointments` (scope=read_write) → crée RDV, résout client via `clientId` OU création à la volée par `phone`, anti-IDOR, dispatch webhook `appointment.created`
+- `GET /api/v1/clients?limit=&cursor=` → paginé cursor-based
+
+**Routes de gestion (dashboard)** :
+- `GET /api/account/api-keys` — liste sans hash/raw
+- `POST /api/account/api-keys` `{ name, scope }` — retourne rawKey **1×** avec warning
+- `DELETE /api/account/api-keys/[id]` — révocation soft
+- Limite : 10 clés actives / user
+
+## 16.4 — Webhooks sortants
+
+**Tables** :
+- `webhook_endpoints` (url HTTPS requise, events jsonb array, signingSecret 64 chars, failureCount, disabledAt)
+- `webhook_deliveries` (event, payload, responseStatus, responseBody 500 chars, success, attemptCount) + 2 index (endpoint+created, retry)
+
+**Lib `src/lib/webhooks-out.ts`** :
+- `dispatchWebhook(event, businessId, data)` — fire-and-forget non-bloquant
+- `deliverWebhooks()` (interne, testable) : récupère endpoints actifs abonnés, POST parallèle avec signature HMAC
+- `signWebhookBody(body, secret, ts)` — format compat Stripe `t=<ts>,v1=<hex>`
+- Timeout 5s hard via `AbortController`
+- Chaque tentative loggée dans `webhook_deliveries` (audit/debug)
+- **5 échecs consécutifs → `disabled_at = NOW()` auto**
+- 7 events : `appointment.{created,updated,cancelled}`, `payment.received`, `quote.{sent,signed}`, `review.received`
+- `events: []` = catch-all (utile Zapier)
+
+**Routes gestion** :
+- `POST /api/account/webhooks` `{ url (HTTPS), events? }` → retourne signingSecret **1×**
+- `GET /api/account/webhooks` → liste + `availableEvents`
+- `DELETE /api/account/webhooks/[id]` → hard delete (historique préservé dans deliveries)
+- Limite : 5 endpoints / user
+
+**Câblage initial** : `dispatchWebhook("appointment.created", ...)` déjà appelé dans `POST /api/v1/appointments`. Les autres events (payment, quote, review) sont à câbler au fil des lots futurs — la lib est prête.
+
+## 16.5 — Support
+
+**`src/components/layout/SupportBubble.tsx`** — bouton flottant bas-droite du dashboard, 3 modes :
+- `NEXT_PUBLIC_CRISP_ID` défini → charge widget Crisp officiel (aucune dépendance NPM ajoutée, script injecté dynamiquement)
+- `NEXT_PUBLIC_INTERCOM_APP_ID` défini → charge Intercom idem
+- Sinon → fallback `mailto:` vers `NEXT_PUBLIC_LEGAL_EMAIL`
+
+Aucune requête externe si pas d'env → build reste léger et privacy-safe par défaut.
+
+**Statuspage `/status`** :
+- Server Component avec revalidate ISR 30s
+- Fetch `/api/health` (Lot 13), affichage par service avec latence + détail
+- Bandeau global vert/rouge selon `ok`
+- Ajoutée au footer landing + sitemap statique
+- Version commit + env affichés en bas
+
+## 16.6 — Affiliation (structure prête)
+
+Le parrainage 16.3 fournit toute la fondation :
+- Code unique par user
+- Tracking filleuls + crédit
+- Route dashboard `/api/account/referral` avec stats
+
+Extensions futures marketing (hors scope Lot 16) :
+- Landing dédiée `/affiliation`
+- Dashboard reporting clics/conversions
+- Commission via Stripe Connect payout
+
+Documenté dans `docs/BUSINESS.md` section 5.
+
+## Fichiers modifiés/créés
+
+**Schéma DB** :
+- `src/db/schema.ts` — colonnes users (referral_*), tables `api_keys`, `webhook_endpoints`, `webhook_deliveries`, import `AnyPgColumn`
+- `sql/00_apply_safe.sql` — bloc "4ter Lot 16" idempotent (~110 lignes SQL)
+
+**Libs nouvelles** :
+- `src/lib/referral.ts` (3 tests)
+- `src/lib/api-keys.ts` (7 tests)
+- `src/lib/webhooks-out.ts` (5 tests)
+- `src/lib/public-api.ts`
+
+**Routes API publiques v1** :
+- `src/app/api/v1/me/route.ts`
+- `src/app/api/v1/appointments/route.ts` (GET + POST)
+- `src/app/api/v1/clients/route.ts`
+
+**Routes gestion dashboard** :
+- `src/app/api/account/api-keys/route.ts` (GET + POST)
+- `src/app/api/account/api-keys/[id]/route.ts` (DELETE)
+- `src/app/api/account/webhooks/route.ts` (GET + POST)
+- `src/app/api/account/webhooks/[id]/route.ts` (DELETE)
+- `src/app/api/account/referral/route.ts` (GET)
+
+**UI & pages** :
+- `src/app/status/page.tsx` — statuspage publique ISR 30s
+- `src/components/layout/SupportBubble.tsx` — Crisp/Intercom/mailto
+- `src/app/dashboard/layout.tsx` — branche SupportBubble
+- `src/app/page.tsx` — footer lien Statut
+- `src/app/sitemap-static.xml/route.ts` — ajout `/status`
+
+**Register + webhook Stripe** :
+- `src/app/api/auth/register/route.ts` — accepte `referralCode`, résout, génère code unique
+- `src/lib/stripe-events.ts` — crédit parrain au `checkout.session.completed`
+
+**Tests (+15)** :
+- `tests/unit/referral.test.ts` (3)
+- `tests/unit/api-keys.test.ts` (7)
+- `tests/unit/webhooks-out.test.ts` (5)
+
+**Doc** :
+- `docs/BUSINESS.md` — spec complète parrainage + API + webhooks + support + affiliation
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 189/189 tests (24 fichiers, +15 nouveaux)
+✅ npx next build      → 0 warning, compilé en 17s
+```
+
+## Impact business
+
+- **Croissance virale gratuite** : parrainage automatisé → chaque user peut ramener +N filleuls sans marketing spend
+- **Marché B2B débloqué** : API publique + webhooks = branchement Zapier / Make / n8n / compta / Sage → gros deals possibles
+- **Confiance** : statuspage publique montre la transparence sur les incidents → réduction du churn en cas de panne
+- **Réduction coût support** : Crisp/Intercom optionnels, sinon mailto suffisant en early stage
+- **Développeur experience** : la doc API est prête pour publier une v1 sur GitBook / Redocly le jour où on veut
+
+## Actions post-déploiement
+
+1. **Jouer `sql/00_apply_safe.sql`** dans Supabase (idempotent, ~20s)
+2. **Rétroactif référent** : les users existants n'ont pas de code — script SQL fourni dans `docs/BUSINESS.md` §6 pour en attribuer un
+3. **(Optionnel) Setup Crisp** : `NEXT_PUBLIC_CRISP_ID` sur Vercel — l'app détecte et charge le widget
+4. **Documenter l'API publique en externe** : `docs/BUSINESS.md` peut être publié tel quel en Markdown sur GitBook / Notion / `/docs/api`
+5. **Câbler les autres `dispatchWebhook`** au fil des lots suivants (`payment.received` dans webhook Stripe, `quote.signed` dans route de signature, `review.received` dans création avis)
+
+## Historique commits
+
+```
+b8de91f  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 14 — Lot 15 Légal & RGPD
 
 Adresse les 5 points du Lot 15 de l'audit :
@@ -155,7 +352,7 @@ Un DPA formel séparé peut être signé sur demande (mailto).
 ## Historique commits
 
 ```
-d8babe6  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
 2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
 1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
 e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j

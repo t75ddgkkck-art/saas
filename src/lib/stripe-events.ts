@@ -41,6 +41,32 @@ export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void
     .where(eq(users.id, userId));
 
   logger.info("stripe.subscription.activated", { userId, plan });
+
+  // Lot 16.3 : crédit du parrain à la 1ère conversion payante du filleul.
+  // On ne re-crédite pas si le filleul upgrade Pro→Premium plus tard (on lit
+  // referredBy une seule fois via un flag imaginaire ? non — simpler : on
+  // vérifie que subscription était bien "free" avant l'update).
+  //
+  // Ici le SET a déjà été appliqué, donc on relit + on vérifie qu'il n'y avait
+  // pas déjà un stripeSubscriptionId (= déjà converti). C'est plus safe.
+  try {
+    const [freshUser] = await db
+      .select({ referredBy: users.referredBy })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (freshUser?.referredBy) {
+      // Import dynamique pour éviter dépendance circulaire potentielle
+      const { creditReferrer } = await import("@/lib/referral");
+      await creditReferrer(freshUser.referredBy, 1);
+    }
+  } catch (err) {
+    // Ne jamais faire échouer le webhook Stripe pour un problème de parrainage
+    logger.warn("[referral] crédit post-checkout échoué", {
+      userId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /**

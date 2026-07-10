@@ -471,6 +471,121 @@ END $$;
 --   6. Programmer un cron mensuel qui crée la partition M+1 (pg_partman ou script maison)
 
 -- -----------------------------------------------------------------------------
+-- 4ter. Lot 16 — Parrainage + API keys + Webhooks sortants
+-- -----------------------------------------------------------------------------
+
+-- 16.3 Parrainage : colonnes sur users
+DO $$ BEGIN
+  IF public.__vx_table_exists('users') THEN
+    ALTER TABLE public.users
+      ADD COLUMN IF NOT EXISTS referral_code           varchar(20),
+      ADD COLUMN IF NOT EXISTS referred_by             uuid,
+      ADD COLUMN IF NOT EXISTS referral_credit_months  integer DEFAULT 0 NOT NULL;
+    -- Index unique partiel : lookup "à qui appartient ce code ?"
+    CREATE UNIQUE INDEX IF NOT EXISTS users_referral_code_uidx
+      ON public.users (referral_code) WHERE referral_code IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS users_referred_by_idx
+      ON public.users (referred_by);
+    -- FK auto-référentielle : le parrain reste NULL si supprimé (préserve historique filleul)
+    BEGIN
+      ALTER TABLE public.users
+        ADD CONSTRAINT users_referred_by_fkey
+        FOREIGN KEY (referred_by) REFERENCES public.users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+END $$;
+
+-- 16.4 API keys
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.api_keys (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id       uuid NOT NULL,
+    business_id   uuid NOT NULL,
+    name          varchar(100) NOT NULL,
+    key_prefix    varchar(20) NOT NULL,
+    key_hash      varchar(64) NOT NULL,
+    scope         varchar(20) DEFAULT 'read' NOT NULL,
+    last_used_at  timestamp,
+    last_used_ip  varchar(45),
+    revoked_at    timestamp,
+    created_at    timestamp NOT NULL DEFAULT NOW()
+  );
+  IF public.__vx_table_exists('users') THEN
+    BEGIN
+      ALTER TABLE public.api_keys
+        ADD CONSTRAINT api_keys_user_fk
+        FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  IF public.__vx_table_exists('businesses') THEN
+    BEGIN
+      ALTER TABLE public.api_keys
+        ADD CONSTRAINT api_keys_business_fk
+        FOREIGN KEY (business_id) REFERENCES public.businesses(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  CREATE UNIQUE INDEX IF NOT EXISTS api_keys_hash_uidx ON public.api_keys (key_hash);
+  CREATE INDEX IF NOT EXISTS api_keys_user_created_idx ON public.api_keys (user_id, created_at DESC);
+END $$;
+
+-- 16.4 Webhook endpoints (URLs cibles configurés par le user)
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.webhook_endpoints (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         uuid NOT NULL,
+    business_id     uuid NOT NULL,
+    url             varchar(500) NOT NULL,
+    events          jsonb DEFAULT '[]' NOT NULL,
+    signing_secret  varchar(64) NOT NULL,
+    failure_count   integer DEFAULT 0 NOT NULL,
+    disabled_at     timestamp,
+    created_at      timestamp NOT NULL DEFAULT NOW(),
+    updated_at      timestamp NOT NULL DEFAULT NOW()
+  );
+  IF public.__vx_table_exists('users') THEN
+    BEGIN
+      ALTER TABLE public.webhook_endpoints
+        ADD CONSTRAINT webhook_endpoints_user_fk
+        FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  IF public.__vx_table_exists('businesses') THEN
+    BEGIN
+      ALTER TABLE public.webhook_endpoints
+        ADD CONSTRAINT webhook_endpoints_business_fk
+        FOREIGN KEY (business_id) REFERENCES public.businesses(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  CREATE INDEX IF NOT EXISTS webhook_endpoints_business_idx ON public.webhook_endpoints (business_id);
+  CREATE INDEX IF NOT EXISTS webhook_endpoints_user_idx ON public.webhook_endpoints (user_id);
+END $$;
+
+-- 16.4 Webhook deliveries (audit + retry)
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.webhook_deliveries (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    endpoint_id       uuid NOT NULL,
+    event             varchar(60) NOT NULL,
+    payload           jsonb,
+    response_status   integer,
+    response_body     varchar(500),
+    success           boolean,
+    attempt_count     integer DEFAULT 0 NOT NULL,
+    created_at        timestamp NOT NULL DEFAULT NOW(),
+    delivered_at      timestamp
+  );
+  BEGIN
+    ALTER TABLE public.webhook_deliveries
+      ADD CONSTRAINT webhook_deliveries_endpoint_fk
+      FOREIGN KEY (endpoint_id) REFERENCES public.webhook_endpoints(id) ON DELETE CASCADE;
+  EXCEPTION WHEN duplicate_object THEN NULL; END;
+  CREATE INDEX IF NOT EXISTS webhook_deliveries_endpoint_created_idx
+    ON public.webhook_deliveries (endpoint_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS webhook_deliveries_retry_idx
+    ON public.webhook_deliveries (success, attempt_count);
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

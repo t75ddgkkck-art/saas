@@ -337,6 +337,7 @@ export default function Home() {
               <Link href="/cgu" className="hover:text-slate-900 dark:hover:text-slate-100">CGU</Link>
               <Link href="/confidentialite" className="hover:text-slate-900 dark:hover:text-slate-100">Confidentialité</Link>
               <Link href="/mentions-legales" className="hover:text-slate-900 dark:hover:text-slate-100">Mentions légales</Link>
+              <Link href="/status" className="hover:text-slate-900 dark:hover:text-slate-100">Statut</Link>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               © 2025 Vitrix. Visibilité & clients pour artisans.
