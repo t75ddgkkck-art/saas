@@ -68,10 +68,13 @@ export async function DELETE(
     const { id } = await params;
     const { business } = await ownedPost(id);
 
-    // Double filtre par sécurité (id + businessId) : même si un jour on retire
-    // ownedPost, la ligne WHERE seule protège encore contre l'IDOR.
+    // Lot 14.3 : soft delete au lieu de DELETE physique.
+    // Bénéfice : restauration possible + audit + reprise du même slug non-immédiate
+    // (le UNIQUE (business, slug) reste actif → il faut restaurer ou choisir un autre slug).
+    // Double filtre par sécurité (id + businessId) contre IDOR.
     const result = await db
-      .delete(blogPosts)
+      .update(blogPosts)
+      .set({ deletedAt: new Date() })
       .where(and(eq(blogPosts.id, id), eq(blogPosts.businessId, business.id)));
 
     if ((result as { rowCount?: number }).rowCount === 0) {

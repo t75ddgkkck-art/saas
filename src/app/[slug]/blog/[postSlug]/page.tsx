@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { blogPosts, businesses } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -15,10 +15,24 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, postSlug } = await params;
-  const biz = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
+  // Lot 14.3 : vitrine/article soft-deleted → 404
+  const biz = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.slug, slug), isNull(businesses.deletedAt)))
+    .limit(1);
   if (!biz.length) return { title: "Article non trouvé" };
-  const post = await db.select().from(blogPosts)
-    .where(and(eq(blogPosts.businessId, biz[0].id), eq(blogPosts.slug, postSlug), eq(blogPosts.isPublished, true)))
+  const post = await db
+    .select()
+    .from(blogPosts)
+    .where(
+      and(
+        eq(blogPosts.businessId, biz[0].id),
+        eq(blogPosts.slug, postSlug),
+        eq(blogPosts.isPublished, true),
+        isNull(blogPosts.deletedAt)
+      )
+    )
     .limit(1);
   if (!post.length) return { title: "Article non trouvé" };
   // Increment views
@@ -32,12 +46,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogPostPage({ params }: Props) {
   const { slug, postSlug } = await params;
-  const bizResult = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
+  const bizResult = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.slug, slug), isNull(businesses.deletedAt)))
+    .limit(1);
   const biz = bizResult[0];
   if (!biz) notFound();
 
-  const postResult = await db.select().from(blogPosts)
-    .where(and(eq(blogPosts.businessId, biz.id), eq(blogPosts.slug, postSlug), eq(blogPosts.isPublished, true)))
+  const postResult = await db
+    .select()
+    .from(blogPosts)
+    .where(
+      and(
+        eq(blogPosts.businessId, biz.id),
+        eq(blogPosts.slug, postSlug),
+        eq(blogPosts.isPublished, true),
+        isNull(blogPosts.deletedAt)
+      )
+    )
     .limit(1);
   const post = postResult[0];
   if (!post) notFound();

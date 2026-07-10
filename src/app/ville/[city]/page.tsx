@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { businesses, reviews } from "@/db/schema";
-import { eq, ilike, desc, sql } from "drizzle-orm";
+import { and, eq, ilike, isNull, desc, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -40,7 +40,8 @@ export default async function VillePage({ params }: Props) {
     })
     .from(businesses)
     .leftJoin(reviews, eq(reviews.businessId, businesses.id))
-    .where(ilike(businesses.city, `%${cityName}%`))
+    // Lot 14.3 : masquer les vitrines soft-deleted de l'annuaire ville
+    .where(and(ilike(businesses.city, `%${cityName}%`), isNull(businesses.deletedAt)))
     .groupBy(businesses.id)
     .orderBy(
       desc(sql`coalesce(avg(${reviews.rating}), 0)`),

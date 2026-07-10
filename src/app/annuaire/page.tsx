@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { businesses, reviews } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -59,6 +59,8 @@ async function fetchDirectory(): Promise<ProCard[]> {
       })
       .from(businesses)
       .leftJoin(reviews, eq(reviews.businessId, businesses.id))
+      // Lot 14.3 : masquer les vitrines soft-deleted de l'annuaire public
+      .where(isNull(businesses.deletedAt))
       .groupBy(businesses.id)
       .orderBy(
         desc(sql`coalesce(avg(${reviews.rating}), 0)`),

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
-import { isNotNull, sql } from "drizzle-orm";
+import { and, isNotNull, isNull, sql } from "drizzle-orm";
 
 export const dynamic = "force-static";
 export const revalidate = 86400; // 1 jour (les villes changent rarement)
@@ -30,7 +30,8 @@ export async function GET() {
         count: sql<number>`count(*)::int`,
       })
       .from(businesses)
-      .where(isNotNull(businesses.city))
+      // Lot 14.3 : villes des vitrines actives uniquement
+      .where(and(isNotNull(businesses.city), isNull(businesses.deletedAt)))
       .groupBy(businesses.city);
     cities = rows
       .filter((r): r is { city: string; count: number } => Boolean(r.city))

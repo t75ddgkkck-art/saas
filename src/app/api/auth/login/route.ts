@@ -42,6 +42,13 @@ export async function POST(request: NextRequest) {
     if (userResult.length === 0) throw invalidCreds;
 
     const user = userResult[0];
+
+    // Lot 14.3 soft delete : compte supprimé → on renvoie le même message
+    // générique que "credentials invalides" pour ne pas révéler qu'il a
+    // existé (anti-énumération). L'user a reçu un email de confirmation
+    // au moment de la suppression, il sait où il en est.
+    if (user.deletedAt) throw invalidCreds;
+
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) throw invalidCreds;
 

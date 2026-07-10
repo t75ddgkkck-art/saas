@@ -61,6 +61,8 @@ export function verifySessionToken(token: string): { userId: string } | null {
 }
 
 // Récupère l'utilisateur courant depuis le cookie de session (côté serveur).
+// Lot 14.3 : un user soft-deleted ou banni est traité comme non-connecté
+// (le cookie reste valide côté crypto mais la ressource est indisponible).
 export async function getCurrentUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get("auth_token")?.value;
@@ -70,7 +72,13 @@ export async function getCurrentUser() {
   if (!session) return null;
 
   const result = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
-  return result[0] || null;
+  const user = result[0];
+  if (!user) return null;
+  // Compte soft-deleted → session invalide (RGPD droit à l'oubli)
+  if (user.deletedAt) return null;
+  // Compte banni admin → session invalide
+  if (user.bannedAt) return null;
+  return user;
 }
 
 // Récupère le business courant de l'utilisateur connecté.

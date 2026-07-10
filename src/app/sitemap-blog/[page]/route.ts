@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { blogPosts, businesses } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 export const dynamic = "force-static";
 export const revalidate = 3600;
@@ -32,7 +32,14 @@ export async function GET(
       })
       .from(blogPosts)
       .innerJoin(businesses, eq(businesses.id, blogPosts.businessId))
-      .where(eq(blogPosts.isPublished, true))
+      // Lot 14.3 : exclure articles + vitrines soft-deleted
+      .where(
+        and(
+          eq(blogPosts.isPublished, true),
+          isNull(blogPosts.deletedAt),
+          isNull(businesses.deletedAt)
+        )
+      )
       .orderBy(desc(blogPosts.publishedAt))
       .limit(PAGE_SIZE)
       .offset((pageNum - 1) * PAGE_SIZE);

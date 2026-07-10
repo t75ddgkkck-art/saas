@@ -10,7 +10,7 @@ import {
   availabilitySlots,
   services,
 } from "@/db/schema";
-import { eq, and, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { PublicPage } from "./PublicPage";
 
@@ -41,6 +41,8 @@ export async function generateStaticParams() {
     const rows = await db
       .select({ slug: businesses.slug })
       .from(businesses)
+      // Lot 14.3 : ne pas prégénérer les vitrines soft-deleted
+      .where(isNull(businesses.deletedAt))
       .orderBy(desc(businesses.updatedAt))
       .limit(50);
     return rows.map((r) => ({ slug: r.slug }));
@@ -52,7 +54,12 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const result = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
+  // Lot 14.3 : `and(eq(slug), isNull(deletedAt))` → vitrine supprimée = 404
+  const result = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.slug, slug), isNull(businesses.deletedAt)))
+    .limit(1);
   const business = result[0];
 
   if (!business) {
@@ -147,7 +154,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PublicBusinessPage({ params }: Props) {
   const { slug } = await params;
 
-  const businessResult = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
+  // Lot 14.3 : vitrine soft-deleted → 404 public
+  const businessResult = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.slug, slug), isNull(businesses.deletedAt)))
+    .limit(1);
 
   const business = businessResult[0];
   if (!business) notFound();

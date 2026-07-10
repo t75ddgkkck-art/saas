@@ -52,6 +52,11 @@ export const users = pgTable(
     // Non-null = compte banni depuis cette date → login refusé.
     bannedAt: timestamp("banned_at"),
     banReason: varchar("ban_reason", { length: 500 }),
+    // Lot 14.3 soft delete : RGPD "droit à l'oubli" + audit.
+    // Non-null = user supprimé logiquement. Toutes les requêtes de listing
+    // doivent filtrer WHERE deleted_at IS NULL (voir helpers `notDeleted()`
+    // dans src/lib/soft-delete.ts).
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -60,6 +65,8 @@ export const users = pgTable(
     emailLowerIdx: uniqueIndex("users_email_lower_uidx").on(sql`lower(${t.email})`),
     // Cron de downgrade : "who has grace period expired ?"
     subscriptionExpiresIdx: index("users_subscription_expires_idx").on(t.subscriptionExpiresAt),
+    // Lot 14.3 : listing "users actifs" scanne uniquement les non-supprimés
+    deletedAtIdx: index("users_deleted_at_idx").on(t.deletedAt),
   })
 );
 
@@ -80,7 +87,11 @@ export const businesses = pgTable(
   "businesses",
   {
   id: uuid("id").defaultRandom().primaryKey(),
-  ownerId: uuid("owner_id").notNull().references(() => users.id),
+  // Lot 14.8 : cascade ownership → si le user est supprimé (RGPD droit à
+  // l'oubli), son business dégage aussi. Avant : orphelin en DB.
+  // En pratique on préfère le soft delete via `deletedAt` mais le hard
+  // delete via cascade reste la garantie ultime.
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
@@ -121,6 +132,10 @@ export const businesses = pgTable(
   highlightsData: jsonb("highlights_data"), // [{ icon: "⚡", title: "Intervention rapide", subtitle: "Sous 2h" }]
   iban: varchar("iban", { length: 50 }),
   bic: varchar("bic", { length: 20 }),
+  // Lot 14.5 doc : timestamp de "reset des stats de visites".
+  // Le dashboard analytics ne compte les visites que WHERE created_at >= visits_reset_at.
+  // Set via DELETE /api/my-availability (bouton "Réinitialiser mes stats").
+  // Nullable = pas de reset → toutes les visites de tous les temps sont comptées.
   visitsResetAt: timestamp("visits_reset_at"),
   googlePlaceId: varchar("google_place_id", { length: 200 }),
   reminderSmsEnabled: boolean("reminder_sms_enabled").default(false),
@@ -135,6 +150,8 @@ export const businesses = pgTable(
   loyaltyEnabled: boolean("loyalty_enabled").default(false),
   loyaltyPointsPerEuro: integer("loyalty_points_per_euro").default(1),
   loyaltyReward: text("loyalty_reward"),
+  // Lot 14.3 soft delete
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -149,6 +166,8 @@ export const businesses = pgTable(
     categoryIdx: index("businesses_cat_idx").on(t.category),
     // SIRET unique quand présent (empêche les doublons)
     siretIdx: uniqueIndex("businesses_siret_uidx").on(t.siret).where(sql`${t.siret} is not null`),
+    // Lot 14.3 soft delete : listing "vitrines actives" scanne uniquement les non-supprimées
+    deletedAtIdx: index("businesses_deleted_at_idx").on(t.deletedAt),
   })
 );
 
@@ -245,7 +264,6 @@ export const businessesRelations = relations(businesses, ({ one, many }) => ({
   faqs: many(faqs),
   socialLinks: many(socialLinks),
   payments: many(payments),
-  analytics: many(analytics),
 }));
 
 // ============== WORKING HOURS ==============
@@ -331,7 +349,8 @@ export const appointments = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
     clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
-    createdBy: uuid("created_by").references(() => users.id),
+    // Lot 14.8 : cascade user pour ne pas laisser createdBy orphelin
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
     date: varchar("date", { length: 10 }).notNull(),
@@ -341,6 +360,8 @@ export const appointments = pgTable(
     googleCalendarId: varchar("google_calendar_id", { length: 500 }),
     outlookCalendarId: varchar("outlook_calendar_id", { length: 500 }),
     reminderSent: boolean("reminder_sent").default(false),
+    // Lot 14.3 soft delete
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -351,6 +372,8 @@ export const appointments = pgTable(
     statusIdx: index("appointments_status_idx").on(t.status),
     // Historique client
     clientIdx: index("appointments_client_idx").on(t.clientId),
+    // Lot 14.3 soft delete
+    deletedAtIdx: index("appointments_deleted_at_idx").on(t.deletedAt),
   })
 );
 
@@ -388,6 +411,8 @@ export const clients = pgTable(
     appointmentsCount: integer("appointments_count").default(0),
     quotesCount: integer("quotes_count").default(0),
     lastContact: timestamp("last_contact"),
+    // Lot 14.3 soft delete
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -398,6 +423,8 @@ export const clients = pgTable(
     businessPhoneIdx: index("clients_business_phone_idx").on(t.businessId, t.phone),
     // Recherche par email (anti-doublon)
     businessEmailIdx: index("clients_business_email_idx").on(t.businessId, sql`lower(${t.email})`),
+    // Lot 14.3 soft delete
+    deletedAtIdx: index("clients_deleted_at_idx").on(t.deletedAt),
   })
 );
 
@@ -420,7 +447,9 @@ export const quotes = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
     clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
-    createdBy: uuid("created_by").references(() => users.id),
+    // Lot 14.8 : SET NULL au lieu de laisser orphelin. Un devis reste dans l'historique
+    // même si son créateur (employé) quitte l'équipe.
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     quoteNumber: varchar("quote_number", { length: 50 }).notNull().unique(),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
@@ -436,6 +465,8 @@ export const quotes = pgTable(
     signatureUrl: text("signature_url"),
     termsAndConditions: text("terms_and_conditions"),
     reminderSentAt: timestamp("reminder_sent_at"),
+    // Lot 14.3 soft delete
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -444,6 +475,8 @@ export const quotes = pgTable(
     businessStatusIdx: index("quotes_business_status_idx").on(t.businessId, t.status),
     // Historique client
     clientIdx: index("quotes_client_idx").on(t.clientId),
+    // Lot 14.3 soft delete
+    deletedAtIdx: index("quotes_deleted_at_idx").on(t.deletedAt),
     // Cron reminder (WHERE status='sent' AND updatedAt < now-7d)
     sentUpdatedIdx: index("quotes_sent_updated_idx")
       .on(t.status, t.updatedAt)
@@ -598,7 +631,9 @@ export const notes = pgTable("notes", {
   id: uuid("id").defaultRandom().primaryKey(),
   businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
-  createdBy: uuid("created_by").notNull().references(() => users.id),
+  // Lot 14.8 : cascade user (les notes disparaissent avec le créateur ;
+  // c'est cohérent RGPD car ce sont des données personnelles rédigées par lui).
+  createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -639,27 +674,12 @@ export const remindersRelations = relations(reminders, ({ one }) => ({
 }));
 
 // ============== ANALYTICS ==============
-
-export const analytics = pgTable("analytics", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
-  visitors: integer("visitors").default(0),
-  pageViews: integer("page_views").default(0),
-  uniqueVisitors: integer("unique_visitors").default(0),
-  referrals: integer("referrals").default(0),
-  date: varchar("date", { length: 10 }).notNull(),
-  source: varchar("source", { length: 50 }).default("direct"),
-  country: varchar("country", { length: 50 }),
-  device: varchar("device", { length: 20 }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const analyticsRelations = relations(analytics, ({ one }) => ({
-  business: one(businesses, {
-    fields: [analytics.businessId],
-    references: [businesses.id],
-  }),
-}));
+// NOTE (Lot 14.6) : ancienne table `analytics` supprimée du schéma
+// (jamais lue/écrite dans le code). Les vraies stats de visite sont
+// stockées dans `page_visits` (ligne ~187). La table SQL éventuelle
+// est laissée en place côté DB (pas de DROP dans 00_apply_safe.sql)
+// pour ne perdre aucune donnée historique — un DROP manuel devra être
+// fait par un admin si vraiment on veut la retirer.
 
 // ============== SUBSCRIPTIONS ==============
 
@@ -759,6 +779,8 @@ export const blogPosts = pgTable(
     isPublished: boolean("is_published").default(false).notNull(),
     publishedAt: timestamp("published_at"),
     views: integer("views").default(0),
+    // Lot 14.3 soft delete
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -771,6 +793,8 @@ export const blogPosts = pgTable(
     ),
     // Slug unique par business (2 pros peuvent avoir /mon-slug chacun)
     businessSlugIdx: uniqueIndex("blog_business_slug_uidx").on(t.businessId, t.slug),
+    // Lot 14.3 soft delete
+    deletedAtIdx: index("blog_deleted_at_idx").on(t.deletedAt),
   })
 );
 
@@ -854,8 +878,11 @@ export const serviceTypes = pgTable("service_types", {
   price: decimal("price", { precision: 10, scale: 2 }),
 });
 
-// Statuts de rendez-vous étendus
-export const appointmentStatuses = pgEnum("appointment_status", ["pending", "confirmed", "in_progress", "completed", "cancelled", "no_show"]);
+// NOTE (Lot 14.1) : ancien `appointmentStatuses` supprimé (dupliqué avec
+// `appointmentStatusEnum` ligne 21). Il n'était référencé nulle part et
+// aurait provoqué une collision Postgres (même nom d'enum). Si on veut
+// ajouter `in_progress` / `no_show` un jour, faire un ALTER TYPE ... ADD VALUE
+// sur `appointment_status` existant, pas créer un doublon.
 
 // ============== EMAIL OPT-OUTS (RGPD) ==============
 // Registre des désabonnements par catégorie (marketing, reminders, review-request, all).

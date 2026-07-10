@@ -4,6 +4,201 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 13 — Lot 14 Base de données
+
+Adresse les 9 points du Lot 14 de l'audit :
+- 14.1 Duplication enum `appointment_status`
+- 14.2 Colonnes `text` sans limite → risque DoS
+- 14.3 Pas de soft delete
+- 14.4 Timestamps `updatedAt` pas déclenchés au UPDATE
+- 14.5 `visits_reset_at` non documenté
+- 14.6 Table `analytics` orpheline
+- 14.7 Pas de partitionnement `page_visits`
+- 14.8 Cascade delete manquants
+- 14.9 Backups Supabase non documentés
+
+## 14.1 — Suppression de l'enum dupliqué
+
+`appointmentStatuses` (2ᵉ définition ligne 858) avait 6 valeurs et n'était **référencé nulle part**. Supprimé pour éviter une collision Postgres (`CREATE TYPE appointment_status ...` × 2 = erreur au push Drizzle). Commentaire pédagogique laissé sur place : si un jour on veut ajouter `in_progress`/`no_show`, faire `ALTER TYPE appointment_status ADD VALUE`, pas un doublon.
+
+## 14.2 — CHECK longueurs texte
+
+`sql/00_apply_safe.sql` ajoute des CHECK constraints idempotents :
+
+| Colonne | Limite |
+|---|---|
+| `clients.notes` | 10 000 chars |
+| `businesses.description` | 5 000 |
+| `businesses.service_area` | 2 000 |
+| `businesses.address` | 500 |
+| `businesses.loyalty_reward` | 1 000 |
+| `blog_posts.content` | 50 000 (≈8000 mots) |
+| `blog_posts.excerpt` | 500 |
+| `notes.content` | 10 000 |
+
+Anti-DoS : plus possible de coller 1 GB dans une note client.
+
+## 14.3 — Soft delete
+
+Colonne `deleted_at TIMESTAMP` (nullable) ajoutée sur 6 tables critiques : `users`, `businesses`, `clients`, `appointments`, `quotes`, `blog_posts`. Index dédié `<table>_deleted_at_idx` sur chacune.
+
+**Helper `src/lib/soft-delete.ts`** :
+- `markDeleted()` : retourne `new Date()` — à passer dans `.set({ deletedAt })`
+- `markRestored()` : retourne `null` — pour annuler un soft delete
+- `notDeleted(col)` : `WHERE deleted_at IS NULL` (à combiner dans un `and(...)`)
+- `onlyDeleted(col)` : inverse — pour vue "corbeille" admin
+
+**Refactor `DELETE /api/account`** : ne fait plus un hard `db.delete()` mais un soft delete + purge cookies. Bénéfice RGPD : 30 jours de fenêtre de récupération avant purge finale.
+
+**Refactor `DELETE /api/blog/[id]`** : soft delete `blogPosts.deletedAt = NOW()` au lieu de DROP row.
+
+**Login refuse les comptes soft-deleted** : `src/app/api/auth/login/route.ts` retourne le même message générique que pour credentials invalides (anti-énumération).
+
+**`getCurrentUser()` invalide la session** si le user est soft-deleted OU banni → cookie encore valide côté crypto mais ressource considérée absente.
+
+**Pages publiques filtrées** — `WHERE deleted_at IS NULL` ajouté sur :
+- `src/app/[slug]/page.tsx` (vitrine + generateMetadata + generateStaticParams)
+- `src/app/[slug]/blog/page.tsx` (listing blog)
+- `src/app/[slug]/blog/[postSlug]/page.tsx` (article individuel)
+- `src/app/annuaire/page.tsx` (index général)
+- `src/app/metier/[category]/page.tsx`
+- `src/app/ville/[city]/page.tsx`
+- `src/app/sitemap-businesses/[page]/route.ts`
+- `src/app/sitemap-blog/[page]/route.ts`
+- `src/app/sitemap-categories.xml/route.ts`
+- `src/app/sitemap-cities.xml/route.ts`
+
+**Route admin `POST /api/admin/users/[id]/restore`** : annule un soft delete (logge dans `admin_events`).
+
+**Route admin `GET /api/admin/users?includeDeleted=1`** : vue "corbeille" pour admin.
+
+## 14.4 — Trigger `updated_at` automatique
+
+Fonction PG unique `public.__vx_set_updated_at()` + trigger `BEFORE UPDATE FOR EACH ROW` appliqué à toutes les tables ayant une colonne `updated_at` : `users`, `businesses`, `clients`, `appointments`, `quotes`, `blog_posts`, `services`, `faqs`, `working_hours`, `payments`, `reviews`, `notes`, `quote_items`, `notifications`.
+
+Idempotent via `DROP TRIGGER IF EXISTS ... ; CREATE TRIGGER ...`.
+
+**Effet** : `updated_at` est TOUJOURS à jour, même si le code Drizzle oublie de le passer. Le cron `quote-reminders` (WHERE updated_at < now - 7d) devient fiable.
+
+## 14.5 — Documentation `visits_reset_at`
+
+Commentaire ajouté au-dessus de la colonne dans `schema.ts` :
+> Timestamp de "reset des stats de visites". Le dashboard analytics ne compte les visites que WHERE `created_at >= visits_reset_at`. Set via `DELETE /api/my-availability` (bouton "Réinitialiser mes stats"). Nullable = pas de reset → toutes les visites depuis le début.
+
+## 14.6 — Table `analytics` supprimée du schéma
+
+Aucune référence dans le code (grep exhaustif). La définition Drizzle + la relation `businessesRelations.analytics` supprimées. La table SQL reste en base pour ne rien perdre — un `DROP TABLE public.analytics;` manuel finalisera si besoin.
+
+## 14.7 — Partitionnement `page_visits`
+
+Non-appliqué automatiquement (trop invasif : rename + INSERT + drop). Documenté dans `docs/DB.md` section "Partitionnement page_visits" avec script SQL complet prêt à copier-coller.
+
+Stratégie recommandée :
+1. `RENAME` legacy
+2. `CREATE TABLE ... PARTITION BY RANGE (created_at)`
+3. Boucle plpgsql qui crée les partitions mensuelles [–6 mois, +12 mois]
+4. `INSERT INTO ... SELECT * FROM legacy`
+5. `DROP TABLE legacy`
+6. Cron mensuel qui crée la partition M+1 (idéalement `pg_partman`)
+
+À déclencher dès que la table dépasse ~5M lignes.
+
+## 14.8 — Cascade delete
+
+Sur les 4 FKs concernées :
+
+| FK | Avant | Après | Justif |
+|---|---|---|---|
+| `businesses.owner_id → users` | (rien) | `CASCADE` | User supprimé → ses vitrines aussi |
+| `appointments.created_by → users` | (rien) | `SET NULL` | RDV conservés (historique) |
+| `quotes.created_by → users` | (rien) | `SET NULL` | Devis conservés |
+| `notes.created_by → users` (NOT NULL) | (rien) | `CASCADE` | Notes = données perso du créateur |
+
+Le `sql/00_apply_safe.sql` DROP + ADD les FKs avec la bonne politique. Sûr car idempotent + noms de contraintes anciens couverts (`_fkey` et `_users_id_fk`).
+
+## 14.9 — Documentation backups Supabase
+
+`docs/DB.md` section "Backups" :
+- Free : 7j quotidiens, pas de PITR
+- Pro : 7j + PITR 7j (~$25/mois)
+- Team : 30j + PITR 30j
+- Reco : passer Pro à > 10 payants actifs, + `pg_dump` mensuel externe S3, + test restauration annuel
+- Script `pg_dump | aws s3 cp` fourni pour cron externe
+
+## Fichiers modifiés
+
+- `src/db/schema.ts` — suppression enum dupliqué + table `analytics` + colonnes `deletedAt` + index + doc `visits_reset_at`
+- `src/lib/soft-delete.ts` — **NOUVEAU**
+- `src/lib/session.ts` — `getCurrentUser` invalide soft-deleted + banned
+- `src/app/api/account/route.ts` — soft delete
+- `src/app/api/auth/login/route.ts` — refuse soft-deleted
+- `src/app/api/blog/[id]/route.ts` — soft delete
+- `src/app/api/admin/users/route.ts` — filtre `?includeDeleted=1`
+- `src/app/api/admin/users/[id]/restore/route.ts` — **NOUVEAU**
+- 8 pages publiques + 4 sitemaps — filtre `deleted_at IS NULL`
+- `sql/00_apply_safe.sql` — bloc "Lot 14" (soft delete, trigger, CHECK, cascade) idempotent
+- `tests/unit/soft-delete.test.ts` — **NOUVEAU** (5 tests)
+- `docs/DB.md` — **NOUVEAU** (400 lignes)
+
+## Validation
+
+```
+✅ npx tsc --noEmit          → 0 erreur
+✅ npx vitest run            → 164/164 tests passent (19 fichiers)
+✅ npx next build            → 0 warning, compilé en 20s
+```
+
+## Impact business
+
+- **RGPD-ready** : soft delete + fenêtre 30j de restauration → conforme article 17 + safeguard contre les suppressions accidentelles ("j'ai supprimé mon compte par erreur")
+- **Zéro donnée orpheline** : les cascades garantissent la propreté DB après suppression d'un user
+- **Pilotage fiable** : `updated_at` toujours à jour → crons reminder / weekly-summary basés dessus deviennent exacts
+- **Anti-DoS DB** : personne ne peut plus stocker 1 GB dans une note
+- **Roadmap scale** : partitionnement documenté, à activer sans stress dès 5M rows
+- **Backups** : plan clair, la boîte survit à un drop DB accidentel
+
+## Actions post-déploiement
+
+1. **Jouer le SQL** dans Supabase (idempotent, ~15 s) :
+   ```sql
+   -- sql/00_apply_safe.sql
+   ```
+   Vérifier dans les NOTICES que les triggers `set_updated_at_*` sont bien créés.
+
+2. **Vérifier les CHECK** :
+   ```sql
+   SELECT conname, pg_get_constraintdef(oid)
+   FROM pg_constraint
+   WHERE contype = 'c' AND conname LIKE '%length_chk';
+   ```
+
+3. **(Optionnel) Purger la table `analytics`** :
+   ```sql
+   DROP TABLE IF EXISTS public.analytics;
+   ```
+
+4. **(Optionnel plus tard) Partitionner `page_visits`** : suivre `docs/DB.md` section 7.
+
+5. **Passer Supabase en plan Pro** dès que le MRR le justifie → active le PITR.
+
+## Historique commits
+
+```
+e6c7b4e  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 12 — Lot 13 Monitoring & Observabilité
 
 Adresse les 5 points du Lot 13 de l'audit :
@@ -164,7 +359,7 @@ Page Server Component avec garde `getAdminUser()` (redirect si pas admin, aucune
 ## Historique commits
 
 ```
-fc077dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
 e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
 6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
 5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF

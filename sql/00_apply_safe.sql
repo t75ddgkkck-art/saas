@@ -300,6 +300,177 @@ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4bis. Lot 14 — Soft delete, triggers updated_at, CHECK longueur, cascade,
+--        partitionnement page_visits
+-- -----------------------------------------------------------------------------
+
+-- 14.3 Colonnes deleted_at (soft delete) + index partiel sur "actifs"
+DO $$
+DECLARE
+  t text;
+  _tables text[] := ARRAY['users','businesses','clients','appointments','quotes','blog_posts'];
+BEGIN
+  FOREACH t IN ARRAY _tables LOOP
+    IF public.__vx_table_exists(t) THEN
+      EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS deleted_at timestamp', t);
+      -- Index sur deleted_at → listing "actifs" scanne le partiel, super rapide
+      EXECUTE format(
+        'CREATE INDEX IF NOT EXISTS %I ON public.%I (deleted_at)',
+        t || '_deleted_at_idx', t
+      );
+    END IF;
+  END LOOP;
+END $$;
+
+-- 14.4 Trigger updated_at automatique
+-- Une seule fonction générique, réutilisable pour toutes les tables.
+CREATE OR REPLACE FUNCTION public.__vx_set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE
+  t text;
+  _tables text[] := ARRAY[
+    'users','businesses','clients','appointments','quotes','blog_posts',
+    'services','faqs','working_hours','payments','reviews','notes',
+    'quote_items','notifications'
+  ];
+BEGIN
+  FOREACH t IN ARRAY _tables LOOP
+    IF public.__vx_table_exists(t) THEN
+      -- Vérifie que la table a bien une colonne updated_at, sinon on skip
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name=t AND column_name='updated_at'
+      ) THEN
+        -- Idempotent : DROP puis CREATE (pas de CREATE TRIGGER IF NOT EXISTS avant PG14)
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.%I', 'set_updated_at_' || t, t);
+        EXECUTE format(
+          'CREATE TRIGGER %I BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.__vx_set_updated_at()',
+          'set_updated_at_' || t, t
+        );
+      END IF;
+    END IF;
+  END LOOP;
+END $$;
+
+-- 14.2 CHECK longueur sur colonnes text sans limite
+-- On cap à des valeurs généreuses mais réalistes → protège contre DoS
+-- (un user qui colle 1 GB dans "notes").
+DO $$ BEGIN
+  IF public.__vx_table_exists('clients') THEN
+    BEGIN
+      ALTER TABLE public.clients
+        ADD CONSTRAINT clients_notes_length_chk CHECK (char_length(notes) <= 10000);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  IF public.__vx_table_exists('businesses') THEN
+    BEGIN
+      ALTER TABLE public.businesses
+        ADD CONSTRAINT businesses_description_length_chk CHECK (char_length(description) <= 5000);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN
+      ALTER TABLE public.businesses
+        ADD CONSTRAINT businesses_service_area_length_chk CHECK (char_length(service_area) <= 2000);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN
+      ALTER TABLE public.businesses
+        ADD CONSTRAINT businesses_address_length_chk CHECK (char_length(address) <= 500);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN
+      ALTER TABLE public.businesses
+        ADD CONSTRAINT businesses_loyalty_reward_length_chk CHECK (char_length(loyalty_reward) <= 1000);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  IF public.__vx_table_exists('blog_posts') THEN
+    -- 50 000 caractères ≈ 8 000 mots. Largement au-dessus d'un article normal (1500 mots).
+    BEGIN
+      ALTER TABLE public.blog_posts
+        ADD CONSTRAINT blog_posts_content_length_chk CHECK (char_length(content) <= 50000);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN
+      ALTER TABLE public.blog_posts
+        ADD CONSTRAINT blog_posts_excerpt_length_chk CHECK (char_length(excerpt) <= 500);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  IF public.__vx_table_exists('notes') THEN
+    BEGIN
+      ALTER TABLE public.notes
+        ADD CONSTRAINT notes_content_length_chk CHECK (char_length(content) <= 10000);
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+END $$;
+
+-- 14.8 Cascade delete manquants
+-- Recrée les FKs avec ON DELETE CASCADE / SET NULL selon la logique métier.
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    -- businesses.owner_id → users.id : cascade (un user supprimé emporte ses vitrines)
+    BEGIN
+      ALTER TABLE public.businesses DROP CONSTRAINT IF EXISTS businesses_owner_id_fkey;
+      ALTER TABLE public.businesses DROP CONSTRAINT IF EXISTS businesses_owner_id_users_id_fk;
+      ALTER TABLE public.businesses
+        ADD CONSTRAINT businesses_owner_id_fkey
+        FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+
+  IF public.__vx_table_exists('appointments') THEN
+    -- appointments.created_by : SET NULL (RDV conservés même si employé supprimé)
+    BEGIN
+      ALTER TABLE public.appointments DROP CONSTRAINT IF EXISTS appointments_created_by_fkey;
+      ALTER TABLE public.appointments DROP CONSTRAINT IF EXISTS appointments_created_by_users_id_fk;
+      ALTER TABLE public.appointments
+        ADD CONSTRAINT appointments_created_by_fkey
+        FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+
+  IF public.__vx_table_exists('quotes') THEN
+    BEGIN
+      ALTER TABLE public.quotes DROP CONSTRAINT IF EXISTS quotes_created_by_fkey;
+      ALTER TABLE public.quotes DROP CONSTRAINT IF EXISTS quotes_created_by_users_id_fk;
+      ALTER TABLE public.quotes
+        ADD CONSTRAINT quotes_created_by_fkey
+        FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+
+  IF public.__vx_table_exists('notes') THEN
+    -- notes.created_by NOT NULL → cascade (données personnelles du créateur)
+    BEGIN
+      ALTER TABLE public.notes DROP CONSTRAINT IF EXISTS notes_created_by_fkey;
+      ALTER TABLE public.notes DROP CONSTRAINT IF EXISTS notes_created_by_users_id_fk;
+      ALTER TABLE public.notes
+        ADD CONSTRAINT notes_created_by_fkey
+        FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+END $$;
+
+-- 14.7 Partitionnement page_visits (informatif)
+-- NOTE : le partitionnement est INVASIF (renomme la table, crée les partitions,
+-- migre les données). On ne le fait PAS automatiquement dans ce script pour
+-- éviter tout risque en production. Le SQL à exécuter manuellement est fourni
+-- dans docs/DB.md section "Partitionnement page_visits" — à faire dès que la
+-- table dépasse ~5M lignes.
+--
+-- Résumé de la stratégie :
+--   1. Renommer page_visits → page_visits_legacy
+--   2. Créer page_visits partitionnée PARTITION BY RANGE (created_at)
+--   3. Créer les partitions mensuelles (2025-01, 2025-02, ...)
+--   4. INSERT INTO page_visits SELECT * FROM page_visits_legacy
+--   5. DROP TABLE page_visits_legacy
+--   6. Programmer un cron mensuel qui crée la partition M+1 (pg_partman ou script maison)
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

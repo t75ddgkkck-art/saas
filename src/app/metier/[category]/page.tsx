@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { businesses, reviews } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -38,7 +38,8 @@ export default async function MetierPage({ params }: Props) {
     })
     .from(businesses)
     .leftJoin(reviews, eq(reviews.businessId, businesses.id))
-    .where(eq(businesses.category, categoryName))
+    // Lot 14.3 : masquer les vitrines soft-deleted
+    .where(and(eq(businesses.category, categoryName), isNull(businesses.deletedAt)))
     .groupBy(businesses.id)
     .orderBy(
       desc(sql`coalesce(avg(${reviews.rating}), 0)`),

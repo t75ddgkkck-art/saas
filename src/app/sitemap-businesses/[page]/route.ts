@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, isNull } from "drizzle-orm";
 
 export const dynamic = "force-static";
 export const revalidate = 3600; // 1 heure
@@ -20,6 +20,8 @@ export async function GET(
     rows = await db
       .select({ slug: businesses.slug, updatedAt: businesses.updatedAt })
       .from(businesses)
+      // Lot 14.3 : exclure les soft-deleted du sitemap (Google ne doit pas les crawler)
+      .where(isNull(businesses.deletedAt))
       .orderBy(desc(businesses.updatedAt))
       .limit(PAGE_SIZE)
       .offset((pageNum - 1) * PAGE_SIZE);

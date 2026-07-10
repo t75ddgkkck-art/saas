@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 
 export const dynamic = "force-static";
 export const revalidate = 86400;
@@ -16,6 +16,8 @@ export async function GET() {
         count: sql<number>`count(*)::int`,
       })
       .from(businesses)
+      // Lot 14.3 : exclure soft-deleted du décompte par catégorie
+      .where(isNull(businesses.deletedAt))
       .groupBy(businesses.category);
     categories = rows.map((r) => ({ category: r.category, count: Number(r.count) || 0 }));
   } catch {

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { blogPosts, businesses } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -15,7 +15,12 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const biz = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
+  // Lot 14.3 : vitrine soft-deleted → titre "Page non trouvée"
+  const biz = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.slug, slug), isNull(businesses.deletedAt)))
+    .limit(1);
   if (!biz.length) return { title: "Page non trouvée" };
   return {
     title: `Blog - ${biz[0].name}`,
@@ -25,12 +30,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicBlogPage({ params }: Props) {
   const { slug } = await params;
-  const bizResult = await db.select().from(businesses).where(eq(businesses.slug, slug)).limit(1);
+  // Lot 14.3 : vitrine soft-deleted → 404
+  const bizResult = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.slug, slug), isNull(businesses.deletedAt)))
+    .limit(1);
   const biz = bizResult[0];
   if (!biz) notFound();
 
-  const posts = await db.select().from(blogPosts)
-    .where(and(eq(blogPosts.businessId, biz.id), eq(blogPosts.isPublished, true)))
+  // Lot 14.3 : article soft-deleted → masqué du listing public
+  const posts = await db
+    .select()
+    .from(blogPosts)
+    .where(
+      and(
+        eq(blogPosts.businessId, biz.id),
+        eq(blogPosts.isPublished, true),
+        isNull(blogPosts.deletedAt)
+      )
+    )
     .orderBy(desc(blogPosts.publishedAt));
 
   return (
