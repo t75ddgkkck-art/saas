@@ -17,6 +17,7 @@ import {
   QrCode,
   Wrench,
   Shield,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
@@ -25,7 +26,7 @@ import { GlobalSearch } from "./GlobalSearch";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
-// Menu simplifié : 5 entrées seulement
+// Menu simplifié
 const baseNavItems = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/dashboard/vitrine", labelKey: "myVitrine", icon: Palette },
@@ -37,6 +38,8 @@ const baseNavItems = [
 
 // Assistant IA réservé aux plans Pro / Premium
 const aiNavItem = { href: "/dashboard/ai-chat", labelKey: "aiAssistant", icon: Zap };
+// F5 (Lot 32) : équipe réservée aux plans Pro / Premium (via entitlement `team.enable`)
+const teamNavItem = { href: "/dashboard/team", labelKey: "teamNav", icon: Users };
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,8 +48,18 @@ export function Sidebar() {
   const { td } = useLang();
   const plan = user?.subscription || "free";
   // Assistant IA réservé UNIQUEMENT au plan Premium
-  let navItems =
-    plan === "premium" ? [...baseNavItems.slice(0, 5), aiNavItem, baseNavItems[5]] : baseNavItems;
+  // F5 (Lot 32) : équipe visible pour Pro et Premium (matrice entitlements)
+  const showTeam = plan === "pro" || plan === "premium";
+  let navItems = [...baseNavItems];
+  if (plan === "premium") {
+    // Insère AI avant Settings
+    navItems = [...navItems.slice(0, 5), aiNavItem, ...navItems.slice(5)];
+  }
+  if (showTeam) {
+    // Insère Team avant Settings
+    const settingsIdx = navItems.findIndex((i) => i.href === "/dashboard/settings");
+    navItems = [...navItems.slice(0, settingsIdx), teamNavItem, ...navItems.slice(settingsIdx)];
+  }
 
   // Lot 13 : entrée admin uniquement pour les users role=admin
   if (user?.role === "admin") {

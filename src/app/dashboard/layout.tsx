@@ -10,6 +10,8 @@ import { SupportBubble } from "@/components/layout/SupportBubble";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { EmailVerifyBanner } from "@/components/dashboard/EmailVerifyBanner";
+// F5 (Lot 32) : bandeau "vous êtes membre invité de X"
+import { TeamMemberBanner } from "@/components/dashboard/TeamMemberBanner";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,6 +33,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="mb-4">
               <EmailVerifyBanner />
             </div>
+            {/* F5 : bandeau si l'user est membre invité (pas owner) */}
+            <TeamMemberBanner />
             {/* Lot 22 : breadcrumbs auto sur toutes les sous-pages dashboard */}
             <Breadcrumbs />
             {children}

@@ -31,15 +31,15 @@ Le client final n'est PAS dans `users` (réservé aux pros). Il existe déjà vi
 
 ## Routes API
 
-| Route | Méthode | Auth | Rate | Description |
-|---|---|---|---|---|
-| `/api/client/magic-link` | POST | Publique | 3/10min/IP | Envoie le magic-link |
-| `/api/client/verify` | GET | Publique (token) | 10/min/IP | Consomme token, pose cookie, redirect |
-| `/api/client/logout` | POST | Session client | - | Révoque cookie + session DB |
-| `/api/client/me` | GET | Session client | 60/min | email + businesses fréquentés |
-| `/api/client/appointments` | GET | Session client | 60/min | RDV tous businesses (filtrer `?upcoming=1`, `?businessId=`) |
-| `/api/client/quotes` | GET | Session client | 60/min | Devis tous businesses |
-| `/api/client/appointments/[id]/cancel` | POST | Session client | 5/heure/IP | Annule un RDV (avec refund F2) |
+| Route                                  | Méthode | Auth             | Rate       | Description                                                 |
+| -------------------------------------- | ------- | ---------------- | ---------- | ----------------------------------------------------------- |
+| `/api/client/magic-link`               | POST    | Publique         | 3/10min/IP | Envoie le magic-link                                        |
+| `/api/client/verify`                   | GET     | Publique (token) | 10/min/IP  | Consomme token, pose cookie, redirect                       |
+| `/api/client/logout`                   | POST    | Session client   | -          | Révoque cookie + session DB                                 |
+| `/api/client/me`                       | GET     | Session client   | 60/min     | email + businesses fréquentés                               |
+| `/api/client/appointments`             | GET     | Session client   | 60/min     | RDV tous businesses (filtrer `?upcoming=1`, `?businessId=`) |
+| `/api/client/quotes`                   | GET     | Session client   | 60/min     | Devis tous businesses                                       |
+| `/api/client/appointments/[id]/cancel` | POST    | Session client   | 5/heure/IP | Annule un RDV (avec refund F2)                              |
 
 ## Annulation avec refund (intégration F2)
 

@@ -106,6 +106,7 @@ const TRANSLATIONS = {
     toolsNav: "Outils",
     adminNav: "Admin",
     aiAssistant: "Assistant IA",
+    teamNav: "Équipe",
     settings: "Paramètres",
     logout: "Déconnexion",
 
@@ -247,6 +248,7 @@ const TRANSLATIONS = {
     toolsNav: "Tools",
     adminNav: "Admin",
     aiAssistant: "AI Assistant",
+    teamNav: "Team",
     settings: "Settings",
     logout: "Log out",
 
@@ -383,6 +385,7 @@ const TRANSLATIONS = {
     toolsNav: "Herramientas",
     adminNav: "Admin",
     aiAssistant: "Asistente IA",
+    teamNav: "Equipo",
     settings: "Ajustes",
     logout: "Cerrar sesión",
 
@@ -519,6 +522,7 @@ const TRANSLATIONS = {
     toolsNav: "Werkzeuge",
     adminNav: "Admin",
     aiAssistant: "KI-Assistent",
+    teamNav: "Team",
     settings: "Einstellungen",
     logout: "Abmelden",
 

@@ -774,6 +774,77 @@ DO $$ BEGIN
     ON public.client_sessions (expires_at);
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4octies. Lot 32 (F5) — Équipe & rôles (refonte team_members + invitations)
+-- -----------------------------------------------------------------------------
+
+-- Extension team_members : user_id, invitedBy, acceptedAt, deletedAt
+DO $$ BEGIN
+  IF public.__vx_table_exists('team_members') THEN
+    ALTER TABLE public.team_members
+      ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS invited_by_user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS accepted_at timestamp,
+      ADD COLUMN IF NOT EXISTS deleted_at  timestamp;
+    -- CHECK : rôle dans admin|employee|viewer
+    ALTER TABLE public.team_members DROP CONSTRAINT IF EXISTS team_members_role_check;
+    ALTER TABLE public.team_members
+      ADD CONSTRAINT team_members_role_check
+      CHECK (member_role IN ('admin', 'employee', 'viewer'));
+    -- Unique (business, email lowercase) : évite les doublons d'invitation
+    CREATE UNIQUE INDEX IF NOT EXISTS team_members_business_email_uidx
+      ON public.team_members (business_id, lower(email));
+    -- Lookup par user (getCurrentTeamContext)
+    CREATE INDEX IF NOT EXISTS team_members_user_idx
+      ON public.team_members (user_id);
+    -- Migration douce : si des lignes ont l'ancien rôle "assistant", on les
+    -- passe à "employee" (rôle le plus proche fonctionnellement).
+    UPDATE public.team_members SET member_role = 'employee'
+      WHERE member_role NOT IN ('admin', 'employee', 'viewer');
+  END IF;
+END $$;
+
+-- Nouvelle table team_invitations
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    CREATE TABLE IF NOT EXISTS public.team_invitations (
+      id                  uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+      business_id         uuid          NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+      email               varchar(255)  NOT NULL,
+      member_role         varchar(30)   NOT NULL,
+      token_hash          varchar(64)   NOT NULL,
+      expires_at          timestamp     NOT NULL,
+      accepted_at         timestamp,
+      invited_by_user_id  uuid          REFERENCES public.users(id) ON DELETE SET NULL,
+      created_at          timestamp     NOT NULL DEFAULT now(),
+      CONSTRAINT team_invitations_role_check CHECK (member_role IN ('admin', 'employee', 'viewer'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS team_invitations_hash_uidx
+      ON public.team_invitations (token_hash);
+    CREATE INDEX IF NOT EXISTS team_invitations_business_email_idx
+      ON public.team_invitations (business_id, email);
+  END IF;
+END $$;
+
+-- Assignation RDV + devis à un membre d'équipe
+DO $$ BEGIN
+  IF public.__vx_table_exists('appointments') THEN
+    ALTER TABLE public.appointments
+      ADD COLUMN IF NOT EXISTS assigned_to_user_id uuid REFERENCES public.users(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS appointments_assigned_idx
+      ON public.appointments (assigned_to_user_id);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('quotes') THEN
+    ALTER TABLE public.quotes
+      ADD COLUMN IF NOT EXISTS assigned_to_user_id uuid REFERENCES public.users(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS quotes_assigned_idx
+      ON public.quotes (assigned_to_user_id);
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (

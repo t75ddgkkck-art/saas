@@ -4,6 +4,155 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 28 — F5 Équipe & rôles multi-utilisateurs
+
+Ouvre le marché TPE 2-10 personnes. Avant : `team_members` en DB avec 0 UI, memberRole vaguement "assistant"/"employee" sans permissions réelles, aucun système d'invitation, aucun link user_id. Après : 4 rôles clairs (owner/admin/employee/viewer), matrice permissions 30 capabilities figée, invitations magic-link 7 jours, UI complète, bandeau contextuel dans le dashboard.
+
+## 4 rôles + matrice figée
+
+- **owner** — implicite (`businesses.ownerId`), tout permis
+- **admin** — bras droit, tout sauf `business.delete` + `billing.manage`
+- **employee** — opérationnel : create + `edit_assigned`, pas `edit_any` ni `delete` ni `refund`
+- **viewer** — lecture seule stricte (uniquement caps `.view`)
+
+`src/lib/team-permissions.ts` — 30 capabilities réparties (business/team/appointments/quotes/clients/payments/billing/analytics/ai). Snapshot test **canary** : si un dev ajoute une capability sans la donner au owner, le test casse. `canManageRole(actor, target)` empêche admin ↔ admin et interdit toute modif venant d'employee/viewer.
+
+## Refonte DB
+
+**`team_members`** (nouvelles colonnes) :
+- `user_id` (FK users) — NULL avant acceptation, rempli à l'accept
+- `invited_by_user_id`, `accepted_at`, `deleted_at` (soft delete Lot 14)
+- CHECK `member_role IN ('admin','employee','viewer')`
+- UNIQUE `(business_id, lower(email))` — anti-doublon
+- Index `user_id` (résolution getCurrentTeamContext)
+- **Migration douce** : ancien `"assistant"` → `"employee"` par UPDATE idempotent
+
+**`team_invitations`** (nouvelle table) :
+- Token brut 64 chars hex, stocké SHA-256, single-use `accepted_at`
+- TTL 7 jours (le membre a le temps de recevoir l'email)
+- FK vers `businesses` (cascade) et `users` (invited_by, SET NULL)
+
+**Extensions RDV/devis** :
+- `appointments.assigned_to_user_id` + index — assignation à un membre
+- `quotes.assigned_to_user_id` + index — idem
+
+SQL idempotent bloc **4octies** dans `sql/00_apply_safe.sql`.
+
+## Système de contexte équipe
+
+`src/lib/team-context.ts` :
+
+- **`getCurrentTeamContext()`** — pour l'user courant, résout le business actif + rôle
+  - Priorité : owner d'abord, sinon premier `team_members.active` non soft-deleted
+  - Renvoie `{user, business, role, isOwner}`
+- **`requireTeamPermission(cap)`** — guard API qui throw 401/403 avec message clair
+- **`listUserBusinesses()`** — tous les businesses (owner + invité) pour futur switcher
+
+## Flow d'invitation
+
+1. Owner/admin → `/dashboard/team` → modal invite (email + prénom + rôle assignable filtré par `canManageRole`)
+2. `POST /api/team/invite` :
+   - Gate `team.invite` + entitlement `team.enable` + quota `maxTeamMembers`
+   - Anti-doublon (membre actif ou invitation active)
+   - Crée `team_members` (accepted_at NULL) + `team_invitations`
+   - Envoie email HTML avec `/team/accept?token=<raw>`
+3. Futur membre clique → page `/team/accept` (publique) :
+   - Peek `/api/team/accept?token=` affiche business + rôle avant action
+   - **3 états UI** : pas connecté (CTA login/register avec précharge email), mauvais email (alerte reconnexion), OK (bouton "Accepter")
+4. `POST /api/team/accept { token }` :
+   - **Consommation atomique** (WHERE accepted_at IS NULL)
+   - Vérifie `user.email === invitation.email` (anti-hijack)
+   - Link `team_members.user_id = user.id`
+5. Prochain hit dashboard : `getCurrentTeamContext` résout le business
+
+## Routes API (5 nouvelles + 1 refondue)
+
+| Route | Cap requise | Rate |
+|---|---|---|
+| `GET /api/team` (**refondu**) | `team.view` — renvoie aussi `currentRole` + `isOwner` | - |
+| `POST /api/team/invite` | `team.invite` + entitlement + quota | 10/h/IP |
+| `GET /api/team/accept?token=` | Publique (peek) | 10/h/IP |
+| `POST /api/team/accept` | Auth + email match | 10/h/IP |
+| `PATCH /api/team/[id]` | `team.change_role` + `canManageRole` | 30/h/IP |
+| `DELETE /api/team/[id]` | `team.remove` + `canManageRole` (soft-delete) | 30/h/IP |
+| `GET /api/team/context` | Auth | 60/min |
+
+L'ancien `POST/DELETE /api/team` inline est **supprimé** — remplacé par les routes ci-dessus, plus propres.
+
+## UI livrée
+
+- **`/dashboard/team`** — nouvelle page dédiée, gate `<UpgradeGate feature="team.enable">` pour Free
+- **`<TeamManager>`** — liste avec statut (pending/actif/désactivé), select rôle inline (filtré par `canManageRole`), bouton revoke avec ConfirmDialog
+- **`<InviteModal>`** — email/prénom/nom/rôle, message d'aide dynamique par rôle
+- **`/team/accept`** — page publique avec 3 branches UI et gestion d'erreur claire
+- **`<TeamMemberBanner>`** dans layout dashboard — affichage conditionnel `!isOwner` : "Vous êtes connecté en tant que {role} de {business}", dismiss session storage
+- **Sidebar** : entrée "Équipe" visible pour Pro/Premium (masquée Free), insertion propre avant Settings
+
+## Nouveau template email
+
+Inline dans la route `invite` (pas de refactor `email.ts` pour rester chirurgical) : "Vous êtes invité à rejoindre {business} en tant que {role}" + CTA + expiry 7 jours + lien secours.
+
+## i18n
+
+Nouvelle clé `teamNav: "Équipe"` (fr/en/es/de).
+
+## Fichiers créés / modifiés
+
+**Créés** :
+- `src/lib/team-permissions.ts` (170 lignes)
+- `src/lib/team-context.ts` (160 lignes)
+- `src/lib/team-invitations.ts` (140 lignes)
+- `src/app/api/team/invite/route.ts` (210 lignes)
+- `src/app/api/team/accept/route.ts` (170 lignes, GET peek + POST accept)
+- `src/app/api/team/context/route.ts`
+- `src/app/api/team/[id]/route.ts` (PATCH + DELETE, 155 lignes)
+- `src/app/dashboard/team/page.tsx`
+- `src/app/dashboard/team/_components/TeamManager.tsx` (340 lignes)
+- `src/app/team/accept/page.tsx` (240 lignes)
+- `src/components/dashboard/TeamMemberBanner.tsx`
+- `docs/TEAM.md`
+- `tests/unit/team-permissions.test.ts` (15 tests)
+- `tests/unit/team-invitations.test.ts` (14 tests)
+
+**Modifiés** :
+- `src/db/schema.ts` — refonte `teamMembers`, table `teamInvitations`, assigned_to_user_id sur appointments/quotes, index
+- `sql/00_apply_safe.sql` — bloc 4octies idempotent avec migration douce "assistant" → "employee"
+- `src/app/api/team/route.ts` — refonte GET (utilise `requireTeamPermission`, renvoie `currentRole`), suppression POST/DELETE legacy
+- `src/components/layout/Sidebar.tsx` — entrée "Équipe" conditionnelle Pro/Premium
+- `src/app/dashboard/layout.tsx` — insertion `<TeamMemberBanner>`
+- `src/lib/i18n.ts` — clé `teamNav` en 4 langues
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 202 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **457 tests / 47 fichiers, tous verts** (+29 vs Lot 31)
+- ✅ `npm run test:coverage` — lines **45.98%** (↑ de 44.87%), functions 61.26%, branches 82.84%
+- ✅ `npm run build` — succès, `/dashboard/team` + `/team/accept` visibles
+
+## Impact business
+
+- **Ouvre le marché TPE 2-10 personnes** — avant : impossible (aucun système)
+- **ARPU +30% attendu** grâce à Pro (2 sièges) et Premium (illimité)
+- **Cas d'usage débloqués** : coiffeur + salariés, plombier + assistant admin, avocat + secrétaire, commerçant + comptable en lecture
+- **Argument commercial fort vs Simplébo/Solocal** qui ne proposent pas d'équipe multi-rôles avec permissions granulaires
+- **v2 planifiée** : sièges facturés à l'usage au-delà de 5 (10€/siège/mois) = ARR récurrent additionnel
+
+## Actions post-déploiement
+
+1. **Appliquer le SQL** : `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4octies. Migration douce "assistant" → "employee" incluse.
+2. **Tester le flow end-to-end** : inviter un email test → recevoir mail → cliquer lien → créer compte avec le même email → accepter → vérifier accès dashboard avec le bon rôle
+3. **Communication users pro** : email "Nouveauté : invitez votre équipe. 2 sièges inclus en Pro, illimité en Premium"
+4. **Mesurer** : nombre d'invitations envoyées, taux d'acceptation, temps moyen accept, répartition rôles
+5. **v2 possible** : ajouter UI d'assignation (dropdown "Assigné à" dans les RDV/devis) — les colonnes sont déjà là
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 27 — F3 Espace client final + magic-link auth
 
 Ouvre la rétention côté visiteur. Avant : chaque prise de RDV = re-saisir nom/tel/mail, aucun moyen pour un client de consulter ses futurs RDV, aucun historique. Après : magic-link email → `/mon-compte` qui unifie **tous les pros Vitrix fréquentés par l'email**. Effet plateforme.

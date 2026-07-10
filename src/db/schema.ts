@@ -249,18 +249,84 @@ export const loyaltyPoints = pgTable("loyalty_points", {
 });
 
 // Membres d'équipe (Premium) : secrétaire, employé avec accès limité
-export const teamMembers = pgTable("team_members", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id")
-    .notNull()
-    .references(() => businesses.id, { onDelete: "cascade" }),
-  email: varchar("email", { length: 255 }).notNull(),
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }),
-  memberRole: varchar("member_role", { length: 30 }).default("assistant").notNull(), // assistant, employee
-  invitedAt: timestamp("invited_at").defaultNow().notNull(),
-  active: boolean("active").default(true).notNull(),
-});
+// F5 (Lot 32) — team_members refonte avec vrais rôles + link user.
+//
+// Rôles :
+//  - owner    : le propriétaire du business (implicite, jamais dans team_members)
+//  - admin    : peut inviter/révoquer, gérer paramètres business
+//  - employee : peut voir + éditer RDV/devis/clients qui lui sont assignés + créer nouveaux
+//  - viewer   : lecture seule (comptable, stagiaire)
+//
+// Le membre est identifié par EMAIL au moment de l'invitation. Quand il
+// s'inscrit avec le même email (register ou magic-link), `user_id` est
+// automatiquement rempli côté API accept-invitation → il accède au dashboard
+// du business via `getCurrentTeamContext()`.
+export const teamMembers = pgTable(
+  "team_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    // Link vers users : rempli quand le membre accepte l'invitation
+    // ON DELETE SET NULL : si le user est supprimé, on garde la trace
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    email: varchar("email", { length: 255 }).notNull(),
+    firstName: varchar("first_name", { length: 100 }).notNull(),
+    lastName: varchar("last_name", { length: 100 }),
+    // Valeurs valides : admin | employee | viewer (owner implicite via businesses.ownerId)
+    // (varchar + CHECK SQL pour éviter d'ajouter un enum PG qu'il faudrait migrer)
+    memberRole: varchar("member_role", { length: 30 }).default("employee").notNull(),
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    invitedAt: timestamp("invited_at").defaultNow().notNull(),
+    // NULL = invitation pas encore acceptée. Rempli à l'acceptation.
+    acceptedAt: timestamp("accepted_at"),
+    active: boolean("active").default(true).notNull(),
+    // Lot 14.3 soft delete (garde trace historique quand un membre part)
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => ({
+    businessIdx: index("team_members_business_idx").on(t.businessId),
+    // Lookup par user pour getCurrentTeamContext (résout tous les businesses
+    // où l'user courant est membre actif)
+    userIdx: index("team_members_user_idx").on(t.userId),
+    // Anti-doublon par (business, email lowercase) — géré aussi côté route
+    businessEmailUidx: uniqueIndex("team_members_business_email_uidx").on(
+      t.businessId,
+      sql`lower(${t.email})`
+    ),
+  })
+);
+
+// F5 (Lot 32) — Invitations magic-link pour l'équipe.
+// Séparé de auth_tokens (pros) et client_auth_tokens (clients finaux) pour
+// isoler la logique : une invitation porte businessId + role à assigner.
+export const teamInvitations = pgTable(
+  "team_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 255 }).notNull(),
+    memberRole: varchar("member_role", { length: 30 }).notNull(),
+    // Hash SHA-256 du token brut (identique pattern auth-tokens)
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    // NULL = non consommée. Non-null = déjà acceptée (single-use).
+    acceptedAt: timestamp("accepted_at"),
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    hashUidx: uniqueIndex("team_invitations_hash_uidx").on(t.tokenHash),
+    businessEmailIdx: index("team_invitations_business_email_idx").on(t.businessId, t.email),
+  })
+);
 
 // Demandes d'avis envoyées après un RDV terminé
 export const reviewRequests = pgTable("review_requests", {
@@ -456,6 +522,11 @@ export const appointments = pgTable(
       .references(() => clients.id, { onDelete: "cascade" }),
     // Lot 14.8 : cascade user pour ne pas laisser createdBy orphelin
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    // F5 (Lot 32) : assignation à un membre d'équipe (nullable = non assigné).
+    // Utilisé pour filtrer "mes RDV" côté employé + coloration calendrier.
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
     date: varchar("date", { length: 10 }).notNull(),
@@ -492,6 +563,8 @@ export const appointments = pgTable(
     depositScanIdx: index("appointments_deposit_scan_idx")
       .on(t.depositStatus, t.createdAt)
       .where(sql`${t.depositStatus} = 'pending'`),
+    // F5 (Lot 32) : filtrer "mes RDV" côté employé
+    assignedIdx: index("appointments_assigned_idx").on(t.assignedToUserId),
   })
 );
 
@@ -573,6 +646,10 @@ export const quotes = pgTable(
     // Lot 14.8 : SET NULL au lieu de laisser orphelin. Un devis reste dans l'historique
     // même si son créateur (employé) quitte l'équipe.
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    // F5 (Lot 32) : assignation devis à un membre (commercial responsable)
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     quoteNumber: varchar("quote_number", { length: 50 }).notNull().unique(),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
