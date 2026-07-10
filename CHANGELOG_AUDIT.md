@@ -4,141 +4,131 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
-# 🟢 Tour 7 — Lot 6 SEO
+# 🟢 Tour 8 — Lot 8 I18N (multilingue)
 
-## 6.1 + 6.2 — Sitemap-index paginé
+## 8.1 — `src/lib/i18n.ts` refondu (source de vérité typée)
 
-Avant : 1 seul `sitemap.xml` monolithique listant uniquement les vitrines.
-Après : **sitemap-index** pointant vers 5+ sous-sitemaps par type, paginés :
+Avant : ~25 clés de vitrine + ~40 clés dashboard, dictionnaires inline non typés, aucune interpolation.
+Après : **116 clés** unifiées dans un module i18n complet :
 
-| URL | Contenu | Pagination |
-|---|---|---|
-| `/sitemap.xml` | **Index** listant tous les sous-sitemaps | ISR 1h |
-| `/sitemap-static.xml` | Pages fixes (`/`, `/register`, `/annuaire`, `/blog`, `/a-propos`, `/faq`, `/cgu`, `/confidentialite`) | ISR 1j |
-| `/sitemap-businesses/[page]` | Vitrines, 5000 par page | ISR 1h |
-| `/sitemap-blog/[page]` | Articles publiés uniquement, 5000 par page | ISR 1h |
-| `/sitemap-cities.xml` | Villes distinctes avec au moins 1 pro (priorité log-scale par nb pros) | ISR 1j |
-| `/sitemap-categories.xml` | Catégories métier distinctes | ISR 1j |
+- Type `TranslationKey` **dérivé automatiquement** de `TRANSLATIONS.fr` — si tu ajoutes une clé en FR, TS te force à la déclarer partout (ou fallback silencieux sur FR).
+- **Interpolation `{name}`** supportée : `t("fr", "emailFooterLegal", { business: "Nathan" })`.
+- **Fallback intelligent** : si la clé manque dans en/es/de, on prend la version FR (jamais de clé littérale visible côté user).
+- **4 langues** au complet : fr / en / es / de.
+- **Catégories de clés** : vitrine CTA, sections, réservation, devis, erreurs génériques, dashboard, éditeur vitrine, accessibilité, emails.
 
-Bonus : `<xhtml:link rel="alternate" hreflang="...">` dans le sitemap des businesses.
+Nouvelles fonctions exportées :
+- `t(lang, key, vars?)` — traduction principale typée
+- `td(lang, key)` — alias historique (compat dashboard)
+- `detectLangFromAcceptLanguage(header)` — parse `Accept-Language`
+- `formatLocaleDate(date, lang, opts?)` — format date locale
+- `formatLocaleCurrency(amount, lang, currency?)` — format devise locale
+- `allKeys()` — liste toutes les clés (utile aux outils)
+- Constantes `SUPPORTED_LANGS`, `DEFAULT_LANG`
 
-**Impact** : Google contourne la limite 50 000 URL, ne recrawle que les sitemaps modifiés (`lastmod` par entrée), meilleure isolation.
+## 8.2 — Dashboard : `LangContext` enrichi
 
-## 6.3 — Meta descriptions optimisées + helper `src/lib/seo.ts`
+- `useLang()` expose maintenant `t(key, vars?)` en plus de `td(key)` — permet l'interpolation partout dans le dashboard.
+- L'ancien contrat `td` reste identique → **aucune régression**.
+- Détection auto de la langue au chargement (voir 8.5).
 
-Nouveau module `src/lib/seo.ts` :
-- `clampText(input, max)` : troncature intelligente sur frontière de mot + ellipsis
-- `clampTitle` (60 chars), `clampDescription` (155 chars) : limites Google respectées
-- `CATEGORY_LABELS` : labels lisibles (`plombier → "Plombier"`)
-- `CATEGORY_HOOKS` : accroches accrocheuses par métier (fallback si le pro n'a rien mis)
-- `buildBusinessTitle` : `"Nom — Catégorie à Ville"`
-- `buildBusinessDescription` : utilise la description du pro si assez riche, sinon compose une phrase avec l'accroche métier + note ⭐ si disponible
+## 8.3 — Emails multilingues
 
-`generateMetadata` de `/[slug]` refondu :
-- Titre clampé à 60 chars
-- Description clampée à 155 chars avec note incluse (`⭐ 4.7/5 (23 avis)`) — améliore le CTR SERP
-- `keywords` dynamiques (catégorie + ville + combinaisons)
-- `openGraph.locale` adaptatif (fr/en/es/de selon `business.language`)
-- `robots.googleBot: max-image-preview: large, max-snippet: -1`
+Nouveau **`src/lib/email-i18n.ts`** avec fonctions `e(lang, key)` + `ei(template, vars)` :
 
-## 6.4 — hreflang
+- **7 sujets traduits** (booking, quote, review, reminder…)
+- **20+ labels traduits** (Date, Heure, Adresse, Téléphone, "Laisser un avis", "Merci de votre confiance"…)
+- **4 langues complètes** avec fallback FR
 
-- Layout global (`src/app/layout.tsx`) : `alternates.languages: { "x-default": "/", "fr": "/" }`
-- Chaque vitrine (`/[slug]/page.tsx`) : `alternates.languages` construit dynamiquement selon `business.language` (fr par défaut + langue du pro si en/es/de)
+`EmailTemplates.bookingConfirmationClient` accepte maintenant `lang?: Lang` :
+- Sujet, titre, tableau des infos, footer — tout traduit dans la langue passée.
+- Le nom du business et les données dynamiques restent inchangés.
 
-## 6.5 — Slugs SEO-friendly
+`/api/book-appointment` passe `emailLang = business.language || "fr"` — la vitrine anglophone envoie ses confirmations en anglais.
 
-Avant : `plomberie-dupont-x9k2` — suffixe hasardeux systématique à l'inscription.
-Après : `plomberie-dupont` (le suffixe hasardeux devient un fallback ultra-rare).
+*Les autres templates (`newBookingPro`, `quoteRequestClient`, `newQuoteRequestPro`) restent en FR pour l'instant (utilisés uniquement pour notifier le pro, qui parle presque toujours français dans le contexte Vitrix).*
 
-Nouveau `generateUniqueSlug(base, isTaken)` dans `src/lib/utils.ts` :
-1. Slug propre en priorité
-2. Fallback numérique `-2`, `-3`, … `-20` en cas de collision
-3. Fallback aléatoire `-x9k2` seulement si tout est pris (extrêmement rare)
+## 8.4 — Formats date/heure via `formatLocaleDate`
 
-Utilisé dans `/api/auth/register` avec check dans la transaction DB.
+- Nouvel helper `formatLocaleDate(date, lang, opts)` dans `src/lib/i18n.ts`
+- `/api/book-appointment` : la date de confirmation utilise maintenant la locale du pro (`business.language`) au lieu de `fr-FR` en dur
+- Variable renommée `dateFr` → `dateLocalized` pour refléter le comportement
 
-## 6.6 — Rich snippets enrichis (Schema.org)
+## 8.5 — Détection auto-langue
 
-`StructuredData.tsx` refondu, produit maintenant **2 JSON-LD** :
+**Client (`LangContext`)** :
+1. `localStorage.vitrix_lang` (choix explicite précédent)
+2. `navigator.language` (préférence navigateur)
+3. `business.language` via `/api/my-business` (si connecté et pas de choix précédent)
+4. `"fr"` par défaut
 
-**LocalBusiness** :
-- `@type` mappé selon catégorie (`plombier → "Plumber"`, `coiffeur → "HairSalon"`, `restaurant → "Restaurant"`…)
-- `@id` unique pour le Knowledge Graph
-- `image` (array : cover + profile + logo)
-- `priceRange` (défaut `€€`)
-- **`PostalAddress`** avec addressCountry FR
-- **`GeoCoordinates`** si lat/lng
-- **`OpeningHoursSpecification`** (générée à partir des `workingHours`)
-- **`AggregateRating`** avec ratingValue + reviewCount
-- **`Review`** (top 5 avec `datePublished`)
-- **`sameAs`** (liens réseaux sociaux → Knowledge Graph)
+**Server (`src/lib/get-lang-from-request.ts` nouveau)** :
+1. `preferredLang` argument (ex: langue du business)
+2. Header `Accept-Language` du navigateur
+3. `"fr"` par défaut
 
-**BreadcrumbList** :
-- Accueil > Ville > Business (chapelet dans les SERP Google)
+Utilisation dans les Server Components :
+```ts
+import { getLangFromRequest } from "@/lib/get-lang-from-request";
+const lang = await getLangFromRequest(business?.language);
+```
 
-Impact : les vitrines peuvent apparaître dans les SERP avec ⭐ étoiles, horaires, "ouvert maintenant", chapelet — **gros bump du CTR**.
+## Tests unitaires (+25 : 63 → 88)
 
-## 6.7 — robots.txt
-
-Refonte :
-- `/register` désormais **autorisé** (c'est une landing conversion, bloquer = perte SEO)
-- `/login` bloqué (peu d'intérêt)
-- `/dashboard/`, `/api/` bloqués (privés)
-- `/?preview=1` bloqué (mode preview iframe)
-- `/?checkout=*` bloqué (retours Stripe)
-- `Allow: /api/health` explicite (utile pour monitoring Google)
-- `Crawl-delay: 1`
-- Sitemap-index pointé
-
-## 6.8 — OG image dynamique par vitrine
-
-Déjà livré au Lot 3 dans `src/app/[slug]/opengraph-image.tsx`.
-`generateMetadata` référence maintenant explicitement `${canonical}/opengraph-image` dans `openGraph.images` + `twitter.images`.
-
-## Bonus qualité
-
-- Suppression du warning Next `Cache-Control` override sur `/_next/static/*` (Next 16 le gère nativement)
-- Toutes les nouvelles routes sitemap sont en `dynamic = "force-static"` avec ISR — 0 hit DB à chaque crawl
-
-## Tests unitaires (+13 : 50 → 63)
-
-- `tests/unit/seo.test.ts` — 13 tests :
-  - `clampText` (frontière mot, ellipsis, espaces multiples)
-  - `clampTitle` ≤ 60 chars
-  - `clampDescription` ≤ 155 chars
-  - `buildBusinessTitle` (format, gestion ville nulle)
-  - `buildBusinessDescription` (pro riche vs fallback, ajout note)
-  - `generateUniqueSlug` (libre, collisions -2/-3, calls count)
-  - `slugify` (accents, spéciaux)
+Nouveau `tests/unit/i18n.test.ts` — 25 tests couvrant :
+- `t()` par langue + fallback FR + interpolation `{var}` + placeholder non substitué
+- `td()` alias dashboard
+- `detectLangFromAcceptLanguage` (7 cas dont langue non supportée)
+- `formatLocaleDate` en fr/en
+- `formatLocaleCurrency` en fr/en
+- Cohérence dictionnaire : 4 langues, 116+ clés, chaque clé FR a une traduction
+- `email-i18n.e()` : subjects (fonctions) + labels (strings)
+- `email-i18n.ei()` : interpolation
 
 ## Validations finales
 
 ```
 tsc --noEmit  → 0 erreur
-vitest run    → 63/63 tests OK
-next build    → Compiled successfully, 39/39 pages
-              → /sitemap.xml, /sitemap-static.xml, /sitemap-cities.xml,
-                /sitemap-categories.xml, /sitemap-businesses/[page],
-                /sitemap-blog/[page] tous ● ○ (statiques + ISR)
-              → Zéro warning
+vitest run    → 88/88 tests OK
+next build    → Compiled successfully, 42/42 pages, 0 warning
 ```
 
-## Impact SEO attendu
+## Utilisation
 
-| Item | Avant | Après |
-|---|---|---|
-| URL indexables | ~50 (vitrines seules) | **Toutes** (statiques + vitrines + articles + villes + catégories) |
-| Rich snippet étoiles SERP | ❌ | ✅ (AggregateRating) |
-| Chapelet Accueil > Ville > Business | ❌ | ✅ (BreadcrumbList) |
-| Horaires "ouvert maintenant" | ❌ | ✅ (OpeningHoursSpecification) |
-| CTR SERP (avec ⭐ dans desc) | baseline | +10-30 % attendu |
-| Sitemap crawlable > 10k pros | Non | Oui (paginé 5000) |
+**Vitrine publique** (Server Component) :
+```tsx
+import { t } from "@/lib/i18n";
+<h2>{t(business.language, "hours")}</h2>
+```
+
+**Dashboard** (Client Component) :
+```tsx
+import { useLang } from "@/contexts/LangContext";
+const { t, td } = useLang();
+<button>{t("book")}</button>
+<span>{t("emailFooterLegal", { business: "Nathan" })}</span>
+```
+
+**Emails** :
+```ts
+import { EmailTemplates } from "@/lib/email";
+await sendEmail(EmailTemplates.bookingConfirmationClient({
+  ...data,
+  lang: business.language, // 👈 traduit automatiquement
+}));
+```
+
+## Reste à faire (roadmap incrémentale)
+
+Les templates emails **pro** (`newBookingPro`, `newQuoteRequestPro`) restent en FR — à traduire quand le premier pro non-francophone s'inscrit. Structure prête : il suffit d'ajouter les sujets/labels dans `email-i18n.ts` et de passer `lang` à ces templates.
+
+Le dashboard utilise déjà `td()` à ~30 % — pour couvrir les 70 % restants (chaînes hardcodées type "Modifier", "Supprimer", "Annuler", "Ajouter", etc.), un pass ciblé sur `dashboard/vitrine/page.tsx` (1085 lignes) serait le plus rentable.
 
 ---
 
 # Historique tours précédents
 
+- `8fcc196` — Tour 7 : Lot 6 SEO (sitemap-index paginé, rich snippets, hreflang, slugs)
 - `7beadb6` — Tour 6 : Lot 5 perf (ISR, index DB, next/image, next/font, proxy.ts)
 - `2c928bb` — Tour 5 : Lot 4 a11y (WCAG AA)
 - `5380ed0` — Tour 4 : Lot 3 UI/UX

@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendEmail, EmailTemplates } from "@/lib/email";
+import { formatLocaleDate, type Lang } from "@/lib/i18n";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { badRequest, handleApiError, notFound } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
@@ -147,12 +148,12 @@ export async function POST(request: NextRequest) {
 
     // ==== Automatisations (non bloquantes) ====
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
-    const dateFr = new Date(`${data.date}T00:00:00`).toLocaleDateString("fr-FR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    // Formatage de la date dans la langue configurée par le pro
+    const dateLocalized = formatLocaleDate(
+      `${data.date}T00:00:00`,
+      (business.language as Lang | null) || "fr",
+      { weekday: "long", day: "numeric", month: "long", year: "numeric" }
+    );
 
     const jobs: Promise<unknown>[] = [];
 
@@ -160,10 +161,14 @@ export async function POST(request: NextRequest) {
       ? `Programme fidélité : vous cumulez ${business.loyaltyPointsPerEuro || 1} point(s) par euro dépensé. ${business.loyaltyReward || ""}`
       : undefined;
 
+    // Langue du client : celle configurée par le pro sur sa vitrine (fallback fr).
+    // Ainsi une vitrine anglophone envoie ses confirmations en anglais.
+    const emailLang = (business.language as "fr" | "en" | "es" | "de" | null) || "fr";
+
     const clientTemplate = EmailTemplates.bookingConfirmationClient({
       clientName: data.firstName,
       businessName: business.name,
-      date: dateFr,
+      date: dateLocalized,
       time: data.startTime,
       service: data.service || data.notes || undefined,
       address: business.address
@@ -171,6 +176,7 @@ export async function POST(request: NextRequest) {
         : undefined,
       phone: business.phone || undefined,
       loyaltyInfo,
+      lang: emailLang,
     });
     jobs.push(
       sendEmail({ to: data.email, subject: clientTemplate.subject, html: clientTemplate.html })
@@ -187,7 +193,7 @@ export async function POST(request: NextRequest) {
         clientName: `${data.firstName} ${data.lastName}`.trim(),
         clientPhone: data.phone,
         clientEmail: data.email,
-        date: dateFr,
+        date: dateLocalized,
         time: data.startTime,
         service: data.service || data.notes || undefined,
         dashboardLink: `${appUrl}/dashboard`,
@@ -201,7 +207,7 @@ export async function POST(request: NextRequest) {
           businessId: business.id,
           type: "new_appointment",
           title: "Nouveau rendez-vous 📅",
-          message: `${data.firstName} ${data.lastName} a réservé le ${dateFr} à ${data.startTime}${data.service ? ` — ${data.service}` : ""}`,
+          message: `${data.firstName} ${data.lastName} a réservé le ${dateLocalized} à ${data.startTime}${data.service ? ` — ${data.service}` : ""}`,
           data: { appointmentId: appointment.id },
         })
       );
@@ -217,7 +223,7 @@ export async function POST(request: NextRequest) {
         clientName: `${data.firstName} ${data.lastName}`.trim(),
         clientPhone: data.phone,
         clientEmail: data.email,
-        date: dateFr,
+        date: dateLocalized,
         time: data.startTime,
         service: data.service || data.notes || undefined,
         dashboardLink: `${appUrl}/dashboard`,

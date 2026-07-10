@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/logger";
+import { e, type EmailStringKey } from "@/lib/email-i18n";
+import type { Lang } from "@/lib/i18n";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -57,26 +59,33 @@ export const EmailTemplates = {
     address?: string;
     phone?: string;
     loyaltyInfo?: string;
-  }) => ({
-    subject: `✅ Rendez-vous confirmé — ${data.businessName}`,
-    html: baseWrapper(`
+    lang?: Lang;
+  }) => {
+    const S = (k: EmailStringKey) => e(data.lang, k);
+    return {
+      subject: (S("subjectBookingConfirmed") as (b: string) => string)(data.businessName),
+      html: baseWrapper(
+        `
       <div style="text-align: center; margin-bottom: 24px;">
         <div style="display: inline-block; background: #dcfce7; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; font-size: 28px;">✅</div>
       </div>
-      <h1 style="color: #0f172a; font-size: 22px; text-align: center; margin: 0 0 8px;">Rendez-vous confirmé !</h1>
-      <p style="color: #64748b; text-align: center; margin: 0 0 24px;">Bonjour ${data.clientName}, votre réservation est validée.</p>
+      <h1 style="color: #0f172a; font-size: 22px; text-align: center; margin: 0 0 8px;">${S("bookingConfirmed")}</h1>
+      <p style="color: #64748b; text-align: center; margin: 0 0 24px;">${S("hello")} ${data.clientName}, ${S("yourBookingIsValid")}.</p>
       <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
         <table style="width: 100%; font-size: 14px; color: #334155;">
-          <tr><td style="padding: 6px 0; color: #94a3b8;">📅 Date</td><td style="text-align: right; font-weight: 600;">${data.date}</td></tr>
-          <tr><td style="padding: 6px 0; color: #94a3b8;">🕐 Heure</td><td style="text-align: right; font-weight: 600;">${data.time}</td></tr>
-          ${data.service ? `<tr><td style="padding: 6px 0; color: #94a3b8;">🔧 Service</td><td style="text-align: right; font-weight: 600;">${data.service}</td></tr>` : ""}
-          ${data.address ? `<tr><td style="padding: 6px 0; color: #94a3b8;">📍 Adresse</td><td style="text-align: right; font-weight: 600;">${data.address}</td></tr>` : ""}
+          <tr><td style="padding: 6px 0; color: #94a3b8;">📅 ${S("date")}</td><td style="text-align: right; font-weight: 600;">${data.date}</td></tr>
+          <tr><td style="padding: 6px 0; color: #94a3b8;">🕐 ${S("time")}</td><td style="text-align: right; font-weight: 600;">${data.time}</td></tr>
+          ${data.service ? `<tr><td style="padding: 6px 0; color: #94a3b8;">🔧 ${S("service")}</td><td style="text-align: right; font-weight: 600;">${data.service}</td></tr>` : ""}
+          ${data.address ? `<tr><td style="padding: 6px 0; color: #94a3b8;">📍 ${S("address")}</td><td style="text-align: right; font-weight: 600;">${data.address}</td></tr>` : ""}
         </table>
       </div>
       ${data.loyaltyInfo ? `<div style="background: #fef3c7; border-radius: 12px; padding: 14px; text-align: center; font-size: 13px; color: #92400e; margin-bottom: 20px;">🎁 ${data.loyaltyInfo}</div>` : ""}
-      ${data.phone ? `<p style="text-align: center; font-size: 13px; color: #64748b;">Un empêchement ? Appelez le <a href="tel:${data.phone}" style="color: #0f172a; font-weight: 600;">${data.phone}</a></p>` : ""}
-    `, data.businessName),
-  }),
+      ${data.phone ? `<p style="text-align: center; font-size: 13px; color: #64748b;">${S("ifIssue")} ${S("callAt")} <a href="tel:${data.phone}" style="color: #0f172a; font-weight: 600;">${data.phone}</a></p>` : ""}
+    `,
+        data.businessName
+      ),
+    };
+  },
 
   // ========== PRO : nouveau RDV reçu ==========
   newBookingPro: (data: {
