@@ -7,6 +7,7 @@ import { verifyPassword } from "@/lib/auth";
 import { createSessionToken } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyCaptcha } from "@/lib/captcha";
+import { recordLoginFailure, recordLoginSuccess } from "@/lib/brute-force-detector";
 import { badRequest, handleApiError, unauthorized } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,13 @@ export async function POST(request: NextRequest) {
 
     // On répond toujours le même message pour ne pas révéler l'existence d'un compte.
     const invalidCreds = unauthorized("Email ou mot de passe incorrect");
-    if (userResult.length === 0) throw invalidCreds;
+    // Lot 26 : helper local pour tracker l'échec ET throw (DRY)
+    const fail = () => {
+      recordLoginFailure(ip, { email: normalizedEmail });
+      return invalidCreds;
+    };
+
+    if (userResult.length === 0) throw fail();
 
     const user = userResult[0];
 
@@ -63,10 +70,10 @@ export async function POST(request: NextRequest) {
     // générique que "credentials invalides" pour ne pas révéler qu'il a
     // existé (anti-énumération). L'user a reçu un email de confirmation
     // au moment de la suppression, il sait où il en est.
-    if (user.deletedAt) throw invalidCreds;
+    if (user.deletedAt) throw fail();
 
     const isValid = await verifyPassword(password, user.passwordHash);
-    if (!isValid) throw invalidCreds;
+    if (!isValid) throw fail();
 
     // Lot 13 monitoring : compte banni par un admin → refus explicite.
     // Message spécifique ok ici (info connue de l'user, pas d'énumération possible).
@@ -101,6 +108,10 @@ export async function POST(request: NextRequest) {
       expires: expiresAt,
       path: "/",
     });
+
+    // Lot 26 : login réussi → reset compteur brute-force pour cette IP
+    // (évite qu'un user légitime qui a tapé son mdp 5× soit flag)
+    recordLoginSuccess(ip);
 
     return response;
   } catch (err) {
