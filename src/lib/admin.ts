@@ -59,10 +59,7 @@ export async function logAdminEvent(params: {
 }): Promise<void> {
   try {
     const h = await headers();
-    const ip =
-      h.get("x-forwarded-for")?.split(",")[0].trim() ||
-      h.get("x-real-ip") ||
-      null;
+    const ip = h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || null;
 
     await db.insert(adminEvents).values({
       actorUserId: params.actorUserId,

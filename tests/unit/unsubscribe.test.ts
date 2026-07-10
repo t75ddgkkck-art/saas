@@ -47,9 +47,9 @@ describe("unsubscribe — token", () => {
     const decoded = Buffer.from(token, "base64url").toString();
     const parts = decoded.split("|");
     // Changer catégorie mais garder signature = invalide
-    const forged = Buffer.from(
-      [parts[0], "marketing", parts[2], parts[3]].join("|")
-    ).toString("base64url");
+    const forged = Buffer.from([parts[0], "marketing", parts[2], parts[3]].join("|")).toString(
+      "base64url"
+    );
     expect(verifyUnsubscribeToken(forged)).toBeNull();
   });
 

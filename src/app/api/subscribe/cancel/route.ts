@@ -30,7 +30,8 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: "Abonnement annulé. Vous conservez vos avantages jusqu'à la fin de la période payée.",
+      message:
+        "Abonnement annulé. Vous conservez vos avantages jusqu'à la fin de la période payée.",
       endOfPeriod: true,
     });
   } catch (err) {

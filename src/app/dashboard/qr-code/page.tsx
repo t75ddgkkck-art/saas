@@ -66,7 +66,9 @@ export default function QRCodePage() {
             body: JSON.stringify({ url }),
           })
             .then((r) => r.json())
-            .then((data) => { if (data.qrCode) setQrCode(data.qrCode); })
+            .then((data) => {
+              if (data.qrCode) setQrCode(data.qrCode);
+            })
             .finally(() => setIsLoading(false));
         }
       })
@@ -146,19 +148,23 @@ export default function QRCodePage() {
               <QrCode className="h-5 w-5" />
               Votre QR Code
             </CardTitle>
-            <CardDescription>
-              {pageUrl}
-            </CardDescription>
+            <CardDescription>{pageUrl}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* URL */}
             <div className="mb-6 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
-              <span className="flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-300">{pageUrl || "..."}</span>
+              <span className="flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-300">
+                {pageUrl || "..."}
+              </span>
               <button
                 onClick={copyUrl}
                 className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
                 {copied ? "Copié" : "Copier"}
               </button>
             </div>
@@ -189,11 +195,21 @@ export default function QRCodePage() {
 
             {/* Actions */}
             <div className="mt-6 grid grid-cols-3 gap-3">
-              <Button variant="outline" className="w-full" onClick={() => downloadQR("png")} disabled={!qrCode}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => downloadQR("png")}
+                disabled={!qrCode}
+              >
                 <Download className="mr-2 h-4 w-4" />
                 PNG
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => downloadQR("svg")} disabled={!qrCode}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => downloadQR("svg")}
+                disabled={!qrCode}
+              >
                 <ImageDown className="mr-2 h-4 w-4" />
                 SVG
               </Button>
@@ -238,14 +254,18 @@ export default function QRCodePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Couleur du QR</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Couleur du QR
+                </label>
                 <div className="flex flex-wrap gap-2">
                   {colors.map((c) => (
                     <button
                       key={c.label}
                       onClick={() => setQrColor(c.dark)}
                       className={`h-10 w-10 rounded-xl border-2 transition-all hover:scale-110 ${
-                        qrColor === c.dark ? "border-blue-500 ring-2 ring-blue-200" : "border-transparent"
+                        qrColor === c.dark
+                          ? "border-blue-500 ring-2 ring-blue-200"
+                          : "border-transparent"
                       }`}
                       style={{ backgroundColor: c.dark }}
                       title={c.label}
@@ -261,7 +281,9 @@ export default function QRCodePage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Couleur de fond</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Couleur de fond
+                </label>
                 <div className="flex gap-2">
                   {["#ffffff", "#f8fafc", "#fefce8", "#ecfdf5", "#eff6ff"].map((bg) => (
                     <button

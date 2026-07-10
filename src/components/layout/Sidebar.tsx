@@ -45,16 +45,12 @@ export function Sidebar() {
   const { td } = useLang();
   const plan = user?.subscription || "free";
   // Assistant IA réservé UNIQUEMENT au plan Premium
-  let navItems = plan === "premium"
-    ? [...baseNavItems.slice(0, 5), aiNavItem, baseNavItems[5]]
-    : baseNavItems;
+  let navItems =
+    plan === "premium" ? [...baseNavItems.slice(0, 5), aiNavItem, baseNavItems[5]] : baseNavItems;
 
   // Lot 13 : entrée admin uniquement pour les users role=admin
   if (user?.role === "admin") {
-    navItems = [
-      ...navItems,
-      { href: "/dashboard/admin", labelKey: "adminNav", icon: Shield },
-    ];
+    navItems = [...navItems, { href: "/dashboard/admin", labelKey: "adminNav", icon: Shield }];
   }
 
   return (
@@ -99,7 +95,9 @@ export function Sidebar() {
             >
               <Store className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">Vitrix</span>
+            <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              Vitrix
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <ThemeToggle />
@@ -113,7 +111,10 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav aria-label="Sections du tableau de bord" className="flex-1 space-y-1 overflow-y-auto p-4">
+        <nav
+          aria-label="Sections du tableau de bord"
+          className="flex-1 space-y-1 overflow-y-auto p-4"
+        >
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -140,7 +141,8 @@ export function Sidebar() {
         <div className="border-t border-slate-200/60 p-4 dark:border-slate-800">
           <div className="mb-3 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+              {user?.firstName?.[0]}
+              {user?.lastName?.[0]}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">

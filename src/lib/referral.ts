@@ -122,6 +122,10 @@ export async function consumeReferralCredit(userId: string, months = 1): Promise
     })
     .where(eq(users.id, userId));
 
-  logger.info("[referral] crédit consommé", { userId, consumed: toConsume, remaining: current - toConsume });
+  logger.info("[referral] crédit consommé", {
+    userId,
+    consumed: toConsume,
+    remaining: current - toConsume,
+  });
   return toConsume;
 }

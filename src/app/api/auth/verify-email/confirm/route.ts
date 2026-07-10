@@ -45,10 +45,7 @@ export async function POST(req: NextRequest) {
       throw badRequest("Lien de vérification invalide ou expiré.");
     }
 
-    await db
-      .update(users)
-      .set({ emailVerified: true })
-      .where(eq(users.id, result.userId));
+    await db.update(users).set({ emailVerified: true }).where(eq(users.id, result.userId));
 
     logger.info("[auth/verify] email vérifié", { userId: result.userId });
     return NextResponse.json({ ok: true, message: "Email vérifié avec succès." });

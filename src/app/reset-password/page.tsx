@@ -142,7 +142,10 @@ export default function ResetPasswordPage() {
             </Button>
 
             <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-              <Link href="/login" className="font-medium text-slate-900 hover:underline dark:text-slate-100">
+              <Link
+                href="/login"
+                className="font-medium text-slate-900 hover:underline dark:text-slate-100"
+              >
                 Retour à la connexion
               </Link>
             </p>

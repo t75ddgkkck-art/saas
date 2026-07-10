@@ -16,12 +16,7 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 
-export type EmailCategory =
-  | "transactional"
-  | "reminders"
-  | "review-request"
-  | "marketing"
-  | "all";
+export type EmailCategory = "transactional" | "reminders" | "review-request" | "marketing" | "all";
 
 const TOKEN_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000; // 1 an
 
@@ -44,10 +39,7 @@ function sign(payload: string): string {
  * Crée un token d'unsubscribe pour un couple (email, catégorie).
  * À embed dans le lien : /api/unsubscribe?token=XYZ
  */
-export function createUnsubscribeToken(
-  email: string,
-  category: EmailCategory = "all"
-): string {
+export function createUnsubscribeToken(email: string, category: EmailCategory = "all"): string {
   const normalizedEmail = email.trim().toLowerCase();
   const expiry = Date.now() + TOKEN_EXPIRY_MS;
   const payload = `${normalizedEmail}|${category}|${expiry}`;

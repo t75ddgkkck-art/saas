@@ -10,7 +10,11 @@ interface SMSOptions {
 async function callTwilio(
   channel: "sms" | "whatsapp",
   { to, body }: SMSOptions
-): Promise<{ success: true; sid: string } | { success: false; error: string } | { success: true; simulated: true }> {
+): Promise<
+  | { success: true; sid: string }
+  | { success: false; error: string }
+  | { success: true; simulated: true }
+> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_PHONE_NUMBER;

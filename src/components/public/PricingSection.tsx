@@ -184,4 +184,3 @@ export function PricingSection() {
     </section>
   );
 }
-

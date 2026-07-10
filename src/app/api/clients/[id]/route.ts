@@ -30,10 +30,7 @@ const UpdateSchema = z.object({
   source: z.enum(["website", "google", "referral", "social", "other"]).optional(),
 });
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const business = await getCurrentBusiness();
@@ -44,11 +41,7 @@ export async function GET(
       .select()
       .from(clients)
       .where(
-        and(
-          eq(clients.id, id),
-          eq(clients.businessId, business.id),
-          isNull(clients.deletedAt)
-        )
+        and(eq(clients.id, id), eq(clients.businessId, business.id), isNull(clients.deletedAt))
       )
       .limit(1);
     if (!client) throw notFound("Client introuvable");
@@ -86,11 +79,7 @@ export async function GET(
         })
         .from(quotes)
         .where(
-          and(
-            eq(quotes.clientId, id),
-            eq(quotes.businessId, business.id),
-            isNull(quotes.deletedAt)
-          )
+          and(eq(quotes.clientId, id), eq(quotes.businessId, business.id), isNull(quotes.deletedAt))
         )
         .orderBy(desc(quotes.createdAt)),
       db
@@ -103,12 +92,7 @@ export async function GET(
           createdAt: payments.createdAt,
         })
         .from(payments)
-        .where(
-          and(
-            eq(payments.clientId, id),
-            eq(payments.businessId, business.id)
-          )
-        )
+        .where(and(eq(payments.clientId, id), eq(payments.businessId, business.id)))
         .orderBy(desc(payments.createdAt)),
       db
         .select({
@@ -148,10 +132,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const business = await getCurrentBusiness();
@@ -172,11 +153,7 @@ export async function PATCH(
       .update(clients)
       .set({ ...patch, updatedAt: new Date() })
       .where(
-        and(
-          eq(clients.id, id),
-          eq(clients.businessId, business.id),
-          isNull(clients.deletedAt)
-        )
+        and(eq(clients.id, id), eq(clients.businessId, business.id), isNull(clients.deletedAt))
       )
       .returning();
 
@@ -187,10 +164,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const business = await getCurrentBusiness();
@@ -200,11 +174,7 @@ export async function DELETE(
       .update(clients)
       .set({ deletedAt: new Date() })
       .where(
-        and(
-          eq(clients.id, id),
-          eq(clients.businessId, business.id),
-          isNull(clients.deletedAt)
-        )
+        and(eq(clients.id, id), eq(clients.businessId, business.id), isNull(clients.deletedAt))
       )
       .returning({ id: clients.id });
 

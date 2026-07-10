@@ -34,11 +34,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
     if (!apt) throw notFound("RDV introuvable");
 
-    const [client] = await db
-      .select()
-      .from(clients)
-      .where(eq(clients.id, apt.clientId))
-      .limit(1);
+    const [client] = await db.select().from(clients).where(eq(clients.id, apt.clientId)).limit(1);
     if (!client?.email) throw badRequest("Client sans email");
 
     const emailResult = await sendEmail({

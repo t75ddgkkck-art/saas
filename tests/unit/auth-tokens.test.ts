@@ -81,9 +81,9 @@ describe("auth-tokens (Lot 19)", () => {
   it("createAuthToken refuse si trop de tokens actifs", async () => {
     // count() renvoie [{ activeCount: X }] : on simule 3 actifs pour password_reset
     selectResults.push([{ activeCount: 3 }]);
-    await expect(
-      createAuthToken({ userId: "u1", type: "password_reset" })
-    ).rejects.toThrow(/TOO_MANY_ACTIVE_TOKENS/);
+    await expect(createAuthToken({ userId: "u1", type: "password_reset" })).rejects.toThrow(
+      /TOO_MANY_ACTIVE_TOKENS/
+    );
   });
 
   it("createAuthToken retourne { rawToken, id } si OK", async () => {

@@ -28,9 +28,17 @@ export const metadata: Metadata = {
     template: "%s | Vitrix",
   },
   keywords: [
-    "vitrine artisan", "page professionnelle artisan", "réservation en ligne artisan",
-    "devis en ligne plombier", "site web artisan gratuit", "visibilité artisan",
-    "trouver des clients artisan", "plombier", "électricien", "coiffeur", "peintre",
+    "vitrine artisan",
+    "page professionnelle artisan",
+    "réservation en ligne artisan",
+    "devis en ligne plombier",
+    "site web artisan gratuit",
+    "visibilité artisan",
+    "trouver des clients artisan",
+    "plombier",
+    "électricien",
+    "coiffeur",
+    "peintre",
   ],
   alternates: {
     canonical: "/",
@@ -41,7 +49,11 @@ export const metadata: Metadata = {
       fr: "/",
     },
   },
-  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
   },

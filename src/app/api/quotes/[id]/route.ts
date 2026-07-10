@@ -13,10 +13,7 @@ import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const business = await getCurrentBusiness();
@@ -26,21 +23,12 @@ export async function GET(
     const [quote] = await db
       .select()
       .from(quotes)
-      .where(
-        and(
-          eq(quotes.id, id),
-          eq(quotes.businessId, business.id),
-          isNull(quotes.deletedAt)
-        )
-      )
+      .where(and(eq(quotes.id, id), eq(quotes.businessId, business.id), isNull(quotes.deletedAt)))
       .limit(1);
 
     if (!quote) throw notFound("Devis introuvable");
 
-    const items = await db
-      .select()
-      .from(quoteItems)
-      .where(eq(quoteItems.quoteId, quote.id));
+    const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quote.id));
 
     let client = null;
     if (quote.clientId) {

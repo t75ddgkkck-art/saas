@@ -60,12 +60,14 @@ describe("captcha - Turnstile (Lot 19)", () => {
 
   it("verifyCaptcha rejette si Cloudflare renvoie success=false", async () => {
     process.env.TURNSTILE_SECRET_KEY = "0xTEST";
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ success: false, "error-codes": ["invalid-input-response"] }),
-        { status: 200 }
-      )
-    ) as unknown as typeof fetch;
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ success: false, "error-codes": ["invalid-input-response"] }),
+          { status: 200 }
+        )
+      ) as unknown as typeof fetch;
 
     const r = await verifyCaptcha("bad-token");
     expect(r.ok).toBe(false);

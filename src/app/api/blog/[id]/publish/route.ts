@@ -7,10 +7,7 @@ import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-export async function PUT(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const business = await getCurrentBusiness();

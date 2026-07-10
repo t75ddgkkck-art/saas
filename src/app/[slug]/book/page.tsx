@@ -12,11 +12,22 @@ import { CheckCircle2, CreditCard, Banknote, Apple } from "lucide-react";
 
 export default function BookPage() {
   const params = useParams<{ slug: string }>();
-  interface Slot { id: string; date: string; startTime: string; endTime: string }
+  interface Slot {
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  }
   const [step, setStep] = useState(1);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({ firstName: "", lastName: "", phone: "", email: "", payment: "stripe" });
+  const [form, setForm] = useState<Record<string, string>>({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    email: "",
+    payment: "stripe",
+  });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -25,13 +36,13 @@ export default function BookPage() {
   useEffect(() => {
     if (params.slug) {
       fetch(`/api/availability?business=${params.slug}`)
-        .then(r => r.json())
-        .then(data => setSlots(data.slots || []));
+        .then((r) => r.json())
+        .then((data) => setSlots(data.slots || []));
     }
   }, [params.slug]);
 
   const groupedSlots: Record<string, any[]> = {};
-  slots.forEach(slot => {
+  slots.forEach((slot) => {
     if (!groupedSlots[slot.date]) groupedSlots[slot.date] = [];
     groupedSlots[slot.date].push(slot);
   });
@@ -67,9 +78,12 @@ export default function BookPage() {
         <Card className="max-w-md w-full text-center">
           <CardContent className="pt-12 pb-12">
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-500" />
-            <h1 className="mt-6 text-2xl font-bold text-slate-900 dark:text-slate-100">Réservation confirmée !</h1>
+            <h1 className="mt-6 text-2xl font-bold text-slate-900 dark:text-slate-100">
+              Réservation confirmée !
+            </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              {form.firstName}, votre rendez-vous du {selectedSlot?.date} à {selectedSlot?.startTime} est confirmé.
+              {form.firstName}, votre rendez-vous du {selectedSlot?.date} à{" "}
+              {selectedSlot?.startTime} est confirmé.
             </p>
           </CardContent>
         </Card>
@@ -81,8 +95,12 @@ export default function BookPage() {
     <div className="min-h-screen bg-white dark:bg-slate-950">
       <div className="max-w-2xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Réserver un créneau</h1>
-          <p className="mt-2 text-slate-500 dark:text-slate-400">Choisissez votre date, heure et mode de paiement</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+            Réserver un créneau
+          </h1>
+          <p className="mt-2 text-slate-500 dark:text-slate-400">
+            Choisissez votre date, heure et mode de paiement
+          </p>
         </div>
 
         {/* Étape 1 : Créneaux */}
@@ -90,22 +108,27 @@ export default function BookPage() {
           <div>
             <h2 className="font-semibold mb-4">Choisissez un créneau</h2>
             <div className="space-y-6">
-              {Object.entries(groupedSlots).slice(0, 7).map(([date, daySlots]) => (
-                <div key={date}>
-                  <p className="text-sm font-medium text-slate-500 mb-2">{date}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {daySlots.map((slot, i) => (
-                      <button
-                        key={i}
-                        onClick={() => { setSelectedSlot(slot); setStep(2); }}
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-sm hover:border-slate-900 dark:border-slate-700 dark:hover:border-white"
-                      >
-                        {slot.startTime}
-                      </button>
-                    ))}
+              {Object.entries(groupedSlots)
+                .slice(0, 7)
+                .map(([date, daySlots]) => (
+                  <div key={date}>
+                    <p className="text-sm font-medium text-slate-500 mb-2">{date}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {daySlots.map((slot, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setSelectedSlot(slot);
+                            setStep(2);
+                          }}
+                          className="px-4 py-2 rounded-xl border border-slate-200 text-sm hover:border-slate-900 dark:border-slate-700 dark:hover:border-white"
+                        >
+                          {slot.startTime}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         )}
@@ -118,7 +141,9 @@ export default function BookPage() {
                 <CardTitle>Créneau sélectionné</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-lg font-semibold">{selectedSlot.date} à {selectedSlot.startTime}</p>
+                <p className="text-lg font-semibold">
+                  {selectedSlot.date} à {selectedSlot.startTime}
+                </p>
               </CardContent>
             </Card>
 
@@ -129,11 +154,30 @@ export default function BookPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Prénom" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
-                  <Input label="Nom" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
+                  <Input
+                    label="Prénom"
+                    value={form.firstName}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  />
+                  <Input
+                    label="Nom"
+                    value={form.lastName}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  />
                 </div>
-                <Input label="Téléphone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                <Input label="Email (pour recevoir votre confirmation)" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="vous@email.fr" required />
+                <Input
+                  label="Téléphone"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+                <Input
+                  label="Email (pour recevoir votre confirmation)"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="vous@email.fr"
+                  required
+                />
 
                 {/* Champs dynamiques */}
                 {bookingConfig.fields.map((field) => (
@@ -191,8 +235,12 @@ export default function BookPage() {
             </Card>
 
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Retour</Button>
-              <Button className="flex-1" loading={loading} onClick={handleBook}>Confirmer la réservation</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>
+                Retour
+              </Button>
+              <Button className="flex-1" loading={loading} onClick={handleBook}>
+                Confirmer la réservation
+              </Button>
             </div>
           </div>
         )}

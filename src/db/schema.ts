@@ -22,12 +22,36 @@ export const subscriptionEnum = pgEnum("subscription", ["free", "pro", "premium"
 // Lot 24 : ajout de `no_show` (client absent au RDV). Utilisé par le CRM
 // pour incrémenter `clients.no_shows_count` et proposer une politique
 // (rappel obligatoire, acompte à l'avance…) pour les clients à risque.
-export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "confirmed", "cancelled", "completed", "no_show"]);
-export const quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "accepted", "rejected", "signed", "expired"]);
-export const paymentStatusEnum = pgEnum("payment_status", ["pending", "completed", "failed", "refunded"]);
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+  "pending",
+  "confirmed",
+  "cancelled",
+  "completed",
+  "no_show",
+]);
+export const quoteStatusEnum = pgEnum("quote_status", [
+  "draft",
+  "sent",
+  "accepted",
+  "rejected",
+  "signed",
+  "expired",
+]);
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "pending",
+  "completed",
+  "failed",
+  "refunded",
+]);
 export const paymentTypeEnum = pgEnum("payment_type", ["deposit", "full", "subscription"]);
 export const reminderTypeEnum = pgEnum("reminder_type", ["email", "sms", "whatsapp"]);
-export const clientSourceEnum = pgEnum("client_source", ["website", "google", "referral", "social", "other"]);
+export const clientSourceEnum = pgEnum("client_source", [
+  "website",
+  "google",
+  "referral",
+  "social",
+  "other",
+]);
 
 // ============== USERS ==============
 
@@ -66,7 +90,9 @@ export const users = pgTable(
     // débloque 1 mois gratuit pour le parrain.
     referralCode: varchar("referral_code", { length: 20 }),
     // User qui a parrainé celui-ci (nullable si inscription directe)
-    referredBy: uuid("referred_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+    referredBy: uuid("referred_by").references((): AnyPgColumn => users.id, {
+      onDelete: "set null",
+    }),
     // Nombre de mois de crédit accumulés (non encore appliqués sur la souscription).
     // Le webhook Stripe checkout.completed du filleul incrémente +1 sur le parrain.
     referralCreditMonths: integer("referral_credit_months").default(0).notNull(),
@@ -105,74 +131,76 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 export const businesses = pgTable(
   "businesses",
   {
-  id: uuid("id").defaultRandom().primaryKey(),
-  // Lot 14.8 : cascade ownership → si le user est supprimé (RGPD droit à
-  // l'oubli), son business dégage aussi. Avant : orphelin en DB.
-  // En pratique on préfère le soft delete via `deletedAt` mais le hard
-  // delete via cascade reste la garantie ultime.
-  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  slug: varchar("slug", { length: 100 }).notNull().unique(),
-  name: varchar("name", { length: 200 }).notNull(),
-  description: text("description"),
-  category: varchar("category", { length: 100 }).notNull(),
-  logo: text("logo"),
-  coverImage: text("cover_image"),
-  profileImage: text("profile_image"),
-  address: text("address"),
-  city: varchar("city", { length: 100 }),
-  postalCode: varchar("postal_code", { length: 20 }),
-  country: varchar("country", { length: 50 }).default("France"),
-  latitude: decimal("latitude", { precision: 10, scale: 7 }),
-  longitude: decimal("longitude", { precision: 10, scale: 7 }),
-  serviceArea: text("service_area"),
-  phone: varchar("phone", { length: 20 }),
-  whatsapp: varchar("whatsapp", { length: 20 }),
-  email: varchar("email", { length: 255 }),
-  website: varchar("website", { length: 255 }),
-  emergencyPhone: varchar("emergency_phone", { length: 20 }),
-  showEmergency: boolean("show_emergency").default(false),
-  taxNumber: varchar("tax_number", { length: 50 }),
-  siret: varchar("siret", { length: 20 }),
-  // Personnalisation vitrine
-  primaryColor: varchar("primary_color", { length: 20 }).default("#0f172a"),
-  hideBranding: boolean("hide_branding").default(false),
-  language: varchar("language", { length: 5 }).default("fr"),
-  // Fuseau horaire IANA (ex: "Europe/Paris"). Défaut : Paris pour les nouveaux comptes.
-  timezone: varchar("timezone", { length: 64 }).default("Europe/Paris"),
-  template: varchar("template", { length: 30 }).default("classique"),
-  showQrOnPage: boolean("show_qr_on_page").default(true),
-  customDomain: varchar("custom_domain", { length: 255 }),
-  publicChatEnabled: boolean("public_chat_enabled").default(false),
-  autoReviewRequest: boolean("auto_review_request").default(false),
-  // Contrôle de l'affichage des avis sur la vitrine
-  showReviewsOnPage: boolean("show_reviews_on_page").default(true),
-  // Badges / avantages personnalisables de la vitrine
-  highlightsEnabled: boolean("highlights_enabled").default(true),
-  highlightsData: jsonb("highlights_data"), // [{ icon: "⚡", title: "Intervention rapide", subtitle: "Sous 2h" }]
-  iban: varchar("iban", { length: 50 }),
-  bic: varchar("bic", { length: 20 }),
-  // Lot 14.5 doc : timestamp de "reset des stats de visites".
-  // Le dashboard analytics ne compte les visites que WHERE created_at >= visits_reset_at.
-  // Set via DELETE /api/my-availability (bouton "Réinitialiser mes stats").
-  // Nullable = pas de reset → toutes les visites de tous les temps sont comptées.
-  visitsResetAt: timestamp("visits_reset_at"),
-  googlePlaceId: varchar("google_place_id", { length: 200 }),
-  reminderSmsEnabled: boolean("reminder_sms_enabled").default(false),
-  reminderWhatsappEnabled: boolean("reminder_whatsapp_enabled").default(false),
-  menuData: jsonb("menu_data"), // Pour les restaurants: [{category: "Plats", items: [...]}]
-  // Paiements
-  enableStripe: boolean("enable_stripe").default(false),
-  stripeAccountId: varchar("stripe_account_id", { length: 255 }),
-  acceptCash: boolean("accept_cash").default(true),
-  acceptApplePay: boolean("accept_apple_pay").default(false),
-  // Programme de fidélité (Premium)
-  loyaltyEnabled: boolean("loyalty_enabled").default(false),
-  loyaltyPointsPerEuro: integer("loyalty_points_per_euro").default(1),
-  loyaltyReward: text("loyalty_reward"),
-  // Lot 14.3 soft delete
-  deletedAt: timestamp("deleted_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    id: uuid("id").defaultRandom().primaryKey(),
+    // Lot 14.8 : cascade ownership → si le user est supprimé (RGPD droit à
+    // l'oubli), son business dégage aussi. Avant : orphelin en DB.
+    // En pratique on préfère le soft delete via `deletedAt` mais le hard
+    // delete via cascade reste la garantie ultime.
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    slug: varchar("slug", { length: 100 }).notNull().unique(),
+    name: varchar("name", { length: 200 }).notNull(),
+    description: text("description"),
+    category: varchar("category", { length: 100 }).notNull(),
+    logo: text("logo"),
+    coverImage: text("cover_image"),
+    profileImage: text("profile_image"),
+    address: text("address"),
+    city: varchar("city", { length: 100 }),
+    postalCode: varchar("postal_code", { length: 20 }),
+    country: varchar("country", { length: 50 }).default("France"),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    serviceArea: text("service_area"),
+    phone: varchar("phone", { length: 20 }),
+    whatsapp: varchar("whatsapp", { length: 20 }),
+    email: varchar("email", { length: 255 }),
+    website: varchar("website", { length: 255 }),
+    emergencyPhone: varchar("emergency_phone", { length: 20 }),
+    showEmergency: boolean("show_emergency").default(false),
+    taxNumber: varchar("tax_number", { length: 50 }),
+    siret: varchar("siret", { length: 20 }),
+    // Personnalisation vitrine
+    primaryColor: varchar("primary_color", { length: 20 }).default("#0f172a"),
+    hideBranding: boolean("hide_branding").default(false),
+    language: varchar("language", { length: 5 }).default("fr"),
+    // Fuseau horaire IANA (ex: "Europe/Paris"). Défaut : Paris pour les nouveaux comptes.
+    timezone: varchar("timezone", { length: 64 }).default("Europe/Paris"),
+    template: varchar("template", { length: 30 }).default("classique"),
+    showQrOnPage: boolean("show_qr_on_page").default(true),
+    customDomain: varchar("custom_domain", { length: 255 }),
+    publicChatEnabled: boolean("public_chat_enabled").default(false),
+    autoReviewRequest: boolean("auto_review_request").default(false),
+    // Contrôle de l'affichage des avis sur la vitrine
+    showReviewsOnPage: boolean("show_reviews_on_page").default(true),
+    // Badges / avantages personnalisables de la vitrine
+    highlightsEnabled: boolean("highlights_enabled").default(true),
+    highlightsData: jsonb("highlights_data"), // [{ icon: "⚡", title: "Intervention rapide", subtitle: "Sous 2h" }]
+    iban: varchar("iban", { length: 50 }),
+    bic: varchar("bic", { length: 20 }),
+    // Lot 14.5 doc : timestamp de "reset des stats de visites".
+    // Le dashboard analytics ne compte les visites que WHERE created_at >= visits_reset_at.
+    // Set via DELETE /api/my-availability (bouton "Réinitialiser mes stats").
+    // Nullable = pas de reset → toutes les visites de tous les temps sont comptées.
+    visitsResetAt: timestamp("visits_reset_at"),
+    googlePlaceId: varchar("google_place_id", { length: 200 }),
+    reminderSmsEnabled: boolean("reminder_sms_enabled").default(false),
+    reminderWhatsappEnabled: boolean("reminder_whatsapp_enabled").default(false),
+    menuData: jsonb("menu_data"), // Pour les restaurants: [{category: "Plats", items: [...]}]
+    // Paiements
+    enableStripe: boolean("enable_stripe").default(false),
+    stripeAccountId: varchar("stripe_account_id", { length: 255 }),
+    acceptCash: boolean("accept_cash").default(true),
+    acceptApplePay: boolean("accept_apple_pay").default(false),
+    // Programme de fidélité (Premium)
+    loyaltyEnabled: boolean("loyalty_enabled").default(false),
+    loyaltyPointsPerEuro: integer("loyalty_points_per_euro").default(1),
+    loyaltyReward: text("loyalty_reward"),
+    // Lot 14.3 soft delete
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => ({
     // Lookup vitrine (chaque hit /[slug])
@@ -184,7 +212,9 @@ export const businesses = pgTable(
     // Annuaire par catégorie
     categoryIdx: index("businesses_cat_idx").on(t.category),
     // SIRET unique quand présent (empêche les doublons)
-    siretIdx: uniqueIndex("businesses_siret_uidx").on(t.siret).where(sql`${t.siret} is not null`),
+    siretIdx: uniqueIndex("businesses_siret_uidx")
+      .on(t.siret)
+      .where(sql`${t.siret} is not null`),
     // Lot 14.3 soft delete : listing "vitrines actives" scanne uniquement les non-supprimées
     deletedAtIdx: index("businesses_deleted_at_idx").on(t.deletedAt),
   })
@@ -193,8 +223,12 @@ export const businesses = pgTable(
 // Points de fidélité par client
 export const loyaltyPoints = pgTable("loyalty_points", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
-  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
   points: integer("points").default(0).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -202,7 +236,9 @@ export const loyaltyPoints = pgTable("loyalty_points", {
 // Membres d'équipe (Premium) : secrétaire, employé avec accès limité
 export const teamMembers = pgTable("team_members", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   email: varchar("email", { length: 255 }).notNull(),
   firstName: varchar("first_name", { length: 100 }).notNull(),
   lastName: varchar("last_name", { length: 100 }),
@@ -214,8 +250,12 @@ export const teamMembers = pgTable("team_members", {
 // Demandes d'avis envoyées après un RDV terminé
 export const reviewRequests = pgTable("review_requests", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
-  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
   appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
   channel: varchar("channel", { length: 20 }).default("email"),
@@ -226,7 +266,9 @@ export const pageVisits = pgTable(
   "page_visits",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
     source: varchar("source", { length: 100 }).default("direct"),
     device: varchar("device", { length: 20 }).default("desktop"),
@@ -242,7 +284,9 @@ export const pageVisits = pgTable(
 // Services et tarifs du pro
 export const services = pgTable("services", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   price: varchar("price", { length: 50 }), // ex: "50€", "Sur devis"
@@ -252,7 +296,9 @@ export const services = pgTable("services", {
 // Champs personnalisés pour le formulaire de devis
 export const quoteFormFields = pgTable("quote_form_fields", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   label: varchar("label", { length: 200 }).notNull(),
   type: varchar("type", { length: 20 }).default("text").notNull(), // text, select, number
   options: text("options"), // pour les select, séparés par des virgules
@@ -263,8 +309,12 @@ export const quoteFormFields = pgTable("quote_form_fields", {
 // Historique des points de fidélité (gains et utilisations)
 export const loyaltyTransactions = pgTable("loyalty_transactions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
-  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
   points: integer("points").notNull(), // positif = gain, négatif = utilisation
   reason: varchar("reason", { length: 200 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -289,7 +339,9 @@ export const businessesRelations = relations(businesses, ({ one, many }) => ({
 
 export const workingHours = pgTable("working_hours", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 6=Saturday
   startTime: varchar("start_time", { length: 5 }), // HH:MM
   endTime: varchar("end_time", { length: 5 }),
@@ -307,7 +359,9 @@ export const workingHoursRelations = relations(workingHours, ({ one }) => ({
 
 export const socialLinks = pgTable("social_links", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   platform: varchar("platform", { length: 50 }).notNull(), // facebook, instagram, linkedin, tiktok, youtube
   url: varchar("url", { length: 500 }).notNull(),
 });
@@ -323,7 +377,9 @@ export const socialLinksRelations = relations(socialLinks, ({ one }) => ({
 
 export const galleryItems = pgTable("gallery_items", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 20 }).notNull(), // image, video
   url: varchar("url", { length: 500 }).notNull(),
   thumbnailUrl: varchar("thumbnail_url", { length: 500 }),
@@ -344,7 +400,9 @@ export const galleryItemsRelations = relations(galleryItems, ({ one }) => ({
 
 export const availabilitySlots = pgTable("availability_slots", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
   startTime: varchar("start_time", { length: 5 }).notNull(),
   endTime: varchar("end_time", { length: 5 }).notNull(),
@@ -366,8 +424,12 @@ export const appointments = pgTable(
   "appointments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
-    clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
     // Lot 14.8 : cascade user pour ne pas laisser createdBy orphelin
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     title: varchar("title", { length: 200 }).notNull(),
@@ -467,7 +529,9 @@ export const quotes = pgTable(
   "quotes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
     // Lot 14.8 : SET NULL au lieu de laisser orphelin. Un devis reste dans l'historique
     // même si son créateur (employé) quitte l'équipe.
@@ -526,7 +590,9 @@ export const quotesRelations = relations(quotes, ({ one, many }) => ({
 
 export const quoteItems = pgTable("quote_items", {
   id: uuid("id").defaultRandom().primaryKey(),
-  quoteId: uuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  quoteId: uuid("quote_id")
+    .notNull()
+    .references(() => quotes.id, { onDelete: "cascade" }),
   description: varchar("description", { length: 500 }).notNull(),
   quantity: integer("quantity").default(1).notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
@@ -542,7 +608,9 @@ export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
 
 export const quoteAttachments = pgTable("quote_attachments", {
   id: uuid("id").defaultRandom().primaryKey(),
-  quoteId: uuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  quoteId: uuid("quote_id")
+    .notNull()
+    .references(() => quotes.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 20 }).notNull(), // photo, video, document
   url: varchar("url", { length: 500 }).notNull(),
   name: varchar("name", { length: 200 }),
@@ -562,7 +630,9 @@ export const payments = pgTable(
   "payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
     quoteId: uuid("quote_id").references(() => quotes.id, { onDelete: "set null" }),
     stripePaymentId: varchar("stripe_payment_id", { length: 255 }),
@@ -609,7 +679,9 @@ export const reviews = pgTable(
   "reviews",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     clientName: varchar("client_name", { length: 200 }).notNull(),
     clientEmail: varchar("client_email", { length: 255 }),
     rating: integer("rating").notNull(),
@@ -636,7 +708,9 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 
 export const faqs = pgTable("faqs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   question: varchar("question", { length: 500 }).notNull(),
   answer: text("answer").notNull(),
   sortOrder: integer("sort_order").default(0),
@@ -659,7 +733,9 @@ export const notes = pgTable("notes", {
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
   // Lot 14.8 : cascade user (les notes disparaissent avec le créateur ;
   // c'est cohérent RGPD car ce sont des données personnelles rédigées par lui).
-  createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -684,7 +760,9 @@ export const notesRelations = relations(notes, ({ one }) => ({
 
 export const reminders = pgTable("reminders", {
   id: uuid("id").defaultRandom().primaryKey(),
-  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id, { onDelete: "cascade" }),
+  appointmentId: uuid("appointment_id")
+    .notNull()
+    .references(() => appointments.id, { onDelete: "cascade" }),
   type: reminderTypeEnum("type").notNull(),
   scheduledAt: timestamp("scheduled_at").notNull(),
   sentAt: timestamp("sent_at"),
@@ -711,7 +789,9 @@ export const remindersRelations = relations(reminders, ({ one }) => ({
 
 export const subscriptions = pgTable("subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
   plan: subscriptionEnum("plan").default("free").notNull(),
   status: varchar("status", { length: 20 }).default("active"),
@@ -733,7 +813,9 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
 
 export const catalogs = pgTable("catalogs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   title: varchar("title", { length: 200 }).notNull(),
   fileUrl: varchar("file_url", { length: 500 }).notNull(),
   fileSize: integer("file_size"),
@@ -752,7 +834,9 @@ export const catalogsRelations = relations(catalogs, ({ one }) => ({
 
 export const chatMessages = pgTable("chat_messages", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   sessionId: varchar("session_id", { length: 100 }).notNull(),
   role: varchar("role", { length: 20 }).notNull(), // user, assistant, system
   content: text("content").notNull(),
@@ -771,7 +855,9 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
 
 export const pageThemes = pgTable("page_themes", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   primaryColor: varchar("primary_color", { length: 20 }).default("#000000"),
   secondaryColor: varchar("secondary_color", { length: 20 }).default("#ffffff"),
   fontFamily: varchar("font_family", { length: 50 }).default("inter"),
@@ -795,7 +881,9 @@ export const blogPosts = pgTable(
   "blog_posts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 300 }).notNull(),
     slug: varchar("slug", { length: 300 }).notNull(),
     excerpt: text("excerpt"),
@@ -837,7 +925,9 @@ export const notifications = pgTable(
   "notifications",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 50 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
@@ -867,7 +957,9 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   endpoint: varchar("endpoint", { length: 500 }).notNull(),
   p256dh: varchar("p256dh", { length: 500 }).notNull(),
   auth: varchar("auth", { length: 200 }).notNull(),
@@ -884,7 +976,9 @@ export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one })
 // Exceptions de planning (jours fériés, congés)
 export const scheduleExceptions = pgTable("schedule_exceptions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   date: varchar("date", { length: 10 }).notNull(),
   type: varchar("type", { length: 20 }).notNull(), // holiday, vacation, custom
   isClosed: boolean("is_closed").default(true),
@@ -896,7 +990,9 @@ export const scheduleExceptions = pgTable("schedule_exceptions", {
 // Types de services avec durée
 export const serviceTypes = pgTable("service_types", {
   id: uuid("id").defaultRandom().primaryKey(),
-  businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+  businessId: uuid("business_id")
+    .notNull()
+    .references(() => businesses.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 100 }).notNull(),
   duration: integer("duration").default(60), // en minutes
   bufferBefore: integer("buffer_before").default(0), // minutes avant
@@ -941,7 +1037,9 @@ export const aiUsage = pgTable(
   "ai_usage",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     route: varchar("route", { length: 80 }).notNull(),
     model: varchar("model", { length: 60 }).notNull(),
     promptTokens: integer("prompt_tokens").default(0).notNull(),
@@ -1001,9 +1099,13 @@ export const apiKeys = pgTable(
   "api_keys",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     // Business auquel la clé donne accès (une clé = un business, isolation stricte)
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     // Nom lisible ("Prod API", "Zapier", "Test dev") — l'user gère
     name: varchar("name", { length: 100 }).notNull(),
     // Prefix visible : "vx_live_xxxx..." → on stocke "vx_live_A3F7" pour affichage
@@ -1034,8 +1136,12 @@ export const webhookEndpoints = pgTable(
   "webhook_endpoints",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    businessId: uuid("business_id").notNull().references(() => businesses.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
     // URL cible : DOIT être en HTTPS (validé côté API create/update)
     url: varchar("url", { length: 500 }).notNull(),
     // Liste des events auxquels ce endpoint s'abonne (ex: ["appointment.created", "payment.received"])
@@ -1065,7 +1171,9 @@ export const webhookDeliveries = pgTable(
   "webhook_deliveries",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    endpointId: uuid("endpoint_id").notNull().references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    endpointId: uuid("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
     event: varchar("event", { length: 60 }).notNull(),
     // Body envoyé (JSON stringifié, tronqué à ~10KB si énorme)
     payload: jsonb("payload"),
@@ -1080,7 +1188,10 @@ export const webhookDeliveries = pgTable(
   },
   (t) => ({
     // Dashboard user : "historique livraisons de mon endpoint"
-    endpointCreatedIdx: index("webhook_deliveries_endpoint_created_idx").on(t.endpointId, t.createdAt),
+    endpointCreatedIdx: index("webhook_deliveries_endpoint_created_idx").on(
+      t.endpointId,
+      t.createdAt
+    ),
     // Cron retry : SELECT ... WHERE success = false AND attempt_count < 5
     retryIdx: index("webhook_deliveries_retry_idx").on(t.success, t.attemptCount),
   })
@@ -1108,7 +1219,9 @@ export const authTokens = pgTable(
   "auth_tokens",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     type: authTokenTypeEnum("type").notNull(),
     // Hash SHA-256 hex du token (64 chars). Le token clair n'est jamais stocké.
     tokenHash: varchar("token_hash", { length: 64 }).notNull(),
@@ -1143,7 +1256,9 @@ export const sessions = pgTable(
     // ID de session = fingerprint stocké dans le cookie (à côté du userId).
     // On stocke le HASH pour même raison que auth_tokens (fuite DB non-exploitable).
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     // Hash SHA-256 du session token → lookup rapide, safe si DB fuite
     tokenHash: varchar("token_hash", { length: 64 }).notNull(),
     // Métadonnées visibles côté user (dashboard "mes sessions")

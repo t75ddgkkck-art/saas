@@ -41,10 +41,7 @@ export default async function MetierPage({ params }: Props) {
     // Lot 14.3 : masquer les vitrines soft-deleted
     .where(and(eq(businesses.category, categoryName), isNull(businesses.deletedAt)))
     .groupBy(businesses.id)
-    .orderBy(
-      desc(sql`coalesce(avg(${reviews.rating}), 0)`),
-      desc(businesses.createdAt)
-    );
+    .orderBy(desc(sql`coalesce(avg(${reviews.rating}), 0)`), desc(businesses.createdAt));
 
   if (pros.length === 0) {
     notFound();
@@ -63,7 +60,11 @@ export default async function MetierPage({ params }: Props) {
         </div>
       </header>
 
-      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 py-8 focus:outline-none">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="max-w-7xl mx-auto px-4 py-8 focus:outline-none"
+      >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {pros.map((pro) => (
             <Link
@@ -85,9 +86,7 @@ export default async function MetierPage({ params }: Props) {
                 )}
               </div>
               {pro.city && (
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  📍 {pro.city}
-                </p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">📍 {pro.city}</p>
               )}
               {pro.description && (
                 <p className="text-sm text-slate-600 dark:text-slate-400 mt-3 line-clamp-2">

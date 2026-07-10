@@ -34,10 +34,7 @@ export async function DELETE() {
 
     // Soft delete des businesses possédés (vitrine masquée du public,
     // mais les données restent restaurables N jours).
-    await db
-      .update(businesses)
-      .set({ deletedAt: now })
-      .where(eq(businesses.ownerId, user.id));
+    await db.update(businesses).set({ deletedAt: now }).where(eq(businesses.ownerId, user.id));
 
     // Soft delete du user (login refusé, sauf s'il est admin ou banni,
     // ces cas restent prioritaires côté route /api/auth/login).

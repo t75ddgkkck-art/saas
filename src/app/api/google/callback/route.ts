@@ -12,8 +12,7 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI || `${appUrl}/api/google/callback`;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${appUrl}/api/google/callback`;
 
   try {
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -35,10 +34,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenData.access_token) {
       logger.warn("google.oauth.no_token", { tokenData });
-      return NextResponse.json(
-        { error: "Impossible d'obtenir un token Google" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Impossible d'obtenir un token Google" }, { status: 400 });
     }
 
     // Récupérer les infos du compte Google Business

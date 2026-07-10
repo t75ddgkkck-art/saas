@@ -35,10 +35,12 @@ const quickActions = [
 ];
 
 const aiResponses: Record<string, string> = {
-  "rdv": "Je comprends ! Nous avons plusieurs créneaux disponibles cette semaine. Voici les prochaines disponibilités :\n\n📅 **Mardi 15 janvier** : 9h00, 14h00\n📅 **Mercredi 16 janvier** : 10h00, 15h30\n📅 **Jeudi 17 janvier** : 8h30, 11h00\n\nQuel créneau vous conviendrait le mieux ?",
-  "tarif": "Nos tarifs varient selon le type d'intervention :\n\n🔧 Déplacement : 30€ (offert à partir de 200€ de travaux)\n🔧 Intervention simple : à partir de 80€\n🔧 Rénovation salle de bain : à partir de 2 500€\n🔧 Installation chauffe-eau : à partir de 500€\n\nJe vous invite à nous contacter pour un devis gratuit et personnalisé !",
-  "urgence": "🚨 **Urgence plomberie**\n\nJe comprends votre urgence ! Voici ce que vous pouvez faire immédiatement :\n\n1. Coupez l'arrivée d'eau générale\n2. Appelez notre numéro d'urgence : **06 98 76 54 32**\n\nNous intervenons en moins de 30 minutes sur Paris. Le tarif d'urgence est de 120€ (déplacement inclus).",
-  "zone": "Notre zone d'intervention couvre :\n\n📍 **Paris** (tous les arrondissements)\n📍 **Banlieue proche** (dans un rayon de 10km)\n\nPour les interventions plus éloignées, contactez-nous pour vérifier la faisabilité.",
+  rdv: "Je comprends ! Nous avons plusieurs créneaux disponibles cette semaine. Voici les prochaines disponibilités :\n\n📅 **Mardi 15 janvier** : 9h00, 14h00\n📅 **Mercredi 16 janvier** : 10h00, 15h30\n📅 **Jeudi 17 janvier** : 8h30, 11h00\n\nQuel créneau vous conviendrait le mieux ?",
+  tarif:
+    "Nos tarifs varient selon le type d'intervention :\n\n🔧 Déplacement : 30€ (offert à partir de 200€ de travaux)\n🔧 Intervention simple : à partir de 80€\n🔧 Rénovation salle de bain : à partir de 2 500€\n🔧 Installation chauffe-eau : à partir de 500€\n\nJe vous invite à nous contacter pour un devis gratuit et personnalisé !",
+  urgence:
+    "🚨 **Urgence plomberie**\n\nJe comprends votre urgence ! Voici ce que vous pouvez faire immédiatement :\n\n1. Coupez l'arrivée d'eau générale\n2. Appelez notre numéro d'urgence : **06 98 76 54 32**\n\nNous intervenons en moins de 30 minutes sur Paris. Le tarif d'urgence est de 120€ (déplacement inclus).",
+  zone: "Notre zone d'intervention couvre :\n\n📍 **Paris** (tous les arrondissements)\n📍 **Banlieue proche** (dans un rayon de 10km)\n\nPour les interventions plus éloignées, contactez-nous pour vérifier la faisabilité.",
 };
 
 export default function AIChatPage() {
@@ -61,9 +63,7 @@ export default function AIChatPage() {
           // Remplace le message d'accueil UNIQUEMENT s'il n'a pas encore été
           // remplacé par un vrai échange (évite d'écraser la conversation).
           setMessages((prev) =>
-            prev.length === 1 && prev[0].id === "1"
-              ? [buildInitialMessage(b.name)]
-              : prev
+            prev.length === 1 && prev[0].id === "1" ? [buildInitialMessage(b.name)] : prev
           );
         }
       })
@@ -76,10 +76,14 @@ export default function AIChatPage() {
 
   const getAIResponse = (userMessage: string): string => {
     const lower = userMessage.toLowerCase();
-    if (lower.includes("rdv") || lower.includes("rendez-vous") || lower.includes("créneau")) return aiResponses["rdv"];
-    if (lower.includes("tarif") || lower.includes("prix") || lower.includes("coût")) return aiResponses["tarif"];
-    if (lower.includes("urgence") || lower.includes("fuite") || lower.includes("cassé")) return aiResponses["urgence"];
-    if (lower.includes("zone") || lower.includes("intervention") || lower.includes("déplacement")) return aiResponses["zone"];
+    if (lower.includes("rdv") || lower.includes("rendez-vous") || lower.includes("créneau"))
+      return aiResponses["rdv"];
+    if (lower.includes("tarif") || lower.includes("prix") || lower.includes("coût"))
+      return aiResponses["tarif"];
+    if (lower.includes("urgence") || lower.includes("fuite") || lower.includes("cassé"))
+      return aiResponses["urgence"];
+    if (lower.includes("zone") || lower.includes("intervention") || lower.includes("déplacement"))
+      return aiResponses["zone"];
     return "Merci pour votre message ! Je vais transmettre votre demande à notre équipe qui vous répondra dans les plus brefs délais. En attendant, n'hésitez pas à me poser d'autres questions sur nos services.";
   };
 
@@ -135,7 +139,9 @@ export default function AIChatPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Assistant IA</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Votre assistant intelligent disponible 24/7</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Votre assistant intelligent disponible 24/7
+        </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
@@ -149,9 +155,7 @@ export default function AIChatPage() {
                 </div>
                 <div>
                   {/* Lot 18 B2 : nom du business dynamique, jamais "Dupont Plomberie" en dur */}
-                  <CardTitle className="text-base">
-                    Assistant {businessName ?? "IA"}
-                  </CardTitle>
+                  <CardTitle className="text-base">Assistant {businessName ?? "IA"}</CardTitle>
                   <CardDescription>
                     <span className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -169,7 +173,10 @@ export default function AIChatPage() {
             {/* Messages */}
             <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((msg) => (
-                <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={msg.id}
+                  className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
                   {msg.role === "assistant" && (
                     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white">
                       <Bot className="h-4 w-4" />
@@ -197,9 +204,18 @@ export default function AIChatPage() {
                     <Bot className="h-4 w-4" />
                   </div>
                   <div className="flex items-center gap-1 rounded-2xl bg-slate-100 px-4 py-3 dark:bg-slate-800">
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "0ms" }} />
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "150ms" }} />
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "300ms" }} />
+                    <div
+                      className="h-2 w-2 animate-bounce rounded-full bg-slate-400"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <div
+                      className="h-2 w-2 animate-bounce rounded-full bg-slate-400"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <div
+                      className="h-2 w-2 animate-bounce rounded-full bg-slate-400"
+                      style={{ animationDelay: "300ms" }}
+                    />
                   </div>
                 </div>
               )}
@@ -261,7 +277,9 @@ export default function AIChatPage() {
                     <item.icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{item.label}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {item.label}
+                    </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{item.desc}</p>
                   </div>
                 </div>

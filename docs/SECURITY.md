@@ -6,16 +6,16 @@ Ce document décrit les mécanismes de sécurité en place. Pour signaler une vu
 
 Toutes les réponses passent par `src/proxy.ts` qui ajoute :
 
-| Header | Valeur | Rôle |
-|---|---|---|
-| `Content-Security-Policy` | script-src whitelisté (Stripe, Turnstile, Sentry…) + `frame-ancestors 'none'` | Anti-XSS + anti-clickjacking |
-| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` | Force HTTPS (2 ans) |
-| `X-Content-Type-Options` | `nosniff` | Anti-MIME sniffing |
-| `X-Frame-Options` | `SAMEORIGIN` | Legacy anti-clickjacking (vieux navigateurs) |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` | Limite fuites URL sortantes |
-| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self), payment=(self), interest-cohort=()` | Bloque APIs sensibles + FLoC |
-| `Cross-Origin-Opener-Policy` | `same-origin` | Anti-Spectre + isolation `window.open` |
-| `Cross-Origin-Resource-Policy` | `same-origin` | Empêche l'inclusion cross-origin |
+| Header                         | Valeur                                                                             | Rôle                                         |
+| ------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------- |
+| `Content-Security-Policy`      | script-src whitelisté (Stripe, Turnstile, Sentry…) + `frame-ancestors 'none'`      | Anti-XSS + anti-clickjacking                 |
+| `Strict-Transport-Security`    | `max-age=63072000; includeSubDomains; preload`                                     | Force HTTPS (2 ans)                          |
+| `X-Content-Type-Options`       | `nosniff`                                                                          | Anti-MIME sniffing                           |
+| `X-Frame-Options`              | `SAMEORIGIN`                                                                       | Legacy anti-clickjacking (vieux navigateurs) |
+| `Referrer-Policy`              | `strict-origin-when-cross-origin`                                                  | Limite fuites URL sortantes                  |
+| `Permissions-Policy`           | `camera=(), microphone=(), geolocation=(self), payment=(self), interest-cohort=()` | Bloque APIs sensibles + FLoC                 |
+| `Cross-Origin-Opener-Policy`   | `same-origin`                                                                      | Anti-Spectre + isolation `window.open`       |
+| `Cross-Origin-Resource-Policy` | `same-origin`                                                                      | Empêche l'inclusion cross-origin             |
 
 ### CSP whitelistée
 
@@ -65,16 +65,16 @@ Recommandation CI (Lot 27) : lancer `npm run audit:check` sur chaque PR.
 
 À rotate au minimum tous les 90 jours OU immédiatement en cas de fuite :
 
-| Secret | Où | Comment rotate |
-|---|---|---|
-| `NEXTAUTH_SECRET` | Vercel env | Générer 32 bytes hex, mettre à jour Vercel, invalide toutes les sessions actives (users doivent se reconnecter) |
-| `CRON_SECRET` | Vercel env | Idem, aucun impact user |
-| `STRIPE_SECRET_KEY` | Vercel env + Stripe dashboard | Créer nouvelle clé sur dashboard, mettre à jour Vercel, révoquer l'ancienne 24h après |
-| `STRIPE_WEBHOOK_SECRET` | Vercel env + Stripe dashboard | Recréer le webhook endpoint |
-| `RESEND_API_KEY` | Vercel + Resend dashboard | Créer nouvelle clé, migrer, révoquer |
-| `TURNSTILE_SECRET_KEY` | Vercel + Cloudflare dashboard | Créer nouveau widget si compromise, sinon rotation soft |
+| Secret                      | Où                                                                               | Comment rotate                                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `NEXTAUTH_SECRET`           | Vercel env                                                                       | Générer 32 bytes hex, mettre à jour Vercel, invalide toutes les sessions actives (users doivent se reconnecter) |
+| `CRON_SECRET`               | Vercel env                                                                       | Idem, aucun impact user                                                                                         |
+| `STRIPE_SECRET_KEY`         | Vercel env + Stripe dashboard                                                    | Créer nouvelle clé sur dashboard, mettre à jour Vercel, révoquer l'ancienne 24h après                           |
+| `STRIPE_WEBHOOK_SECRET`     | Vercel env + Stripe dashboard                                                    | Recréer le webhook endpoint                                                                                     |
+| `RESEND_API_KEY`            | Vercel + Resend dashboard                                                        | Créer nouvelle clé, migrer, révoquer                                                                            |
+| `TURNSTILE_SECRET_KEY`      | Vercel + Cloudflare dashboard                                                    | Créer nouveau widget si compromise, sinon rotation soft                                                         |
 | `SUPABASE_SERVICE_ROLE_KEY` | ⚠ ne peut PAS être rotate sans regen le projet Supabase — traiter comme critique |
-| `OPENAI_API_KEY` | Vercel + platform.openai.com | Créer nouvelle clé, révoquer l'ancienne |
+| `OPENAI_API_KEY`            | Vercel + platform.openai.com                                                     | Créer nouvelle clé, révoquer l'ancienne                                                                         |
 
 ## 6. Checklist post-incident
 

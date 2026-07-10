@@ -90,7 +90,7 @@ function generateStandardTemplate(doc: jsPDF, data: InvoiceData): jsPDF {
   if (data.client.email) doc.text(data.client.email, 14, 81);
 
   // Tableau des prestations
-  const tableData = data.items.map(item => [
+  const tableData = data.items.map((item) => [
     item.description,
     item.quantity.toString(),
     `${item.unitPrice.toFixed(2)} €`,
@@ -200,7 +200,7 @@ function generateModerneTemplate(doc: jsPDF, data: InvoiceData): jsPDF {
   if (data.client.email) doc.text(data.client.email, 18, 73);
 
   // Tableau
-  const tableData = data.items.map(item => [
+  const tableData = data.items.map((item) => [
     item.description,
     item.quantity.toString(),
     `${item.unitPrice.toFixed(2)} €`,
@@ -269,7 +269,7 @@ function generateMinimalisteTemplate(doc: jsPDF, data: InvoiceData): jsPDF {
   if (data.client.email) doc.text(data.client.email, 14, 45);
 
   // Tableau simple
-  const tableData = data.items.map(item => [
+  const tableData = data.items.map((item) => [
     item.description,
     item.quantity.toString(),
     `${item.unitPrice.toFixed(2)} €`,

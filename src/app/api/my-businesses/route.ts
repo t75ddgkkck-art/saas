@@ -73,12 +73,24 @@ export async function POST(request: NextRequest) {
       { dayOfWeek: 6, startTime: "09:00", endTime: "12:00", isClosed: false },
       { dayOfWeek: 0, startTime: "00:00", endTime: "00:00", isClosed: true },
     ];
-    await db.insert(workingHours).values(defaultHours.map((h) => ({ ...h, businessId: business.id })));
+    await db
+      .insert(workingHours)
+      .values(defaultHours.map((h) => ({ ...h, businessId: business.id })));
 
     // Default FAQs
     const defaultFaqs = [
-      { question: "Quels sont vos tarifs ?", answer: "Nous proposons des devis gratuits et personnalisés.", sortOrder: 1, isPublished: true },
-      { question: "Comment prendre rendez-vous ?", answer: "Depuis notre page en cliquant sur 'Prendre rendez-vous'.", sortOrder: 2, isPublished: true },
+      {
+        question: "Quels sont vos tarifs ?",
+        answer: "Nous proposons des devis gratuits et personnalisés.",
+        sortOrder: 1,
+        isPublished: true,
+      },
+      {
+        question: "Comment prendre rendez-vous ?",
+        answer: "Depuis notre page en cliquant sur 'Prendre rendez-vous'.",
+        sortOrder: 2,
+        isPublished: true,
+      },
     ];
     await db.insert(faqs).values(defaultFaqs.map((f) => ({ ...f, businessId: business.id })));
 

@@ -26,9 +26,7 @@ export async function sendVerifyEmail(params: {
       ip: params.ip,
     });
 
-    const appUrl = (
-      process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"
-    ).replace(/\/$/, "");
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr").replace(/\/$/, "");
     const verifyUrl = `${appUrl}/verify-email?token=${rawToken}`;
 
     const template = EmailTemplates.emailVerify({

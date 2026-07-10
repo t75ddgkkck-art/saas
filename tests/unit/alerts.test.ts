@@ -71,8 +71,6 @@ describe("alerts - webhook", () => {
   it("ne throw jamais si fetch échoue", async () => {
     process.env.ALERT_WEBHOOK_URL = "https://example.com/hook";
     global.fetch = vi.fn().mockRejectedValue(new Error("network")) as unknown as typeof fetch;
-    await expect(
-      sendAlert({ title: "x", level: "error" })
-    ).resolves.toBeDefined();
+    await expect(sendAlert({ title: "x", level: "error" })).resolves.toBeDefined();
   });
 });

@@ -9,7 +9,9 @@ import {
 describe("webhooks-out (Lot 16.4)", () => {
   it("signWebhookBody produit un format t=<ts>,v1=<hex>", () => {
     const sig = signWebhookBody(`{"a":1}`, "secret", 1700000000);
-    expect(sig).toBe(`t=1700000000,v1=${createHmac("sha256", "secret").update("1700000000.{\"a\":1}").digest("hex")}`);
+    expect(sig).toBe(
+      `t=1700000000,v1=${createHmac("sha256", "secret").update('1700000000.{"a":1}').digest("hex")}`
+    );
   });
 
   it("signWebhookBody utilise le timestamp actuel par défaut", () => {

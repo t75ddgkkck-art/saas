@@ -24,10 +24,7 @@ export default async function AdminDashboardPage() {
   if (!admin) redirect("/dashboard");
 
   // On peut charger les metrics côté server : cache 60s côté lib
-  const [metrics, conversion] = await Promise.all([
-    getBusinessMetrics(),
-    getConversionRate30d(),
-  ]);
+  const [metrics, conversion] = await Promise.all([getBusinessMetrics(), getConversionRate30d()]);
 
   return (
     <div className="space-y-8">
@@ -88,7 +85,8 @@ export default async function AdminDashboardPage() {
           />
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          Données mises en cache 60 s · dernière MAJ {new Date(metrics.computedAt).toLocaleTimeString("fr-FR")}
+          Données mises en cache 60 s · dernière MAJ{" "}
+          {new Date(metrics.computedAt).toLocaleTimeString("fr-FR")}
         </p>
       </section>
 
@@ -97,7 +95,10 @@ export default async function AdminDashboardPage() {
         aria-labelledby="users-heading"
         className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6"
       >
-        <h2 id="users-heading" className="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">
+        <h2
+          id="users-heading"
+          className="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100"
+        >
           Utilisateurs
         </h2>
         <AdminUsersTable />
@@ -108,7 +109,10 @@ export default async function AdminDashboardPage() {
         aria-labelledby="events-heading"
         className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6"
       >
-        <h2 id="events-heading" className="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">
+        <h2
+          id="events-heading"
+          className="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100"
+        >
           Journal des actions admin
         </h2>
         <AdminEventsLog />

@@ -37,13 +37,27 @@ async function handler(request: NextRequest) {
       if (owner[0].subscription === "free") continue;
 
       const [apts, qts, pmts, visits] = await Promise.all([
-        db.select().from(appointments).where(and(eq(appointments.businessId, biz.id), gte(appointments.createdAt, weekAgo))),
-        db.select().from(quotes).where(and(eq(quotes.businessId, biz.id), gte(quotes.createdAt, weekAgo))),
-        db.select().from(payments).where(and(eq(payments.businessId, biz.id), gte(payments.createdAt, weekAgo))),
-        db.select().from(pageVisits).where(and(eq(pageVisits.businessId, biz.id), gte(pageVisits.date, weekAgoStr))),
+        db
+          .select()
+          .from(appointments)
+          .where(and(eq(appointments.businessId, biz.id), gte(appointments.createdAt, weekAgo))),
+        db
+          .select()
+          .from(quotes)
+          .where(and(eq(quotes.businessId, biz.id), gte(quotes.createdAt, weekAgo))),
+        db
+          .select()
+          .from(payments)
+          .where(and(eq(payments.businessId, biz.id), gte(payments.createdAt, weekAgo))),
+        db
+          .select()
+          .from(pageVisits)
+          .where(and(eq(pageVisits.businessId, biz.id), gte(pageVisits.date, weekAgoStr))),
       ]);
 
-      const revenue = pmts.filter(p => p.status === "completed").reduce((s, p) => s + parseFloat(p.amount), 0);
+      const revenue = pmts
+        .filter((p) => p.status === "completed")
+        .reduce((s, p) => s + parseFloat(p.amount), 0);
 
       // Ne pas spammer si aucune activité
       if (apts.length === 0 && qts.length === 0 && visits.length === 0) continue;
@@ -76,7 +90,6 @@ async function handler(request: NextRequest) {
     return handleApiError(err, { route: "/api/cron/weekly-summary" });
   }
 }
-
 
 // Vercel Cron appelle en GET ; on accepte aussi POST pour les appels manuels
 export async function GET(request: NextRequest) {

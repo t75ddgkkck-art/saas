@@ -18,13 +18,17 @@ export async function GET(request: NextRequest) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const slots = await db.select().from(availabilitySlots)
-    .where(and(
-      eq(availabilitySlots.businessId, biz[0].id),
-      eq(availabilitySlots.isBooked, false),
-      eq(availabilitySlots.isBlocked, false),
-      gte(availabilitySlots.date, today)
-    ))
+  const slots = await db
+    .select()
+    .from(availabilitySlots)
+    .where(
+      and(
+        eq(availabilitySlots.businessId, biz[0].id),
+        eq(availabilitySlots.isBooked, false),
+        eq(availabilitySlots.isBlocked, false),
+        gte(availabilitySlots.date, today)
+      )
+    )
     .orderBy(availabilitySlots.date, availabilitySlots.startTime)
     .limit(100);
 

@@ -15,13 +15,13 @@ npm run db:generate    # génère un fichier de migration versionné
 
 ## Contenu de l'archive
 
-| Fichier | Contenu | Statut |
-|---|---|---|
-| `supabase-schema.sql` | Schéma initial complet | Remplacé par Drizzle |
-| `sql-migration-complete.sql` | Migration cumulative | Obsolète |
-| `sql-migration-update.sql` | Delta partiel | Obsolète |
-| `sql-fidelite.sql` | Ajout du programme de fidélité | Intégré au schéma Drizzle |
-| `sql-clean-demo-data.sql` | Purge des données de démo | À utiliser manuellement si besoin |
+| Fichier                      | Contenu                        | Statut                            |
+| ---------------------------- | ------------------------------ | --------------------------------- |
+| `supabase-schema.sql`        | Schéma initial complet         | Remplacé par Drizzle              |
+| `sql-migration-complete.sql` | Migration cumulative           | Obsolète                          |
+| `sql-migration-update.sql`   | Delta partiel                  | Obsolète                          |
+| `sql-fidelite.sql`           | Ajout du programme de fidélité | Intégré au schéma Drizzle         |
+| `sql-clean-demo-data.sql`    | Purge des données de démo      | À utiliser manuellement si besoin |
 
 ## Purge des données de démo (usage manuel uniquement)
 
@@ -31,4 +31,4 @@ Si vous avez inséré des données de démo à supprimer sur un environnement pa
 psql "$DATABASE_URL" -f archive/sql-legacy/sql-clean-demo-data.sql
 ```
 
-⚠️  **Ne jamais** exécuter en production sans backup préalable.
+⚠️ **Ne jamais** exécuter en production sans backup préalable.

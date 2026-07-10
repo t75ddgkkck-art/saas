@@ -25,15 +25,11 @@ interface SitemapEntry {
 
 async function computeIndex(appUrl: string): Promise<SitemapEntry[]> {
   const now = new Date().toISOString();
-  const entries: SitemapEntry[] = [
-    { loc: `${appUrl}/sitemap-static.xml`, lastmod: now },
-  ];
+  const entries: SitemapEntry[] = [{ loc: `${appUrl}/sitemap-static.xml`, lastmod: now }];
 
   try {
     // Pagination sitemaps businesses
-    const [{ total: bizTotal }] = await db
-      .select({ total: count() })
-      .from(businesses);
+    const [{ total: bizTotal }] = await db.select({ total: count() }).from(businesses);
     const bizPages = Math.max(1, Math.ceil(Number(bizTotal ?? 0) / PAGE_SIZE));
     for (let i = 0; i < bizPages; i++) {
       entries.push({ loc: `${appUrl}/sitemap-businesses/${i + 1}`, lastmod: now });

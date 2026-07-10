@@ -598,7 +598,11 @@ function interpolate(template: string, vars?: Vars): string {
  *   t("fr", "emailFooterLegal", { business: "Nathan" })
  *   t("xx" as Lang, "hours")         → français (fallback)
  */
-export function t(lang: Lang | string | null | undefined, key: TranslationKey, vars?: Vars): string {
+export function t(
+  lang: Lang | string | null | undefined,
+  key: TranslationKey,
+  vars?: Vars
+): string {
   const l: Lang = (SUPPORTED_LANGS.includes(lang as Lang) ? lang : DEFAULT_LANG) as Lang;
   const raw = TRANSLATIONS[l]?.[key] ?? TRANSLATIONS[DEFAULT_LANG][key] ?? key;
   return interpolate(raw, vars);

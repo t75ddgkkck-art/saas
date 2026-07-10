@@ -22,9 +22,7 @@ import { SignaturePad, type SignatureMetadata } from "@/components/ui/SignatureP
 import { formatPrice } from "@/lib/utils";
 import { generateProfessionalPDF } from "@/lib/generate-pdf";
 import NextImage from "next/image";
-import {
-  ArrowLeft, Eye, Download, CheckCircle2, Pen, FileText, Clock,
-} from "lucide-react";
+import { ArrowLeft, Eye, Download, CheckCircle2, Pen, FileText, Clock } from "lucide-react";
 
 interface QuoteDetail {
   id: string;
@@ -80,11 +78,7 @@ const statusConfig: Record<
   expired: { label: "Expiré", variant: "default" },
 };
 
-export default function QuoteDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Next 15+ : params est une Promise. `use()` la unwrap côté client.
   const { id } = use(params);
   const router = useRouter();
@@ -145,7 +139,13 @@ export default function QuoteDetailPage({
     toast.info("Signature enregistrée localement — endpoint POST /sign à câbler au Lot 20");
     setShowSignModal(false);
     // Update optimiste minimal
-    if (quote) setQuote({ ...quote, signatureUrl: dataUrl, signedAt: new Date().toISOString(), status: "signed" });
+    if (quote)
+      setQuote({
+        ...quote,
+        signatureUrl: dataUrl,
+        signedAt: new Date().toISOString(),
+        status: "signed",
+      });
   };
 
   const handleDownloadPDF = () => {
@@ -223,11 +223,18 @@ export default function QuoteDetailPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/quotes")} aria-label="Retour">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/dashboard/quotes")}
+            aria-label="Retour"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{quote.quoteNumber}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {quote.quoteNumber}
+            </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">{quote.title}</p>
           </div>
         </div>
@@ -250,11 +257,19 @@ export default function QuoteDetailPage({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Statut"
-          value={<Badge variant={statusConfig[quote.status].variant}>{statusConfig[quote.status].label}</Badge>}
+          value={
+            <Badge variant={statusConfig[quote.status].variant}>
+              {statusConfig[quote.status].label}
+            </Badge>
+          }
           icon={<Clock className="h-4 w-4" />}
         />
         <StatCard label="Client" value={clientLabel} icon={<FileText className="h-4 w-4" />} />
-        <StatCard label="Total TTC" value={formatPrice(total)} icon={<FileText className="h-4 w-4" />} />
+        <StatCard
+          label="Total TTC"
+          value={formatPrice(total)}
+          icon={<FileText className="h-4 w-4" />}
+        />
         <StatCard
           label="Acompte"
           value={deposit > 0 ? formatPrice(deposit) : "—"}
@@ -282,7 +297,9 @@ export default function QuoteDetailPage({
                 {items.map((item) => (
                   <tr key={item.id} className="border-b border-slate-100 dark:border-slate-800/60">
                     <td className="py-3 text-slate-900 dark:text-slate-100">{item.description}</td>
-                    <td className="py-3 text-right text-slate-600 dark:text-slate-400">{item.quantity}</td>
+                    <td className="py-3 text-right text-slate-600 dark:text-slate-400">
+                      {item.quantity}
+                    </td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400">
                       {formatPrice(Number(item.unitPrice))}
                     </td>
@@ -303,7 +320,9 @@ export default function QuoteDetailPage({
                 <span>Total TTC</span>
                 <span>{formatPrice(total)}</span>
               </div>
-              {deposit > 0 && <Row label="Acompte" value={formatPrice(deposit)} color="text-emerald-600" />}
+              {deposit > 0 && (
+                <Row label="Acompte" value={formatPrice(deposit)} color="text-emerald-600" />
+              )}
             </div>
           </div>
         </CardContent>
@@ -317,7 +336,9 @@ export default function QuoteDetailPage({
               <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">Devis signé électroniquement</h3>
+              <h3 className="font-semibold text-emerald-800 dark:text-emerald-300">
+                Devis signé électroniquement
+              </h3>
               <p className="text-sm text-emerald-600 dark:text-emerald-400">
                 Signé le {new Date(quote.signedAt).toLocaleString("fr-FR")}
               </p>
@@ -410,7 +431,9 @@ function StatCard({
 
 function Row({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className={`flex justify-between text-sm ${color ?? "text-slate-600 dark:text-slate-400"}`}>
+    <div
+      className={`flex justify-between text-sm ${color ?? "text-slate-600 dark:text-slate-400"}`}
+    >
       <span>{label}</span>
       <span>{value}</span>
     </div>

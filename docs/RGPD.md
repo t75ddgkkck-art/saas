@@ -11,11 +11,11 @@ Cette distinction est explicite dans les CGU (section 11 DPA) et la politique de
 
 ## 2. Textes légaux livrés
 
-| Page | Route | Contenu | Obligation |
-|---|---|---|---|
-| CGU | `/cgu` | 14 sections + DPA article 28 + sommaire ancré | Commercial (protection éditeur) |
-| Confidentialité | `/confidentialite` | Tableaux traitements/sous-traitants/durées + droits RGPD | RGPD art. 13-14 |
-| Mentions légales | `/mentions-legales` | Éditeur, hébergeur, RCS, SIREN, directeur pub | LCEN art. 6-III |
+| Page             | Route               | Contenu                                                  | Obligation                      |
+| ---------------- | ------------------- | -------------------------------------------------------- | ------------------------------- |
+| CGU              | `/cgu`              | 14 sections + DPA article 28 + sommaire ancré            | Commercial (protection éditeur) |
+| Confidentialité  | `/confidentialite`  | Tableaux traitements/sous-traitants/durées + droits RGPD | RGPD art. 13-14                 |
+| Mentions légales | `/mentions-legales` | Éditeur, hébergeur, RCS, SIREN, directeur pub            | LCEN art. 6-III                 |
 
 Les 3 pages sont liées dans le footer landing + les settings dashboard + le sitemap statique.
 
@@ -49,6 +49,7 @@ Bannière `src/components/layout/CookieConsent.tsx` affichée sur le layout raci
 ## 4. Export RGPD (portabilité art. 20)
 
 `GET /api/account/export` :
+
 - Auth required
 - Rate limit 3 req / heure / user
 - Retourne un JSON structuré `vitrix-mes-donnees-YYYY-MM-DD.json`
@@ -64,12 +65,14 @@ Accessible depuis le dashboard : `Settings → Suppression → bouton "Télécha
 Chaîne complète en 2 temps :
 
 **T0 (immédiat)** — `DELETE /api/account` :
+
 - Soft delete `users.deleted_at = NOW()`
 - Soft delete cascade sur `businesses.deleted_at`
 - Cookies purgés → l'user est déconnecté
 - Vitrine + blog + annuaire ne montrent plus rien de l'user
 
 **T+30j (cron)** — `/api/cron/purge-deleted` (schedule `30 3 * * *`) :
+
 - Hard `DELETE` sur toutes les tables (users, businesses, clients, appointments, quotes, blog_posts) où `deleted_at < NOW() - 30 days`
 - Cascade DB (Lot 14.8) nettoie tout le reste
 - Rétention overridable via env `RGPD_PURGE_DAYS` (1-365)
@@ -83,14 +86,14 @@ Bénéfice : fenêtre 30j pour restauration en cas d'erreur, purge finale garant
 
 Liste tenue dans `/confidentialite` section 3. Modifier là si un sous-traitant est ajouté/retiré :
 
-| Sous-traitant | Rôle | Loc | Garantie |
-|---|---|---|---|
-| Supabase | DB PostgreSQL | UE (Frankfurt) | Hébergement UE |
-| Vercel | App + edge | USA + edge global | EU-US DPF + CCT |
-| Stripe | Paiements | Irlande + USA | PCI-DSS 1 + CCT |
-| Resend | Emails | USA | CCT + DPA signé |
-| OpenAI | IA | USA | CCT + zero-retention API |
-| IONOS | Registrar | Allemagne | UE |
+| Sous-traitant | Rôle          | Loc               | Garantie                 |
+| ------------- | ------------- | ----------------- | ------------------------ |
+| Supabase      | DB PostgreSQL | UE (Frankfurt)    | Hébergement UE           |
+| Vercel        | App + edge    | USA + edge global | EU-US DPF + CCT          |
+| Stripe        | Paiements     | Irlande + USA     | PCI-DSS 1 + CCT          |
+| Resend        | Emails        | USA               | CCT + DPA signé          |
+| OpenAI        | IA            | USA               | CCT + zero-retention API |
+| IONOS         | Registrar     | Allemagne         | UE                       |
 
 ⚠ Si vous activez un nouvel outil (Plausible, Google Analytics, PostHog…), **mettre à jour ce tableau** ET la bannière consent (opt-in explicite requis).
 
@@ -124,6 +127,7 @@ Template minimal :
 
 ```md
 ### Traitement : Gestion compte utilisateur
+
 - Finalité : permettre l'accès au SaaS
 - Base légale : contrat (art. 6.1.b)
 - Personnes concernées : professionnels inscrits

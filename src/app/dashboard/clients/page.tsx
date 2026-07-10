@@ -191,15 +191,26 @@ export default function ClientsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {client.firstName[0]}{client.lastName[0]}
+                    {client.firstName[0]}
+                    {client.lastName[0]}
                   </div>
                   <div>
-                    <h3 className="font-medium text-slate-900 dark:text-slate-100">{client.firstName} {client.lastName}</h3>
+                    <h3 className="font-medium text-slate-900 dark:text-slate-100">
+                      {client.firstName} {client.lastName}
+                    </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{client.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={(client.totalSpent || 0) > 2000 ? "success" : (client.totalSpent || 0) > 500 ? "info" : "default"}>
+                  <Badge
+                    variant={
+                      (client.totalSpent || 0) > 2000
+                        ? "success"
+                        : (client.totalSpent || 0) > 500
+                          ? "info"
+                          : "default"
+                    }
+                  >
                     {client.source || "Direct"}
                   </Badge>
                   {/* Lot 24 : lien direct vers la fiche détaillée (stopPropagation
@@ -217,15 +228,21 @@ export default function ClientsPage() {
 
               <div className="mt-4 grid grid-cols-3 gap-3">
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{formatPrice(client.totalSpent || 0)}</p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {formatPrice(client.totalSpent || 0)}
+                  </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Dépensé</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{client.appointments || 0}</p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {client.appointments || 0}
+                  </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">RDV</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{client.quotes || 0}</p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {client.quotes || 0}
+                  </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Devis</p>
                 </div>
               </div>
@@ -244,10 +261,13 @@ export default function ClientsPage() {
           <div className="space-y-6">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-lg font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {selectedClient.firstName[0]}{selectedClient.lastName[0]}
+                {selectedClient.firstName[0]}
+                {selectedClient.lastName[0]}
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{selectedClient.firstName} {selectedClient.lastName}</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {selectedClient.firstName} {selectedClient.lastName}
+                </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">{selectedClient.email}</p>
               </div>
             </div>
@@ -288,39 +308,40 @@ export default function ClientsPage() {
       </Modal>
 
       {/* New client modal */}
-      <Modal
-        isOpen={showNewModal}
-        onClose={() => setShowNewModal(false)}
-        title="Nouveau client"
-      >
+      <Modal isOpen={showNewModal} onClose={() => setShowNewModal(false)} title="Nouveau client">
         <div className="space-y-4">
-          <Input 
-            label="Prénom" 
-            placeholder="Jean" 
+          <Input
+            label="Prénom"
+            placeholder="Jean"
             value={newClient.firstName}
-            onChange={e => setNewClient({ ...newClient, firstName: e.target.value })}
+            onChange={(e) => setNewClient({ ...newClient, firstName: e.target.value })}
           />
-          <Input 
-            label="Nom" 
-            placeholder="Dupont" 
+          <Input
+            label="Nom"
+            placeholder="Dupont"
             value={newClient.lastName}
-            onChange={e => setNewClient({ ...newClient, lastName: e.target.value })}
+            onChange={(e) => setNewClient({ ...newClient, lastName: e.target.value })}
           />
-          <Input 
-            label="Email" 
-            type="email" 
-            placeholder="jean@email.fr" 
+          <Input
+            label="Email"
+            type="email"
+            placeholder="jean@email.fr"
             value={newClient.email}
-            onChange={e => setNewClient({ ...newClient, email: e.target.value })}
+            onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
           />
-          <Input 
-            label="Téléphone" 
-            placeholder="+33612345678" 
+          <Input
+            label="Téléphone"
+            placeholder="+33612345678"
             value={newClient.phone}
-            onChange={e => setNewClient({ ...newClient, phone: e.target.value })}
+            onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
           />
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={() => setShowNewModal(false)} disabled={isSaving} className="flex-1">
+            <Button
+              variant="outline"
+              onClick={() => setShowNewModal(false)}
+              disabled={isSaving}
+              className="flex-1"
+            >
               Annuler
             </Button>
             <Button onClick={handleAddClient} loading={isSaving} className="flex-1">

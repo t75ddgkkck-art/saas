@@ -98,7 +98,10 @@ interface NoteRow {
   createdAt: string;
 }
 
-const statusLabels: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple" }> = {
+const statusLabels: Record<
+  string,
+  { label: string; variant: "default" | "success" | "warning" | "danger" | "info" | "purple" }
+> = {
   pending: { label: "En attente", variant: "warning" },
   confirmed: { label: "Confirmé", variant: "success" },
   cancelled: { label: "Annulé", variant: "danger" },
@@ -258,8 +261,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const clientLabel = `${client.firstName} ${client.lastName}`.trim() || "Client";
-  const initials =
-    (client.firstName?.[0] ?? "") + (client.lastName?.[0] ?? "") || "?";
+  const initials = (client.firstName?.[0] ?? "") + (client.lastName?.[0] ?? "") || "?";
   const noShowRate =
     aggs && aggs.totalAppointments > 0
       ? Math.round((aggs.noShows / aggs.totalAppointments) * 100)
@@ -284,9 +286,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             {initials.toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {clientLabel}
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{clientLabel}</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Client depuis {new Date(client.createdAt).toLocaleDateString("fr-FR")}
             </p>
@@ -317,16 +317,34 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       <Card>
         <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
           {client.email && (
-            <ContactRow icon={<Mail className="h-4 w-4" />} label="Email" value={client.email} href={`mailto:${client.email}`} />
+            <ContactRow
+              icon={<Mail className="h-4 w-4" />}
+              label="Email"
+              value={client.email}
+              href={`mailto:${client.email}`}
+            />
           )}
           {client.phone && (
-            <ContactRow icon={<Phone className="h-4 w-4" />} label="Téléphone" value={client.phone} href={`tel:${client.phone}`} />
+            <ContactRow
+              icon={<Phone className="h-4 w-4" />}
+              label="Téléphone"
+              value={client.phone}
+              href={`tel:${client.phone}`}
+            />
           )}
           {client.address && (
-            <ContactRow icon={<MapPin className="h-4 w-4" />} label="Adresse" value={client.address} />
+            <ContactRow
+              icon={<MapPin className="h-4 w-4" />}
+              label="Adresse"
+              value={client.address}
+            />
           )}
           {client.source && (
-            <ContactRow icon={<TrendingUp className="h-4 w-4" />} label="Source" value={client.source} />
+            <ContactRow
+              icon={<TrendingUp className="h-4 w-4" />}
+              label="Source"
+              value={client.source}
+            />
           )}
         </CardContent>
       </Card>
@@ -334,9 +352,21 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       {/* KPIs */}
       {aggs && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Kpi label="Total dépensé" value={formatPrice(aggs.totalRevenue)} icon={<CreditCard className="h-4 w-4" />} />
-          <Kpi label="RDV honorés" value={`${aggs.completedAppointments} / ${aggs.totalAppointments}`} icon={<Calendar className="h-4 w-4" />} />
-          <Kpi label="Devis" value={aggs.totalQuotes.toString()} icon={<FileText className="h-4 w-4" />} />
+          <Kpi
+            label="Total dépensé"
+            value={formatPrice(aggs.totalRevenue)}
+            icon={<CreditCard className="h-4 w-4" />}
+          />
+          <Kpi
+            label="RDV honorés"
+            value={`${aggs.completedAppointments} / ${aggs.totalAppointments}`}
+            icon={<Calendar className="h-4 w-4" />}
+          />
+          <Kpi
+            label="Devis"
+            value={aggs.totalQuotes.toString()}
+            icon={<FileText className="h-4 w-4" />}
+          />
           <Kpi
             label="No-show"
             value={aggs.noShows.toString()}
@@ -460,7 +490,12 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       )}
 
       {/* Modal édition */}
-      <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title="Modifier la fiche" size="md">
+      <Modal
+        isOpen={showEdit}
+        onClose={() => setShowEdit(false)}
+        title="Modifier la fiche"
+        size="md"
+      >
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -562,7 +597,9 @@ function Kpi({
         </div>
         <p
           className={`mt-1 text-xl font-bold ${
-            tone === "danger" ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"
+            tone === "danger"
+              ? "text-red-600 dark:text-red-400"
+              : "text-slate-900 dark:text-slate-100"
           }`}
         >
           {value}

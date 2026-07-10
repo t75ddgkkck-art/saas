@@ -71,16 +71,23 @@ export function NotificationBell() {
                   key={notif.id}
                   className={`border-b border-slate-100 p-4 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800 ${!notif.isRead ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
                 >
-                  <p className="font-medium text-sm text-slate-900 dark:text-slate-100">{notif.title}</p>
+                  <p className="font-medium text-sm text-slate-900 dark:text-slate-100">
+                    {notif.title}
+                  </p>
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{notif.message}</p>
-                  <p className="mt-1 text-[10px] text-slate-400">{new Date(notif.createdAt).toLocaleDateString("fr-FR")}</p>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    {new Date(notif.createdAt).toLocaleDateString("fr-FR")}
+                  </p>
                 </div>
               ))
             )}
           </div>
 
           <div className="p-3 border-t border-slate-200 dark:border-slate-800">
-            <Link href="/dashboard" className="text-xs text-blue-600 hover:underline dark:text-blue-400">
+            <Link
+              href="/dashboard"
+              className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+            >
               Voir toutes les notifications →
             </Link>
           </div>

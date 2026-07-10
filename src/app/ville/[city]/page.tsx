@@ -43,10 +43,7 @@ export default async function VillePage({ params }: Props) {
     // Lot 14.3 : masquer les vitrines soft-deleted de l'annuaire ville
     .where(and(ilike(businesses.city, `%${cityName}%`), isNull(businesses.deletedAt)))
     .groupBy(businesses.id)
-    .orderBy(
-      desc(sql`coalesce(avg(${reviews.rating}), 0)`),
-      desc(businesses.createdAt)
-    );
+    .orderBy(desc(sql`coalesce(avg(${reviews.rating}), 0)`), desc(businesses.createdAt));
 
   if (pros.length === 0) {
     notFound();
@@ -65,7 +62,11 @@ export default async function VillePage({ params }: Props) {
         </div>
       </div>
 
-      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 py-8 focus:outline-none">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="max-w-7xl mx-auto px-4 py-8 focus:outline-none"
+      >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {pros.map((pro) => (
             <Link

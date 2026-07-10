@@ -15,10 +15,7 @@ export function usePWA() {
 
   useEffect(() => {
     // Enregistrement du SW en prod uniquement
-    if (
-      "serviceWorker" in navigator &&
-      process.env.NODE_ENV === "production"
-    ) {
+    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker.register("/sw.js").catch(() => {
         // Silencieux : un échec SW ne casse pas l'app
       });

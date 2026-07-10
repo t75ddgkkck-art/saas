@@ -180,7 +180,12 @@ export function publicChatFallback(
     }
     return `Nos tarifs varient selon la prestation. Contactez ${biz.name} pour obtenir un devis gratuit personnalisé.`;
   }
-  if (msg.includes("urgence") || msg.includes("dépannage") || msg.includes("fuite") || msg.includes("panne")) {
+  if (
+    msg.includes("urgence") ||
+    msg.includes("dépannage") ||
+    msg.includes("fuite") ||
+    msg.includes("panne")
+  ) {
     return biz.showEmergency && biz.emergencyPhone
       ? `Pour une urgence, appelez le ${biz.emergencyPhone}. Nous intervenons rapidement.`
       : `Pour une urgence, contactez ${biz.name}${biz.phone ? ` au ${biz.phone}` : ""}.`;

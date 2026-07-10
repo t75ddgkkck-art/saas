@@ -30,8 +30,8 @@ const ALLOWED_PREFIXES = ["image/", "video/", "application/pdf"];
 export function isSupabaseStorageConfigured(): boolean {
   return Boolean(
     process.env.SUPABASE_URL &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY &&
-      process.env.SUPABASE_STORAGE_BUCKET
+    process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    process.env.SUPABASE_STORAGE_BUCKET
   );
 }
 
@@ -103,33 +103,26 @@ export async function uploadFile(
   return uploadAsBase64(file, trueMime);
 }
 
-async function uploadToSupabase(
-  file: File,
-  path: string,
-  trueMime: string
-): Promise<UploadedFile> {
+async function uploadToSupabase(file: File, path: string, trueMime: string): Promise<UploadedFile> {
   const url = process.env.SUPABASE_URL!.replace(/\/+$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const res = await fetch(
-    `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${path}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        apikey: key,
-        // Lot 26 : on utilise le MIME DÉTECTÉ (pas déclaré) → un exe caché
-        // en .png sera stocké avec son vrai type et rendu inoffensif au download
-        "Content-Type": trueMime || "application/octet-stream",
-        "x-upsert": "true",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-      body: buffer,
-    }
-  );
+  const res = await fetch(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      apikey: key,
+      // Lot 26 : on utilise le MIME DÉTECTÉ (pas déclaré) → un exe caché
+      // en .png sera stocké avec son vrai type et rendu inoffensif au download
+      "Content-Type": trueMime || "application/octet-stream",
+      "x-upsert": "true",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+    body: buffer,
+  });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

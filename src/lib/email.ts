@@ -112,7 +112,8 @@ export const EmailTemplates = {
     dashboardLink: string;
   }) => ({
     subject: `🔔 Nouveau rendez-vous — ${data.clientName} le ${data.date}`,
-    html: baseWrapper(`
+    html: baseWrapper(
+      `
       <h1 style="color: #0f172a; font-size: 20px; margin: 0 0 8px;">Nouveau rendez-vous !</h1>
       <p style="color: #64748b; margin: 0 0 20px;">Bonjour ${data.proName}, un client vient de réserver.</p>
       <div style="background: #f0f9ff; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
@@ -127,7 +128,9 @@ export const EmailTemplates = {
       <div style="text-align: center;">
         <a href="${data.dashboardLink}" style="display: inline-block; background: #0f172a; color: white; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px;">Voir dans mon tableau de bord</a>
       </div>
-    `, "Vitrix"),
+    `,
+      "Vitrix"
+    ),
   }),
 
   // ========== CLIENT : demande de devis bien reçue ==========
@@ -138,7 +141,8 @@ export const EmailTemplates = {
     description?: string;
   }) => ({
     subject: `📋 Demande de devis reçue — ${data.businessName}`,
-    html: baseWrapper(`
+    html: baseWrapper(
+      `
       <div style="text-align: center; margin-bottom: 24px;">
         <div style="display: inline-block; background: #ede9fe; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; font-size: 28px;">📋</div>
       </div>
@@ -149,7 +153,9 @@ export const EmailTemplates = {
       </p>
       ${data.description ? `<div style="background: #f8fafc; border-radius: 12px; padding: 16px; font-size: 13px; color: #475569; margin-bottom: 20px;"><strong>Votre demande :</strong><br/>${data.description.substring(0, 300)}</div>` : ""}
       <p style="text-align: center; font-size: 13px; color: #94a3b8;">Vous recevrez le devis détaillé par email dès qu'il sera prêt.</p>
-    `, data.businessName),
+    `,
+      data.businessName
+    ),
   }),
 
   // ========== PRO : nouvelle demande de devis ==========
@@ -163,7 +169,8 @@ export const EmailTemplates = {
     dashboardLink: string;
   }) => ({
     subject: `📋 Nouvelle demande de devis — ${data.clientName}`,
-    html: baseWrapper(`
+    html: baseWrapper(
+      `
       <h1 style="color: #0f172a; font-size: 20px; margin: 0 0 8px;">Nouvelle demande de devis !</h1>
       <p style="color: #64748b; margin: 0 0 20px;">Bonjour ${data.proName}, répondez vite : les clients qui reçoivent un devis sous 24h signent 3x plus.</p>
       <div style="background: #faf5ff; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
@@ -178,7 +185,9 @@ export const EmailTemplates = {
       <div style="text-align: center;">
         <a href="${data.dashboardLink}" style="display: inline-block; background: #0f172a; color: white; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px;">Répondre à la demande</a>
       </div>
-    `, "Vitrix"),
+    `,
+      "Vitrix"
+    ),
   }),
 
   appointmentConfirmation: (data: {
@@ -329,11 +338,7 @@ export const EmailTemplates = {
   }),
 
   // ========== AUTH : vérification email (Lot 19) ==========
-  emailVerify: (data: {
-    firstName: string;
-    verifyUrl: string;
-    expiryHours: number;
-  }) => ({
+  emailVerify: (data: { firstName: string; verifyUrl: string; expiryHours: number }) => ({
     subject: "Confirmez votre adresse email Vitrix",
     html: baseWrapper(
       `

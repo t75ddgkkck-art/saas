@@ -113,7 +113,9 @@ export default function WelcomePage() {
       .then(([biz, svc, avail]) => {
         setBusiness(biz);
         setServicesCount(svc?.services?.length ?? 0);
-        setHoursCount((avail?.hours ?? []).filter((h: { isClosed: boolean }) => !h.isClosed).length);
+        setHoursCount(
+          (avail?.hours ?? []).filter((h: { isClosed: boolean }) => !h.isClosed).length
+        );
       })
       .catch(() => {
         /* silencieux : la page reste utilisable même si les fetch échouent */
@@ -139,8 +141,8 @@ export default function WelcomePage() {
               Bienvenue{user?.firstName ? `, ${user.firstName}` : ""} !
             </h1>
             <p className="mt-2 text-slate-200">
-              Votre vitrine est créée. Complétez ces {STEPS.length} étapes pour maximiser vos chances
-              d&apos;être trouvé et contacté.
+              Votre vitrine est créée. Complétez ces {STEPS.length} étapes pour maximiser vos
+              chances d&apos;être trouvé et contacté.
             </p>
           </div>
         </div>
@@ -148,7 +150,9 @@ export default function WelcomePage() {
         {/* Barre de progression */}
         <div className="mt-6">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">{completed} sur {STEPS.length} étapes complétées</span>
+            <span className="font-medium">
+              {completed} sur {STEPS.length} étapes complétées
+            </span>
             <span className="font-bold">{progress}%</span>
           </div>
           <div
@@ -175,9 +179,7 @@ export default function WelcomePage() {
         <CardContent>
           <ol className="space-y-2">
             {STEPS.map((step, index) => {
-              const isDone = business
-                ? step.done(business, servicesCount, hoursCount)
-                : false;
+              const isDone = business ? step.done(business, servicesCount, hoursCount) : false;
               return (
                 <li key={step.id}>
                   <Link
@@ -232,9 +234,7 @@ export default function WelcomePage() {
             {business ? "Voir ma vitrine en ligne" : "Chargement..."}
           </p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {business
-              ? `vitrix.fr/${business.slug}`
-              : "Votre URL personnalisée sera affichée ici"}
+            {business ? `vitrix.fr/${business.slug}` : "Votre URL personnalisée sera affichée ici"}
           </p>
         </div>
         <div className="flex gap-3">

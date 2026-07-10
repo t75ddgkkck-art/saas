@@ -1,7 +1,14 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { td, t as tRaw, SUPPORTED_LANGS, DEFAULT_LANG, type Lang, type TranslationKey } from "@/lib/i18n";
+import {
+  td,
+  t as tRaw,
+  SUPPORTED_LANGS,
+  DEFAULT_LANG,
+  type Lang,
+  type TranslationKey,
+} from "@/lib/i18n";
 
 interface LangContextType {
   lang: Lang;

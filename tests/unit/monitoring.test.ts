@@ -43,9 +43,7 @@ describe("monitoring - Sentry optionnel", () => {
 
   it("captureMessage ne throw jamais", () => {
     expect(() => captureMessage("hello")).not.toThrow();
-    expect(() =>
-      captureMessage("warn", { level: "warning", route: "test" })
-    ).not.toThrow();
+    expect(() => captureMessage("warn", { level: "warning", route: "test" })).not.toThrow();
   });
 
   it("isMonitoringEnabled retourne false si le package @sentry/nextjs est absent (même avec DSN)", () => {

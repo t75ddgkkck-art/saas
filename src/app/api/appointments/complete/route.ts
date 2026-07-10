@@ -40,11 +40,7 @@ export async function POST(request: NextRequest) {
     let reviewRequested = false;
 
     if (business.autoReviewRequest) {
-      const [client] = await db
-        .select()
-        .from(clients)
-        .where(eq(clients.id, apt.clientId))
-        .limit(1);
+      const [client] = await db.select().from(clients).where(eq(clients.id, apt.clientId)).limit(1);
       if (client?.email) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
         try {

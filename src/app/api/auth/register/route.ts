@@ -22,13 +22,13 @@ const RegisterSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   email: z.string().trim().toLowerCase().email().max(255),
-  password: z
-    .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères")
-    .max(200),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères").max(200),
   phone: z.string().trim().max(20).optional().nullable(),
   businessName: z.string().trim().min(1).max(200),
-  siret: z.string().trim().regex(/^\d{14}$/, "SIRET doit contenir 14 chiffres"),
+  siret: z
+    .string()
+    .trim()
+    .regex(/^\d{14}$/, "SIRET doit contenir 14 chiffres"),
   category: z.string().trim().min(1).max(100),
   address: z.string().trim().max(500).optional().nullable(),
   city: z.string().trim().min(1).max(100),
@@ -61,9 +61,7 @@ export async function POST(request: NextRequest) {
     const parsed = RegisterSchema.safeParse(json);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
-      throw badRequest(
-        `${first?.path.join(".") ?? "champ"}: ${first?.message ?? "invalide"}`
-      );
+      throw badRequest(`${first?.path.join(".") ?? "champ"}: ${first?.message ?? "invalide"}`);
     }
     const data = parsed.data;
 
@@ -166,9 +164,9 @@ export async function POST(request: NextRequest) {
         })
         .returning();
 
-      await tx.insert(workingHours).values(
-        DEFAULT_HOURS.map((h) => ({ ...h, businessId: business.id }))
-      );
+      await tx
+        .insert(workingHours)
+        .values(DEFAULT_HOURS.map((h) => ({ ...h, businessId: business.id })));
 
       await tx.insert(faqs).values([
         {

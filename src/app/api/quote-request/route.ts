@@ -64,9 +64,7 @@ export async function POST(request: NextRequest) {
 
     const parsed = QuoteRequestSchema.safeParse(raw);
     if (!parsed.success) {
-      throw badRequest(
-        parsed.error.issues[0]?.message ?? "Données de demande invalides"
-      );
+      throw badRequest(parsed.error.issues[0]?.message ?? "Données de demande invalides");
     }
     const data = parsed.data;
 
@@ -81,9 +79,7 @@ export async function POST(request: NextRequest) {
     const [existingClient] = await db
       .select()
       .from(clients)
-      .where(
-        and(eq(clients.phone, data.phone), eq(clients.businessId, data.businessId))
-      )
+      .where(and(eq(clients.phone, data.phone), eq(clients.businessId, data.businessId)))
       .limit(1);
 
     let clientId: string;
@@ -186,11 +182,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const [owner] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, business.ownerId))
-      .limit(1);
+    const [owner] = await db.select().from(users).where(eq(users.id, business.ownerId)).limit(1);
 
     if (owner?.email) {
       const proTemplate = EmailTemplates.newQuoteRequestPro({

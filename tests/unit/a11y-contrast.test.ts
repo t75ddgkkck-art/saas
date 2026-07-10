@@ -22,11 +22,7 @@ const SUGGESTED_COLORS = [
 function ratio(hex: string, against = "#ffffff"): number {
   const parse = (h: string): [number, number, number] => {
     const c = h.replace("#", "");
-    return [
-      parseInt(c.slice(0, 2), 16),
-      parseInt(c.slice(2, 4), 16),
-      parseInt(c.slice(4, 6), 16),
-    ];
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
   };
   const lum = (rgb: [number, number, number]) => {
     const [r, g, b] = rgb.map((v) => {
@@ -43,13 +39,10 @@ function ratio(hex: string, against = "#ffffff"): number {
 }
 
 describe("Accessibility — palette suggérée", () => {
-  it.each(SUGGESTED_COLORS)(
-    "%s a un contraste ≥ 4.5:1 avec du texte blanc (WCAG AA)",
-    (color) => {
-      const r = ratio(color, "#ffffff");
-      expect(r).toBeGreaterThanOrEqual(4.5);
-    }
-  );
+  it.each(SUGGESTED_COLORS)("%s a un contraste ≥ 4.5:1 avec du texte blanc (WCAG AA)", (color) => {
+    const r = ratio(color, "#ffffff");
+    expect(r).toBeGreaterThanOrEqual(4.5);
+  });
 
   it("le noir a un contraste maximal avec le blanc", () => {
     expect(ratio("#000000", "#ffffff")).toBeCloseTo(21, 0);

@@ -102,7 +102,8 @@ export function SecurityTab({ emailVerified, onEmailVerifiedRefresh }: Props) {
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
               <p className="text-sm text-amber-800 dark:text-amber-300">
-                Votre email n&apos;est pas encore vérifié. Certaines fonctionnalités peuvent être limitées.
+                Votre email n&apos;est pas encore vérifié. Certaines fonctionnalités peuvent être
+                limitées.
               </p>
             </div>
             <Button size="sm" variant="outline" loading={verifySending} onClick={resendVerify}>

@@ -62,7 +62,11 @@ export async function fetchGoogleReviews(placeId: string): Promise<GoogleReview[
   }
 }
 
-export function filterBestReviews(reviews: GoogleReview[], minRating = 4, limit = 5): GoogleReview[] {
+export function filterBestReviews(
+  reviews: GoogleReview[],
+  minRating = 4,
+  limit = 5
+): GoogleReview[] {
   return reviews
     .filter((r) => r.rating >= minRating)
     .sort((a, b) => b.rating - a.rating)

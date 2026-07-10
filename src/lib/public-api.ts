@@ -23,7 +23,8 @@ export async function requireApiKey(
       response: NextResponse.json(
         {
           error: "unauthorized",
-          message: "Clé API manquante ou invalide. Header attendu : Authorization: Bearer vx_live_...",
+          message:
+            "Clé API manquante ou invalide. Header attendu : Authorization: Bearer vx_live_...",
         },
         { status: 401 }
       ),

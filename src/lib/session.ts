@@ -10,9 +10,7 @@ function getSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret || secret.length < 16) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "NEXTAUTH_SECRET manquant ou trop court (>= 16 chars requis en production)."
-      );
+      throw new Error("NEXTAUTH_SECRET manquant ou trop court (>= 16 chars requis en production).");
     }
     // eslint-disable-next-line no-console
     console.warn(
@@ -86,11 +84,7 @@ export async function getCurrentBusiness() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const result = await db
-    .select()
-    .from(businesses)
-    .where(eq(businesses.ownerId, user.id))
-    .limit(1);
+  const result = await db.select().from(businesses).where(eq(businesses.ownerId, user.id)).limit(1);
   return result[0] || null;
 }
 

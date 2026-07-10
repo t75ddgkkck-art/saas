@@ -21,10 +21,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit")) || 25));
     const cursor = url.searchParams.get("cursor");
 
-    const filters = [
-      eq(clients.businessId, gate.auth.businessId),
-      isNull(clients.deletedAt),
-    ];
+    const filters = [eq(clients.businessId, gate.auth.businessId), isNull(clients.deletedAt)];
     if (cursor) filters.push(lt(clients.createdAt, new Date(cursor)));
 
     const rows = await db

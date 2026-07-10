@@ -113,7 +113,8 @@ export default function QuotesPage() {
 
   // Sous-total pour affichage live dans le modal
   const liveSubtotal = useMemo(
-    () => form.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0),
+    () =>
+      form.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0),
     [form.items]
   );
 
@@ -184,7 +185,9 @@ export default function QuotesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Devis</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Créez et gérez vos devis professionnels</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Créez et gérez vos devis professionnels
+          </p>
         </div>
         <Button onClick={() => setShowNewModal(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -239,8 +242,12 @@ export default function QuotesPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-medium text-slate-900 dark:text-slate-100">{q.quoteNumber}</h3>
-                      <Badge variant={statusConfig[q.status]?.variant}>{statusConfig[q.status]?.label}</Badge>
+                      <h3 className="font-medium text-slate-900 dark:text-slate-100">
+                        {q.quoteNumber}
+                      </h3>
+                      <Badge variant={statusConfig[q.status]?.variant}>
+                        {statusConfig[q.status]?.label}
+                      </Badge>
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
                       {q.title} — {clientLabel}
@@ -304,7 +311,9 @@ export default function QuotesPage() {
           />
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Client</h4>
+            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Client
+            </h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 label="Prénom"
@@ -336,7 +345,9 @@ export default function QuotesPage() {
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Lignes du devis</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Lignes du devis
+              </h4>
               <Button
                 variant="ghost"
                 size="sm"
@@ -459,7 +470,9 @@ function Kpi({ label, value, color }: { label: string; value: string; color?: st
     <Card>
       <CardContent className="p-4">
         <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-        <p className={`text-2xl font-bold text-slate-900 dark:text-slate-100 ${color ?? ""}`}>{value}</p>
+        <p className={`text-2xl font-bold text-slate-900 dark:text-slate-100 ${color ?? ""}`}>
+          {value}
+        </p>
       </CardContent>
     </Card>
   );

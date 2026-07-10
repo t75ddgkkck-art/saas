@@ -13,10 +13,7 @@ export interface WhiteLabelConfig {
   hideVitrixBranding: boolean; // true = pas de "Propulsé par Vitrix"
 }
 
-export function getBusinessDomain(
-  business: { slug: string },
-  config?: WhiteLabelConfig
-): string {
+export function getBusinessDomain(business: { slug: string }, config?: WhiteLabelConfig): string {
   if (config?.customDomain) {
     return `https://${config.customDomain}`;
   }
@@ -36,7 +33,10 @@ export function getBusinessColors(config?: WhiteLabelConfig) {
 
 // Middleware pour gérer les domaines personnalisés (à ajouter dans next.config ou middleware)
 // Si un artisan a monsite.fr configuré, il pointe vers /p/slug
-export function resolveCustomDomain(hostname: string): { isCustom: boolean; businessSlug?: string } {
+export function resolveCustomDomain(hostname: string): {
+  isCustom: boolean;
+  businessSlug?: string;
+} {
   // En production, cette fonction ferait une requête DB pour trouver le business
   // correspondant au domaine personnalisé
   // Pour l'instant, on retourne false (pas de domaine custom)

@@ -75,11 +75,9 @@ const EMAIL_STRINGS = {
     seeInDashboard: "View in dashboard",
     leaveReview: "Leave a review",
     yourReviewMatters: "Your review matters!",
-    reviewIntro:
-      "Your feedback helps other customers find a trustworthy professional.",
+    reviewIntro: "Your feedback helps other customers find a trustworthy professional.",
     reviewTakes30s: "It only takes 30 seconds.",
-    quoteReminderIntro:
-      "your quote {number} is still pending. Feel free to get back in touch.",
+    quoteReminderIntro: "your quote {number} is still pending. Feel free to get back in touch.",
     ifIssue: "Any issue?",
     callAt: "Call",
     thanks: "Thank you for your trust!",
@@ -112,11 +110,9 @@ const EMAIL_STRINGS = {
     seeInDashboard: "Ver en el panel",
     leaveReview: "Dejar una opinión",
     yourReviewMatters: "¡Tu opinión importa!",
-    reviewIntro:
-      "Tu opinión ayuda a otros clientes a encontrar un profesional de confianza.",
+    reviewIntro: "Tu opinión ayuda a otros clientes a encontrar un profesional de confianza.",
     reviewTakes30s: "Solo lleva 30 segundos.",
-    quoteReminderIntro:
-      "tu presupuesto {number} sigue pendiente. Contáctanos si tienes preguntas.",
+    quoteReminderIntro: "tu presupuesto {number} sigue pendiente. Contáctanos si tienes preguntas.",
     ifIssue: "¿Algún imprevisto?",
     callAt: "Llama al",
     thanks: "¡Gracias por tu confianza!",
@@ -149,8 +145,7 @@ const EMAIL_STRINGS = {
     seeInDashboard: "In der Übersicht ansehen",
     leaveReview: "Bewertung abgeben",
     yourReviewMatters: "Ihre Bewertung zählt!",
-    reviewIntro:
-      "Ihr Feedback hilft anderen Kunden, einen vertrauenswürdigen Fachmann zu finden.",
+    reviewIntro: "Ihr Feedback hilft anderen Kunden, einen vertrauenswürdigen Fachmann zu finden.",
     reviewTakes30s: "Es dauert nur 30 Sekunden.",
     quoteReminderIntro:
       "Ihr Angebot {number} ist noch ausstehend. Bitte kontaktieren Sie uns bei Fragen.",

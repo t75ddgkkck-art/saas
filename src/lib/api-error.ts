@@ -58,8 +58,5 @@ export function handleApiError(
   });
 
   // Message générique pour ne pas fuiter la stack / SQL
-  return NextResponse.json(
-    { error: "Erreur serveur, veuillez réessayer." },
-    { status: 500 }
-  );
+  return NextResponse.json({ error: "Erreur serveur, veuillez réessayer." }, { status: 500 });
 }

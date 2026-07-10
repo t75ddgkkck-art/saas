@@ -10,7 +10,8 @@ export const blogTemplates: Record<string, BlogTemplate[]> = {
   plombier: [
     {
       title: "5 signes qui montrent que votre plomberie doit être rénovée",
-      excerpt: "Vous pensez que votre plomberie vieillit ? Voici les signes qui ne trompent pas et quand il faut agir.",
+      excerpt:
+        "Vous pensez que votre plomberie vieillit ? Voici les signes qui ne trompent pas et quand il faut agir.",
       content: `# 5 signes qui montrent que votre plomberie doit être rénovée
 
 Votre plomberie est un élément essentiel de votre maison. Avec le temps, elle s'use et peut causer des problèmes coûteux si on ne la remplace pas à temps. Voici 5 signes qui indiquent qu'il est temps de rénover votre plomberie.
@@ -31,11 +32,13 @@ Des sifflements ou des coups de bélier réguliers signalent un problème de pre
 Au-delà de 30-40 ans, il est recommandé de faire inspecter votre plomberie par un professionnel.
 
 **N'hésitez pas à nous contacter pour un diagnostic gratuit de votre installation.**`,
-      coverImage: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=800&h=400&fit=crop",
+      coverImage:
+        "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=800&h=400&fit=crop",
     },
     {
       title: "Comment déboucher un évier naturellement : guide complet",
-      excerpt: "Fini les produits chimiques ! Découvrez nos astuces écologiques pour déboucher votre évier efficacement.",
+      excerpt:
+        "Fini les produits chimiques ! Découvrez nos astuces écologiques pour déboucher votre évier efficacement.",
       content: `# Comment déboucher un évier naturellement
 
 Un évier bouché est un problème courant dans toute maison. Heureusement, il existe plusieurs méthodes naturelles et écologiques pour résoudre ce problème sans produits chimiques agressifs.
@@ -64,7 +67,8 @@ Si aucune de ces méthodes ne fonctionne, il est temps de nous contacter. Un bou
   electricien: [
     {
       title: "Mettre son installation électrique aux normes : pourquoi et comment",
-      excerpt: "Une installation aux normes garantit votre sécurité. Découvrez les étapes clés de la mise aux normes NF C 15-100.",
+      excerpt:
+        "Une installation aux normes garantit votre sécurité. Découvrez les étapes clés de la mise aux normes NF C 15-100.",
       content: `# Mettre son installation électrique aux normes
 
 La norme NF C 15-100 encadre les installations électriques en France. Elle évolue régulièrement pour garantir la sécurité des personnes et des biens.
@@ -83,14 +87,16 @@ La norme NF C 15-100 encadre les installations électriques en France. Elle évo
 4. **Salle de bain** : Volumes de protection spécifiques
 
 **Contactez-nous pour un diagnostic de votre installation électrique.**`,
-      coverImage: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&h=400&fit=crop",
+      coverImage:
+        "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&h=400&fit=crop",
     },
   ],
 
   coiffeur: [
     {
       title: "Les tendances coiffure été 2025 : ce qu'il faut savoir",
-      excerpt: "Découvrez les coupes et couleurs qui feront sensation cet été. Du bob français au balayage miel.",
+      excerpt:
+        "Découvrez les coupes et couleurs qui feront sensation cet été. Du bob français au balayage miel.",
       content: `# Les tendances coiffure été 2025
 
 L'été est la saison idéale pour changer de look ! Voici les tendances incontournables cette saison.
@@ -115,7 +121,8 @@ La coupe shag revient en force avec ses nombreuses couches et son volume naturel
   peintre: [
     {
       title: "Quelles couleurs choisir pour votre intérieur en 2025 ?",
-      excerpt: "Terracotta, vert sauge, bleu canard... Découvrez les couleurs tendance pour votre décoration intérieure.",
+      excerpt:
+        "Terracotta, vert sauge, bleu canard... Découvrez les couleurs tendance pour votre décoration intérieure.",
       content: `# Les couleurs tendance 2025 pour votre intérieur
 
 Chaque année, les tendances couleurs évoluent. Voici les teintes incontournables pour 2025.
@@ -133,14 +140,16 @@ Une couleur chaude et terreuse qui apporte du caractère à n'importe quelle pi�
 Élégant et intemporel, le bleu canard est parfait pour une salle de bain ou une entrée.
 
 **Faites appel à nous pour une consultation couleur personnalisée et un devis gratuit.**`,
-      coverImage: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&h=400&fit=crop",
+      coverImage:
+        "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&h=400&fit=crop",
     },
   ],
 
   garagiste: [
     {
       title: "L'entretien de votre voiture avant les vacances : checklist indispensable",
-      excerpt: "Pneus, freins, vidange... Voici la check-list complète pour partir l'esprit tranquille.",
+      excerpt:
+        "Pneus, freins, vidange... Voici la check-list complète pour partir l'esprit tranquille.",
       content: `# Checklist entretien voiture avant les vacances
 
 Partir en vacances sereinement passe par un véhicule en parfait état. Voici les points essentiels à vérifier avant le départ.
@@ -162,17 +171,20 @@ Partir en vacances sereinement passe par un véhicule en parfait état. Voici le
 - Vérification du niveau d'huile
 
 **Passez au garage pour un check-up complet avant les vacances ! Réservation rapide et devis gratuit.**`,
-      coverImage: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&h=400&fit=crop",
+      coverImage:
+        "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&h=400&fit=crop",
     },
   ],
 };
 
 export function getBlogTemplates(category: string): BlogTemplate[] {
-  return blogTemplates[category] || [
-    {
-      title: "Bien choisir son professionnel : 5 critères essentiels",
-      excerpt: "Comment trouver le bon prestataire pour vos travaux ? Voici nos conseils pour faire le meilleur choix.",
-      content: `# Bien choisir son professionnel : 5 critères essentiels
+  return (
+    blogTemplates[category] || [
+      {
+        title: "Bien choisir son professionnel : 5 critères essentiels",
+        excerpt:
+          "Comment trouver le bon prestataire pour vos travaux ? Voici nos conseils pour faire le meilleur choix.",
+        content: `# Bien choisir son professionnel : 5 critères essentiels
 
 Trouver le bon professionnel pour vos travaux n'est pas toujours facile. Voici 5 critères à vérifier avant de vous engager.
 
@@ -197,7 +209,9 @@ Un professionnel sérieux répond rapidement à vos demandes.
 Ne choisissez pas uniquement sur le prix. La qualité du travail est primordiale.
 
 **Nous cumulons tous ces critères. N'hésitez pas à nous contacter pour un devis gratuit !**`,
-      coverImage: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",
-    },
-  ];
+        coverImage:
+          "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",
+      },
+    ]
+  );
 }

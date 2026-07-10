@@ -14,9 +14,9 @@ export interface VitrineTemplate {
     cardBorder: string;
     buttonRadius: string;
     avatarRadius: string;
-    fontFamily: string;             // Police d'écriture (stack CSS)
+    fontFamily: string; // Police d'écriture (stack CSS)
     headerHeight: string;
-    layout: "center" | "left";      // Alignement du contenu
+    layout: "center" | "left"; // Alignement du contenu
     accent?: string;
   };
 }
@@ -117,16 +117,16 @@ export const vitrineTemplates: VitrineTemplate[] = [
 ];
 
 export function getTemplate(id: string | null | undefined): VitrineTemplate {
-  return vitrineTemplates.find(t => t.id === id) || vitrineTemplates[0];
+  return vitrineTemplates.find((t) => t.id === id) || vitrineTemplates[0];
 }
 
 // Templates accessibles selon le plan
 export function templatesForPlan(plan: string): VitrineTemplate[] {
   if (plan === "premium") return vitrineTemplates;
-  if (plan === "pro") return vitrineTemplates.filter(t => t.plan !== "premium");
-  return vitrineTemplates.filter(t => t.plan === "free");
+  if (plan === "pro") return vitrineTemplates.filter((t) => t.plan !== "premium");
+  return vitrineTemplates.filter((t) => t.plan === "free");
 }
 
 export function canUseTemplate(plan: string, templateId: string): boolean {
-  return templatesForPlan(plan).some(t => t.id === templateId);
+  return templatesForPlan(plan).some((t) => t.id === templateId);
 }

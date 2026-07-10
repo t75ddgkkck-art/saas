@@ -77,9 +77,7 @@ async function processEmail(email: QueuedEmail, attempt = 1): Promise<void> {
 
   // 2) Ajout des headers List-Unsubscribe (RFC 8058) sauf pour transactional pur
   const extraHeaders =
-    category === "transactional"
-      ? undefined
-      : buildListUnsubscribeHeaders(email.to, category);
+    category === "transactional" ? undefined : buildListUnsubscribeHeaders(email.to, category);
 
   // 3) Envoi
   try {

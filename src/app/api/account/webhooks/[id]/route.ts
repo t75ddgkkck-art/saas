@@ -13,10 +13,7 @@ import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const user = await getCurrentUser();

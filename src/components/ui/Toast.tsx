@@ -112,28 +112,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-const KIND_STYLES: Record<ToastKind, { icon: typeof CheckCircle2; bg: string; iconColor: string }> = {
-  success: {
-    icon: CheckCircle2,
-    bg: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900",
-    iconColor: "text-emerald-500",
-  },
-  error: {
-    icon: XCircle,
-    bg: "bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900",
-    iconColor: "text-red-500",
-  },
-  info: {
-    icon: Info,
-    bg: "bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900",
-    iconColor: "text-blue-500",
-  },
-  warning: {
-    icon: AlertCircle,
-    bg: "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-900",
-    iconColor: "text-amber-500",
-  },
-};
+const KIND_STYLES: Record<ToastKind, { icon: typeof CheckCircle2; bg: string; iconColor: string }> =
+  {
+    success: {
+      icon: CheckCircle2,
+      bg: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900",
+      iconColor: "text-emerald-500",
+    },
+    error: {
+      icon: XCircle,
+      bg: "bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900",
+      iconColor: "text-red-500",
+    },
+    info: {
+      icon: Info,
+      bg: "bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900",
+      iconColor: "text-blue-500",
+    },
+    warning: {
+      icon: AlertCircle,
+      bg: "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-900",
+      iconColor: "text-amber-500",
+    },
+  };
 
 function ToastViewport({
   toasts,

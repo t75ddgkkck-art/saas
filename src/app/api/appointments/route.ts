@@ -50,14 +50,13 @@ export async function GET(req: NextRequest) {
     const to = url.searchParams.get("to");
     const status = url.searchParams.get("status");
 
-    const filters = [
-      eq(appointments.businessId, business.id),
-      isNull(appointments.deletedAt),
-    ];
+    const filters = [eq(appointments.businessId, business.id), isNull(appointments.deletedAt)];
     if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) filters.push(gte(appointments.date, from));
     if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) filters.push(lte(appointments.date, to));
     if (status && ["pending", "confirmed", "cancelled", "completed"].includes(status)) {
-      filters.push(eq(appointments.status, status as "pending" | "confirmed" | "cancelled" | "completed"));
+      filters.push(
+        eq(appointments.status, status as "pending" | "confirmed" | "cancelled" | "completed")
+      );
     }
 
     // On joint clients pour éviter N+1 côté UI

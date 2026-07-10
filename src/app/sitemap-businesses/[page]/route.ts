@@ -7,10 +7,7 @@ export const revalidate = 3600; // 1 heure
 
 const PAGE_SIZE = 5000;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ page: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ page: string }> }) {
   const { page } = await params;
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr").replace(/\/$/, "");

@@ -20,10 +20,7 @@ const BanSchema = z.object({
   reason: z.string().min(3).max(500),
 });
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const admin = await requireAdmin();
@@ -36,10 +33,7 @@ export async function POST(
     const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
     if (existing.length === 0) throw notFound("Utilisateur introuvable");
 
-    await db
-      .update(users)
-      .set({ bannedAt: new Date(), banReason: reason })
-      .where(eq(users.id, id));
+    await db.update(users).set({ bannedAt: new Date(), banReason: reason }).where(eq(users.id, id));
 
     await logAdminEvent({
       actorUserId: admin.id,
@@ -54,10 +48,7 @@ export async function POST(
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const admin = await requireAdmin();
@@ -65,10 +56,7 @@ export async function DELETE(
     const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
     if (existing.length === 0) throw notFound("Utilisateur introuvable");
 
-    await db
-      .update(users)
-      .set({ bannedAt: null, banReason: null })
-      .where(eq(users.id, id));
+    await db.update(users).set({ bannedAt: null, banReason: null }).where(eq(users.id, id));
 
     await logAdminEvent({
       actorUserId: admin.id,

@@ -19,9 +19,9 @@ describe("detectMimeType (Lot 26)", () => {
   });
 
   it("détecte PNG (89 50 4E 47 0D 0A 1A 0A)", () => {
-    expect(
-      detectMimeType(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00))
-    ).toBe("image/png");
+    expect(detectMimeType(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00))).toBe(
+      "image/png"
+    );
   });
 
   it("détecte GIF89a", () => {
@@ -34,9 +34,15 @@ describe("detectMimeType (Lot 26)", () => {
 
   it("détecte WebP (RIFF ???? WEBP)", () => {
     const buf = new Uint8Array(16);
-    buf[0] = 0x52; buf[1] = 0x49; buf[2] = 0x46; buf[3] = 0x46;
+    buf[0] = 0x52;
+    buf[1] = 0x49;
+    buf[2] = 0x46;
+    buf[3] = 0x46;
     // 4-7 = taille variable → wildcard
-    buf[8] = 0x57; buf[9] = 0x45; buf[10] = 0x42; buf[11] = 0x50;
+    buf[8] = 0x57;
+    buf[9] = 0x45;
+    buf[10] = 0x42;
+    buf[11] = 0x50;
     expect(detectMimeType(buf)).toBe("image/webp");
   });
 
@@ -61,7 +67,7 @@ describe("detectMimeType (Lot 26)", () => {
 describe("looksLikeSvg (Lot 26)", () => {
   it("reconnaît un SVG standard", () => {
     expect(looksLikeSvg('<svg xmlns="...">')).toBe(true);
-    expect(looksLikeSvg('  <svg>')).toBe(true); // avec whitespace
+    expect(looksLikeSvg("  <svg>")).toBe(true); // avec whitespace
   });
 
   it("reconnaît un SVG avec déclaration XML", () => {
@@ -69,7 +75,7 @@ describe("looksLikeSvg (Lot 26)", () => {
   });
 
   it("rejette un HTML classique", () => {
-    expect(looksLikeSvg('<html><body>...</body></html>')).toBe(false);
+    expect(looksLikeSvg("<html><body>...</body></html>")).toBe(false);
   });
 
   it("rejette du texte quelconque", () => {
@@ -80,8 +86,8 @@ describe("looksLikeSvg (Lot 26)", () => {
 
 describe("svgHasXssPayload (Lot 26)", () => {
   it("détecte <script>", () => {
-    expect(svgHasXssPayload('<svg><script>alert(1)</script></svg>')).toBe(true);
-    expect(svgHasXssPayload('<svg><SCRIPT>alert(1)</SCRIPT></svg>')).toBe(true); // insensible casse
+    expect(svgHasXssPayload("<svg><script>alert(1)</script></svg>")).toBe(true);
+    expect(svgHasXssPayload("<svg><SCRIPT>alert(1)</SCRIPT></svg>")).toBe(true); // insensible casse
   });
 
   it("détecte les event handlers on*=", () => {
@@ -96,7 +102,7 @@ describe("svgHasXssPayload (Lot 26)", () => {
   });
 
   it("détecte <foreignObject> (HTML injection)", () => {
-    expect(svgHasXssPayload('<svg><foreignObject><body>x</body></foreignObject></svg>')).toBe(true);
+    expect(svgHasXssPayload("<svg><foreignObject><body>x</body></foreignObject></svg>")).toBe(true);
   });
 
   it("détecte xlink:href='data:' (SVG polyglot)", () => {
@@ -105,7 +111,9 @@ describe("svgHasXssPayload (Lot 26)", () => {
 
   it("laisse passer un SVG propre", () => {
     expect(svgHasXssPayload('<svg><circle cx="50" cy="50" r="40"/></svg>')).toBe(false);
-    expect(svgHasXssPayload('<svg xmlns="http://www.w3.org/2000/svg"><path d="M10 10"/></svg>')).toBe(false);
+    expect(
+      svgHasXssPayload('<svg xmlns="http://www.w3.org/2000/svg"><path d="M10 10"/></svg>')
+    ).toBe(false);
   });
 });
 
@@ -137,7 +145,7 @@ describe("validateUploadBytes (Lot 26)", () => {
   });
 
   it("refuse un SVG avec <script>", () => {
-    const svg = '<svg><script>alert(1)</script></svg>';
+    const svg = "<svg><script>alert(1)</script></svg>";
     const buf = new TextEncoder().encode(svg).buffer;
     const r = validateUploadBytes(buf, "image/svg+xml", ["image/"]);
     expect(r.ok).toBe(false);

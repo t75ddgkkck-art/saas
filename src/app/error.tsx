@@ -40,10 +40,12 @@ export default function GlobalError({
         <AlertTriangle className="h-7 w-7" aria-hidden="true" />
       </div>
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Une erreur est survenue</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          Une erreur est survenue
+        </h1>
         <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
-          Nous n&apos;avons pas pu afficher cette page. Notre équipe a été notifiée. Vous pouvez réessayer
-          ou revenir à l&apos;accueil.
+          Nous n&apos;avons pas pu afficher cette page. Notre équipe a été notifiée. Vous pouvez
+          réessayer ou revenir à l&apos;accueil.
         </p>
         {error.digest && (
           <p className="mt-3 font-mono text-xs text-slate-500">Code : {error.digest}</p>

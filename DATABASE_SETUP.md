@@ -26,6 +26,7 @@ Remplacez `[REF]`, `[MOT_DE_PASSE]` et `[REGION]` par vos valeurs Supabase
 3. Collez-le et cliquez sur **Run**
 
 Le fichier crée :
+
 - **8 types ENUM** (role, subscription, statuts, etc.)
 - **24 tables** avec toutes leurs colonnes
 - **Toutes les clés étrangères** et contraintes
@@ -34,17 +35,17 @@ Le fichier crée :
 
 ## 📋 Les 24 tables créées
 
-| Catégorie | Tables |
-|-----------|--------|
-| **Utilisateurs** | `users`, `businesses` |
+| Catégorie         | Tables                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| **Utilisateurs**  | `users`, `businesses`                                                                          |
 | **Page publique** | `working_hours`, `social_links`, `gallery_items`, `faqs`, `reviews`, `page_themes`, `catalogs` |
-| **Rendez-vous** | `availability_slots`, `appointments`, `reminders` |
-| **CRM** | `clients`, `notes` |
-| **Devis** | `quotes`, `quote_items`, `quote_attachments` |
-| **Paiements** | `payments`, `subscriptions` |
-| **Contenu** | `blog_posts`, `chat_messages` |
-| **Analytics** | `analytics` |
-| **PWA / Notifs** | `notifications`, `push_subscriptions` |
+| **Rendez-vous**   | `availability_slots`, `appointments`, `reminders`                                              |
+| **CRM**           | `clients`, `notes`                                                                             |
+| **Devis**         | `quotes`, `quote_items`, `quote_attachments`                                                   |
+| **Paiements**     | `payments`, `subscriptions`                                                                    |
+| **Contenu**       | `blog_posts`, `chat_messages`                                                                  |
+| **Analytics**     | `analytics`                                                                                    |
+| **PWA / Notifs**  | `notifications`, `push_subscriptions`                                                          |
 
 ---
 

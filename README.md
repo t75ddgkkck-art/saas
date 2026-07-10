@@ -5,6 +5,7 @@ Plateforme SaaS permettant aux artisans et indépendants de créer leur page pro
 ## 🚀 Fonctionnalités
 
 ### Page Publique (`/p/[slug]`)
+
 - Logo, photo de couverture et photo de profil
 - Description de l'entreprise
 - Boutons Appeler, WhatsApp, SMS, Email
@@ -20,6 +21,7 @@ Plateforme SaaS permettant aux artisans et indépendants de créer leur page pro
 - SEO optimisé
 
 ### Dashboard Professionnel
+
 - **Tableau de bord** : statistiques, CA, rendez-vous, clients
 - **Rendez-vous** : calendrier, disponibilités, gestion des créneaux
 - **Devis** : création multi-lignes, suivi, statuts
@@ -36,6 +38,7 @@ Plateforme SaaS permettant aux artisans et indépendants de créer leur page pro
 ## 🔒 Inscription Professionnelle
 
 L'inscription est **réservée aux professionnels avec numéro SIRET** :
+
 1. Vérification du SIRET via l'API INSEE (ou algorithme de Luhn)
 2. Création automatique du compte ET de la page publique
 3. Horaires par défaut et FAQ pré-remplis
@@ -89,12 +92,14 @@ src/
 Voir `.env.example` pour la liste complète.
 
 ### Minimum requis pour démarrer :
+
 ```bash
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app_db
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### Pour la production :
+
 ```bash
 # Auth
 NEXTAUTH_SECRET=<générer avec openssl rand -base64 32>
@@ -122,18 +127,18 @@ TWILIO_PHONE_NUMBER=+33...
 
 ## 💳 Abonnements
 
-| Fonctionnalité | Gratuit | Pro (29€) | Premium (79€) |
-|---|---|---|---|
-| Page publique | ✅ | ✅ | ✅ |
-| Contact | ✅ | ✅ | ✅ |
-| Galerie | ✅ | ✅ | ✅ |
-| Rendez-vous | ❌ | ✅ | ✅ |
-| Paiement | ❌ | ✅ | ✅ |
-| Devis | ❌ | ✅ | ✅ |
-| CRM | ❌ | ✅ | ✅ |
-| Assistant IA | ❌ | ❌ | ✅ |
-| SMS/WhatsApp | ❌ | ❌ | ✅ |
-| Statistiques avancées | ❌ | ❌ | ✅ |
+| Fonctionnalité        | Gratuit | Pro (29€) | Premium (79€) |
+| --------------------- | ------- | --------- | ------------- |
+| Page publique         | ✅      | ✅        | ✅            |
+| Contact               | ✅      | ✅        | ✅            |
+| Galerie               | ✅      | ✅        | ✅            |
+| Rendez-vous           | ❌      | ✅        | ✅            |
+| Paiement              | ❌      | ✅        | ✅            |
+| Devis                 | ❌      | ✅        | ✅            |
+| CRM                   | ❌      | ✅        | ✅            |
+| Assistant IA          | ❌      | ❌        | ✅            |
+| SMS/WhatsApp          | ❌      | ❌        | ✅            |
+| Statistiques avancées | ❌      | ❌        | ✅            |
 
 ## 🏗 Stack Technique
 
@@ -163,4 +168,4 @@ npm start
 ## 📄 Licence
 
 Propriétaire - ArtisanPro © 2025
-"# saas" 
+"# saas"

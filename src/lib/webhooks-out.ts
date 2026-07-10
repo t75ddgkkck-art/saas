@@ -74,10 +74,7 @@ export function signWebhookBody(body: string, secret: string, timestampSec?: num
  */
 export function generateWebhookSecret(): string {
   // 32 bytes = 256 bits d'entropie
-  return createHmac("sha256", randomUUID())
-    .update(randomUUID())
-    .digest("hex")
-    .slice(0, 64);
+  return createHmac("sha256", randomUUID()).update(randomUUID()).digest("hex").slice(0, 64);
 }
 
 /**

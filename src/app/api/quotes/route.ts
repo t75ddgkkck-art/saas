@@ -32,10 +32,7 @@ async function generateQuoteNumber(businessId: string): Promise<string> {
     .select({ count: sql<string>`count(*)::text` })
     .from(quotes)
     .where(
-      and(
-        eq(quotes.businessId, businessId),
-        sql`extract(year from ${quotes.createdAt}) = ${year}`
-      )
+      and(eq(quotes.businessId, businessId), sql`extract(year from ${quotes.createdAt}) = ${year}`)
     );
   const next = (Number(rows[0]?.count ?? "0") + 1).toString().padStart(4, "0");
   return `DEV-${year}-${next}`;
@@ -125,10 +122,7 @@ export async function POST(req: NextRequest) {
     const data = await validateBody(req, CreateQuoteSchema);
 
     // Calculs côté serveur (jamais confiance aux valeurs client)
-    const subtotal = data.items.reduce(
-      (s, it) => s + it.quantity * it.unitPrice,
-      0
-    );
+    const subtotal = data.items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
     const tax = subtotal * (data.taxRate / 100);
     const total = subtotal + tax;
 

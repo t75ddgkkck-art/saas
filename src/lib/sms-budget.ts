@@ -70,8 +70,7 @@ export function checkAndRecordSmsSend(
   purgeOld();
 
   const limit =
-    customLimit ??
-    (channel === "sms" ? DEFAULT_DAILY_LIMIT_SMS : DEFAULT_DAILY_LIMIT_WA);
+    customLimit ?? (channel === "sms" ? DEFAULT_DAILY_LIMIT_SMS : DEFAULT_DAILY_LIMIT_WA);
   const key = counterKey(businessId, channel);
   const used = counters.get(key) ?? 0;
 
@@ -124,7 +123,10 @@ export function checkAndRecordSmsSend(
 /**
  * Renvoie l'usage courant sans incrémenter (utile pour affichage dashboard).
  */
-export function getSmsUsage(businessId: string, channel: "sms" | "whatsapp"): {
+export function getSmsUsage(
+  businessId: string,
+  channel: "sms" | "whatsapp"
+): {
   used: number;
   limit: number;
   estimatedCostEur: number;

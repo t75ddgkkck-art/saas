@@ -23,10 +23,7 @@ export async function parseJson<T = unknown>(req: Request): Promise<T | null> {
 /**
  * Parse + valide un body JSON via Zod. Throw un HttpError 400 si invalide.
  */
-export async function validateBody<T>(
-  req: Request,
-  schema: z.ZodType<T>
-): Promise<T> {
+export async function validateBody<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
   const raw = await parseJson(req);
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {

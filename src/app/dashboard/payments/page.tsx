@@ -21,14 +21,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { PageTitle } from "@/components/layout/PageTitle";
-import {
-  CreditCard,
-  DollarSign,
-  TrendingUp,
-  Plus,
-  Receipt,
-  User,
-} from "lucide-react";
+import { CreditCard, DollarSign, TrendingUp, Plus, Receipt, User } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
 type Status = "pending" | "completed" | "failed" | "refunded";
@@ -223,8 +216,7 @@ export default function PaymentsPage() {
               p.clientFirstName || p.clientLastName
                 ? `${p.clientFirstName ?? ""} ${p.clientLastName ?? ""}`.trim()
                 : "Sans client";
-            const method =
-              p.metadata?.method ?? (p.stripePaymentId ? "Stripe" : "manuel");
+            const method = p.metadata?.method ?? (p.stripePaymentId ? "Stripe" : "manuel");
             return (
               <Card key={p.id}>
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-6">

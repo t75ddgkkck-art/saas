@@ -3,6 +3,7 @@
 ## Vue d'ensemble
 
 Vitrix utilise Stripe pour :
+
 1. **Abonnements SaaS** (Pro/Premium mensuel/annuel) — souscription des pros
 2. **Stripe Connect** (Standard) — paiements client → pro sur la vitrine
 3. **Customer Portal** — gestion CB/factures par l'utilisateur
@@ -17,10 +18,10 @@ Source de vérité côté code : `src/lib/plans.ts`. Doit rester synchronisé av
 
 Dans Stripe Dashboard → **Products → Add product** :
 
-| Product | Prix mensuel | Prix annuel |
-|---|---|---|
-| **Vitrix Pro** | 29 €/mois | 278 €/an |
-| **Vitrix Premium** | 79 €/mois | 758 €/an |
+| Product            | Prix mensuel | Prix annuel |
+| ------------------ | ------------ | ----------- |
+| **Vitrix Pro**     | 29 €/mois    | 278 €/an    |
+| **Vitrix Premium** | 79 €/mois    | 758 €/an    |
 
 Après création, notez les 4 **Price IDs** (`price_xxx...`).
 
@@ -49,7 +50,7 @@ Stripe Dashboard → **Developers → Webhooks → Add endpoint** :
   - `customer.subscription.trial_will_end`
   - `invoice.paid` (ou `invoice.payment_succeeded`)
   - `invoice.payment_failed`
-  - `invoice.upcoming` *(activer aussi dans Settings → Billing → Notifications)*
+  - `invoice.upcoming` _(activer aussi dans Settings → Billing → Notifications)_
   - `charge.dispute.created`
 
 - Récupérez le **Signing secret** → `STRIPE_WEBHOOK_SECRET`
@@ -57,6 +58,7 @@ Stripe Dashboard → **Developers → Webhooks → Add endpoint** :
 ### Activer le Customer Portal
 
 Dashboard Stripe → **Settings → Billing → Customer Portal** :
+
 - Activer "Allow customers to update payment methods"
 - Activer "Allow customers to view invoices and receipts"
 - Activer "Allow customers to cancel subscriptions"
@@ -133,6 +135,7 @@ Documentation complète : https://docs.stripe.com/testing
 ## 3. Grace period (paiement échoué)
 
 Quand `invoice.payment_failed` arrive :
+
 1. `customer.subscription.updated` avec `status: "past_due"` est aussi envoyé
 2. Notre handler `handleSubscriptionUpdated` détecte `past_due` et fixe `subscription_expires_at = now() + N jours` (3j Pro, 7j Premium)
 3. Le user garde son plan pendant N jours
@@ -147,6 +150,7 @@ Quand `invoice.payment_failed` arrive :
 ## 4. Trial 14 jours
 
 Configuré dans `src/lib/plans.ts` (`trialDays: 14`). Actif automatiquement :
+
 - Uniquement sur la **première** subscription (`isFirstSubscription` check)
 - `end_behavior.missing_payment_method: "cancel"` → si pas de CB à J-14, annulation propre
 - `payment_method_collection: "always"` → CB requise dès l'inscription (pas de trial anonyme)
@@ -156,17 +160,17 @@ Configuré dans `src/lib/plans.ts` (`trialDays: 14`). Actif automatiquement :
 
 ## 5. Types d'événements traités
 
-| Event | Handler | Effet |
-|---|---|---|
-| `checkout.session.completed` | `handleCheckoutCompleted` | Active le plan payant du user |
-| `customer.subscription.updated` | `handleSubscriptionUpdated` | Gère active/past_due/canceled + grace period |
-| `customer.subscription.deleted` | `handleSubscriptionDeleted` | Downgrade `free` immédiat |
-| `customer.subscription.trial_will_end` | `handleTrialWillEnd` | Email J-3 avant fin de trial |
-| `invoice.paid` | `handleInvoicePaid` | Email de reçu + lien PDF facture Stripe |
-| `invoice.payment_succeeded` | `handleInvoicePaid` | Alias historique |
-| `invoice.payment_failed` | `handleInvoicePaymentFailed` | Log (email envoyé par subscription.updated) |
-| `invoice.upcoming` | `handleInvoiceUpcoming` | Email rappel J-3 avant renouvellement |
-| `charge.dispute.created` | `handleDisputeCreated` | Log ERROR + alerte support par email |
+| Event                                  | Handler                      | Effet                                        |
+| -------------------------------------- | ---------------------------- | -------------------------------------------- |
+| `checkout.session.completed`           | `handleCheckoutCompleted`    | Active le plan payant du user                |
+| `customer.subscription.updated`        | `handleSubscriptionUpdated`  | Gère active/past_due/canceled + grace period |
+| `customer.subscription.deleted`        | `handleSubscriptionDeleted`  | Downgrade `free` immédiat                    |
+| `customer.subscription.trial_will_end` | `handleTrialWillEnd`         | Email J-3 avant fin de trial                 |
+| `invoice.paid`                         | `handleInvoicePaid`          | Email de reçu + lien PDF facture Stripe      |
+| `invoice.payment_succeeded`            | `handleInvoicePaid`          | Alias historique                             |
+| `invoice.payment_failed`               | `handleInvoicePaymentFailed` | Log (email envoyé par subscription.updated)  |
+| `invoice.upcoming`                     | `handleInvoiceUpcoming`      | Email rappel J-3 avant renouvellement        |
+| `charge.dispute.created`               | `handleDisputeCreated`       | Log ERROR + alerte support par email         |
 
 Tout autre event reçu → loggé en `debug`, réponse 200 OK (Stripe considère comme traité).
 

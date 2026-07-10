@@ -30,11 +30,7 @@ const SUGGESTED_COLORS: { name: string; value: string }[] = [
 function contrastRatio(hex: string, against = "#ffffff"): number {
   const parse = (h: string): [number, number, number] => {
     const c = h.replace("#", "");
-    return [
-      parseInt(c.slice(0, 2), 16),
-      parseInt(c.slice(2, 4), 16),
-      parseInt(c.slice(4, 6), 16),
-    ];
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
   };
   const luminance = (rgb: [number, number, number]): number => {
     const [r, g, b] = rgb.map((v) => {
@@ -61,7 +57,12 @@ export interface ColorPickerProps {
   className?: string;
 }
 
-export function ColorPicker({ value, onChange, label = "Couleur principale", className }: ColorPickerProps) {
+export function ColorPicker({
+  value,
+  onChange,
+  label = "Couleur principale",
+  className,
+}: ColorPickerProps) {
   const isValid = /^#[0-9a-fA-F]{6}$/.test(value);
   const contrast = useMemo(() => (isValid ? contrastRatio(value, "#ffffff") : 1), [value, isValid]);
   const hasWarning = isValid && contrast < 4.5;

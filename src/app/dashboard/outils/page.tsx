@@ -8,9 +8,25 @@ import { Badge } from "@/components/ui/Badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { generateProfessionalPDF } from "@/lib/generate-pdf";
 import {
-  Download, Sparkles, Share2, Users, Star, Globe, MessageCircle,
-  Lock, Loader2, Copy, Check, Trash2, Plus, FileText, FileCheck,
-  Eye, Printer, Calendar, CreditCard,
+  Download,
+  Sparkles,
+  Share2,
+  Users,
+  Star,
+  Globe,
+  MessageCircle,
+  Lock,
+  Loader2,
+  Copy,
+  Check,
+  Trash2,
+  Plus,
+  FileText,
+  FileCheck,
+  Eye,
+  Printer,
+  Calendar,
+  CreditCard,
 } from "lucide-react";
 
 export default function OutilsPage() {
@@ -35,8 +51,8 @@ export default function OutilsPage() {
 
   useEffect(() => {
     fetch("/api/my-business")
-      .then(r => r.json())
-      .then(data => setBusiness(data))
+      .then((r) => r.json())
+      .then((data) => setBusiness(data))
       .catch(() => {});
   }, []);
 
@@ -56,18 +72,20 @@ export default function OutilsPage() {
   const [clientAddress, setClientAddress] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
-  const [items, setItems] = useState([
-    { description: "", quantity: 1, unitPrice: 0, total: 0 }
-  ]);
+  const [items, setItems] = useState([{ description: "", quantity: 1, unitPrice: 0, total: 0 }]);
   const [docTemplate, setDocTemplate] = useState("standard"); // standard, moderne, minimaliste
 
   // Calcul des totaux
   const totalHT = items.reduce((sum, item) => sum + item.total, 0);
-  const tva = totalHT * 0.20;
+  const tva = totalHT * 0.2;
   const totalTTC = totalHT + tva;
 
   type InvoiceItem = { description: string; quantity: number; unitPrice: number; total: number };
-  const updateItem = <K extends keyof InvoiceItem>(index: number, field: K, value: InvoiceItem[K]) => {
+  const updateItem = <K extends keyof InvoiceItem>(
+    index: number,
+    field: K,
+    value: InvoiceItem[K]
+  ) => {
     const newItems = [...items] as InvoiceItem[];
     newItems[index] = { ...newItems[index], [field]: value };
     if (field === "quantity" || field === "unitPrice") {
@@ -106,14 +124,22 @@ export default function OutilsPage() {
         phone: clientPhone,
         email: clientEmail,
       },
-      items: items.filter(item => item.description),
+      items: items.filter((item) => item.description),
       totalHT,
       tva,
       totalTTC,
     });
   };
 
-  const LockedCard = ({ title, desc, planNeeded }: { title: string; desc: string; planNeeded: string }) => (
+  const LockedCard = ({
+    title,
+    desc,
+    planNeeded,
+  }: {
+    title: string;
+    desc: string;
+    planNeeded: string;
+  }) => (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 opacity-70 dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-center justify-between">
         <div>
@@ -122,7 +148,10 @@ export default function OutilsPage() {
           </p>
           <p className="mt-1 text-sm text-slate-500">{desc}</p>
         </div>
-        <Button size="sm" onClick={() => window.location.href = "/dashboard/settings?tab=abonnement"}>
+        <Button
+          size="sm"
+          onClick={() => (window.location.href = "/dashboard/settings?tab=abonnement")}
+        >
           Passer {planNeeded}
         </Button>
       </div>
@@ -132,9 +161,12 @@ export default function OutilsPage() {
   return (
     <div className="max-w-6xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Outils Professionnels</h1>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+          Outils Professionnels
+        </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-          Générez des documents PDF professionnels, exportez vos données et automatisez votre activité
+          Générez des documents PDF professionnels, exportez vos données et automatisez votre
+          activité
         </p>
       </div>
 
@@ -146,7 +178,9 @@ export default function OutilsPage() {
               <FileCheck className="h-5 w-5 text-blue-600" />
               Générateur de Devis & Factures
             </p>
-            <p className="text-sm text-slate-500 mt-1">Créez des documents PDF professionnels avec aperçu en direct</p>
+            <p className="text-sm text-slate-500 mt-1">
+              Créez des documents PDF professionnels avec aperçu en direct
+            </p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -184,24 +218,26 @@ export default function OutilsPage() {
               <Input
                 label="Numéro du document"
                 value={docNumber}
-                onChange={e => setDocNumber(e.target.value)}
+                onChange={(e) => setDocNumber(e.target.value)}
                 placeholder={`${docType === "devis" ? "DEV" : "FAC"}-2024-001`}
               />
               <Input
                 label="Date"
                 type="date"
                 value={docDate}
-                onChange={e => setDocDate(e.target.value)}
+                onChange={(e) => setDocDate(e.target.value)}
               />
             </div>
 
             <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
-              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Coordonnées bancaires (affichées sur le PDF)</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                Coordonnées bancaires (affichées sur le PDF)
+              </h3>
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label="IBAN"
                   value={bizIban}
-                  onChange={e => {
+                  onChange={(e) => {
                     setBusiness({ ...business, iban: e.target.value });
                   }}
                   placeholder="FR76 ...."
@@ -209,42 +245,47 @@ export default function OutilsPage() {
                 <Input
                   label="BIC"
                   value={bizBic}
-                  onChange={e => {
+                  onChange={(e) => {
                     setBusiness({ ...business, bic: e.target.value });
                   }}
                   placeholder="XXXXFRPP"
                 />
               </div>
-              <p className="mt-2 text-xs text-slate-500">💡 Ces infos apparaîtront en bas de vos PDF. Sauvegardez-les dans Ma vitrine → Paiements pour les garder.</p>
+              <p className="mt-2 text-xs text-slate-500">
+                💡 Ces infos apparaîtront en bas de vos PDF. Sauvegardez-les dans Ma vitrine →
+                Paiements pour les garder.
+              </p>
             </div>
 
             <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
-              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Informations client</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                Informations client
+              </h3>
               <div className="space-y-3">
                 <Input
                   label="Nom du client"
                   value={clientName}
-                  onChange={e => setClientName(e.target.value)}
+                  onChange={(e) => setClientName(e.target.value)}
                   placeholder="Jean Dupont"
                 />
                 <Input
                   label="Email"
                   type="email"
                   value={clientEmail}
-                  onChange={e => setClientEmail(e.target.value)}
+                  onChange={(e) => setClientEmail(e.target.value)}
                   placeholder="jean@exemple.fr"
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Téléphone"
                     value={clientPhone}
-                    onChange={e => setClientPhone(e.target.value)}
+                    onChange={(e) => setClientPhone(e.target.value)}
                     placeholder="+33 6 12 34 56 78"
                   />
                   <Input
                     label="Adresse"
                     value={clientAddress}
-                    onChange={e => setClientAddress(e.target.value)}
+                    onChange={(e) => setClientAddress(e.target.value)}
                     placeholder="12 Rue de la Paix, Paris"
                   />
                 </div>
@@ -260,26 +301,33 @@ export default function OutilsPage() {
               </div>
               <div className="space-y-3">
                 {items.map((item, index) => (
-                  <div key={index} className="flex gap-2 items-start p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                  <div
+                    key={index}
+                    className="flex gap-2 items-start p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50"
+                  >
                     <div className="flex-1 space-y-2">
                       <Input
                         placeholder="Description de la prestation"
                         value={item.description}
-                        onChange={e => updateItem(index, "description", e.target.value)}
+                        onChange={(e) => updateItem(index, "description", e.target.value)}
                       />
                       <div className="flex gap-2">
                         <Input
                           type="number"
                           placeholder="Qté"
                           value={item.quantity}
-                          onChange={e => updateItem(index, "quantity", parseInt(e.target.value) || 0)}
+                          onChange={(e) =>
+                            updateItem(index, "quantity", parseInt(e.target.value) || 0)
+                          }
                           className="w-20"
                         />
                         <Input
                           type="number"
                           placeholder="Prix unitaire"
                           value={item.unitPrice}
-                          onChange={e => updateItem(index, "unitPrice", parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            updateItem(index, "unitPrice", parseFloat(e.target.value) || 0)
+                          }
                           className="w-32"
                         />
                         <div className="flex items-center px-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -312,19 +360,28 @@ export default function OutilsPage() {
               <Eye className="h-4 w-4" />
               Aperçu en direct ({docTemplate})
             </div>
-            <div className={`border rounded-lg p-6 bg-white text-slate-900 min-h-[600px] transition-all ${
-              docTemplate === 'moderne' ? 'border-blue-500 shadow-lg shadow-blue-100' : 
-              docTemplate === 'minimaliste' ? 'border-slate-200' : 'border-slate-300 dark:border-slate-700'
-            }`} style={{ fontFamily: docTemplate === 'moderne' ? 'sans-serif' : docTemplate === 'minimaliste' ? 'monospace' : 'serif' }}>
+            <div
+              className={`border rounded-lg p-6 bg-white text-slate-900 min-h-[600px] transition-all ${
+                docTemplate === "moderne"
+                  ? "border-blue-500 shadow-lg shadow-blue-100"
+                  : docTemplate === "minimaliste"
+                    ? "border-slate-200"
+                    : "border-slate-300 dark:border-slate-700"
+              }`}
+              style={{
+                fontFamily:
+                  docTemplate === "moderne"
+                    ? "sans-serif"
+                    : docTemplate === "minimaliste"
+                      ? "monospace"
+                      : "serif",
+              }}
+            >
               {/* En-tête */}
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">
-                    {bizName}
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {bizAddress}
-                  </p>
+                  <h2 className="text-2xl font-bold text-slate-900">{bizName}</h2>
+                  <p className="text-sm text-slate-600 mt-1">{bizAddress}</p>
                   {bizSiret && bizSiret !== "000 000 000 00000" && (
                     <p className="text-xs text-slate-500 mt-1">SIRET: {bizSiret}</p>
                   )}
@@ -360,14 +417,18 @@ export default function OutilsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.filter(item => item.description).map((item, index) => (
-                    <tr key={index} className="border-b border-slate-200">
-                      <td className="py-3 text-sm">{item.description}</td>
-                      <td className="py-3 text-sm text-center">{item.quantity}</td>
-                      <td className="py-3 text-sm text-right">{item.unitPrice.toFixed(2)} €</td>
-                      <td className="py-3 text-sm text-right font-semibold">{item.total.toFixed(2)} €</td>
-                    </tr>
-                  ))}
+                  {items
+                    .filter((item) => item.description)
+                    .map((item, index) => (
+                      <tr key={index} className="border-b border-slate-200">
+                        <td className="py-3 text-sm">{item.description}</td>
+                        <td className="py-3 text-sm text-center">{item.quantity}</td>
+                        <td className="py-3 text-sm text-right">{item.unitPrice.toFixed(2)} €</td>
+                        <td className="py-3 text-sm text-right font-semibold">
+                          {item.total.toFixed(2)} €
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
 
@@ -405,14 +466,16 @@ export default function OutilsPage() {
             <FileText className="h-5 w-5 text-emerald-600" /> Exports PDF Professionnels
             <Badge variant="info">Pro</Badge>
           </p>
-          <p className="mt-1 text-sm text-slate-500">Exportez vos données en PDF formatés professionnellement pour votre comptable.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Exportez vos données en PDF formatés professionnellement pour votre comptable.
+          </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {[
               { type: "payments", label: "Paiements", icon: CreditCard },
               { type: "clients", label: "Clients", icon: Users },
               { type: "quotes", label: "Devis", icon: FileText },
               { type: "appointments", label: "Rendez-vous", icon: Calendar },
-            ].map(e => (
+            ].map((e) => (
               <Button
                 key={e.type}
                 variant="outline"
@@ -462,16 +525,24 @@ export default function OutilsPage() {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
               <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">🤖 Chatbot IA sur ma vitrine</p>
-                <p className="text-xs text-slate-500">Répond à vos clients 24/7 directement sur votre page publique</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  🤖 Chatbot IA sur ma vitrine
+                </p>
+                <p className="text-xs text-slate-500">
+                  Répond à vos clients 24/7 directement sur votre page publique
+                </p>
               </div>
               <input type="checkbox" className="h-5 w-5" />
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
               <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">⭐ Demande d&apos;avis automatique</p>
-                <p className="text-xs text-slate-500">Email envoyé au client dès qu&apos;un RDV est marqué terminé</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  ⭐ Demande d&apos;avis automatique
+                </p>
+                <p className="text-xs text-slate-500">
+                  Email envoyé au client dès qu&apos;un RDV est marqué terminé
+                </p>
               </div>
               <input type="checkbox" className="h-5 w-5" />
             </div>

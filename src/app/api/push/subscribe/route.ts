@@ -29,12 +29,7 @@ export async function POST(request: NextRequest) {
     const [existing] = await db
       .select({ id: pushSubscriptions.id })
       .from(pushSubscriptions)
-      .where(
-        and(
-          eq(pushSubscriptions.userId, user.id),
-          eq(pushSubscriptions.endpoint, endpoint)
-        )
-      )
+      .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, endpoint)))
       .limit(1);
 
     if (existing) {

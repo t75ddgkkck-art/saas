@@ -34,15 +34,7 @@ const CATEGORY_TO_SCHEMA: Record<string, string> = {
 };
 
 // Jours de la semaine (index 0-6 = Dimanche-Samedi) → schema.org
-const SCHEMA_DAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+const SCHEMA_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 interface OpeningHour {
   dayOfWeek: number;
@@ -74,7 +66,12 @@ interface StructuredDataProps {
     website?: string | null;
     slug: string;
   };
-  reviews: { rating: number; comment: string | null; clientName: string; createdAt?: Date | string }[];
+  reviews: {
+    rating: number;
+    comment: string | null;
+    clientName: string;
+    createdAt?: Date | string;
+  }[];
   avgRating: number;
   url: string;
   hours?: OpeningHour[];
@@ -163,13 +160,12 @@ export function BusinessStructuredData({
       author: { "@type": "Person", name: r.clientName },
       reviewBody: r.comment || undefined,
       datePublished: r.createdAt
-        ? (r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)).toISOString().split("T")[0]
+        ? (r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt))
+            .toISOString()
+            .split("T")[0]
         : undefined,
     })),
-    sameAs:
-      socials && socials.length > 0
-        ? socials.map((s) => s.url).filter(Boolean)
-        : undefined,
+    sameAs: socials && socials.length > 0 ? socials.map((s) => s.url).filter(Boolean) : undefined,
   };
 
   // Breadcrumb : Accueil > Ville > Business (si ville renseignée)

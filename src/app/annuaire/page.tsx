@@ -62,10 +62,7 @@ async function fetchDirectory(): Promise<ProCard[]> {
       // Lot 14.3 : masquer les vitrines soft-deleted de l'annuaire public
       .where(isNull(businesses.deletedAt))
       .groupBy(businesses.id)
-      .orderBy(
-        desc(sql`coalesce(avg(${reviews.rating}), 0)`),
-        desc(businesses.createdAt)
-      );
+      .orderBy(desc(sql`coalesce(avg(${reviews.rating}), 0)`), desc(businesses.createdAt));
 
     return rows.map((r) => ({
       ...r,
@@ -104,7 +101,11 @@ export default async function AnnuairePage() {
       </header>
 
       {/* Contenu */}
-      <main id="main-content" tabIndex={-1} className="max-w-7xl mx-auto px-4 py-8 focus:outline-none">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="max-w-7xl mx-auto px-4 py-8 focus:outline-none"
+      >
         {Object.entries(byCategory).length === 0 ? (
           <div className="text-center py-12">
             <p className="text-slate-500 dark:text-slate-400">

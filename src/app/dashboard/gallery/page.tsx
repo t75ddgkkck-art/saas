@@ -9,10 +9,30 @@ import { Button } from "@/components/ui/Button";
 import { Image as ImageIcon, Plus, Trash2, Upload, Video } from "lucide-react";
 
 const mockGallery = [
-  { id: 1, url: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=400&h=400&fit=crop", type: "image", title: "Réparation plomberie" },
-  { id: 2, url: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=400&fit=crop", type: "image", title: "Installation salle de bain" },
-  { id: 3, url: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=400&fit=crop", type: "image", title: "Chauffe-eau" },
-  { id: 4, url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&h=400&fit=crop", type: "image", title: "Cuisine moderne" },
+  {
+    id: 1,
+    url: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=400&h=400&fit=crop",
+    type: "image",
+    title: "Réparation plomberie",
+  },
+  {
+    id: 2,
+    url: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=400&fit=crop",
+    type: "image",
+    title: "Installation salle de bain",
+  },
+  {
+    id: 3,
+    url: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=400&fit=crop",
+    type: "image",
+    title: "Chauffe-eau",
+  },
+  {
+    id: 4,
+    url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&h=400&fit=crop",
+    type: "image",
+    title: "Cuisine moderne",
+  },
 ];
 
 export default function GalleryPage() {

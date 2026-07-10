@@ -51,9 +51,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       // Si TOO_MANY_ACTIVE_TOKENS → 429 friendly (l'user a déjà 5 tokens actifs)
       if (result.reason?.includes("TOO_MANY_ACTIVE")) {
-        throw badRequest(
-          "Trop d'emails envoyés récemment. Attendez avant de redemander."
-        );
+        throw badRequest("Trop d'emails envoyés récemment. Attendez avant de redemander.");
       }
       throw badRequest("Impossible d'envoyer l'email. Réessayez plus tard.");
     }

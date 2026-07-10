@@ -37,9 +37,8 @@ export async function POST(request: NextRequest) {
     const rawFolder = formData.get("folder");
 
     if (!(file instanceof File)) throw badRequest("Champ 'file' manquant");
-    const folder = typeof rawFolder === "string" && VALID_FOLDERS.has(rawFolder)
-      ? rawFolder
-      : "misc";
+    const folder =
+      typeof rawFolder === "string" && VALID_FOLDERS.has(rawFolder) ? rawFolder : "misc";
 
     // On préfixe avec l'ID business pour l'isolation storage
     const uploaded = await uploadFile(file, { folder: `${folder}/${business.id}` });

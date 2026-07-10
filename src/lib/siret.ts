@@ -34,7 +34,7 @@ export async function verifySiret(siret: string): Promise<SiretVerificationResul
     const response = await fetch(
       `${API_SIRENE}/search?q=${cleanSiret}&per_page=1&est_siege=true&etat_administratif=A`,
       {
-        headers: { "Accept": "application/json" },
+        headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(10000),
       }
     );
@@ -60,7 +60,8 @@ export async function verifySiret(siret: string): Promise<SiretVerificationResul
     if (result.etat_administratif !== "A") {
       return {
         valid: false,
-        error: "Cet établissement n'est plus actif. Seuls les établissements actifs peuvent s'inscrire.",
+        error:
+          "Cet établissement n'est plus actif. Seuls les établissements actifs peuvent s'inscrire.",
       };
     }
 
@@ -78,11 +79,9 @@ export async function verifySiret(siret: string): Promise<SiretVerificationResul
     }
 
     const siege = result.siege || {};
-    const adresse = [
-      siege.numero_voie,
-      siege.type_voie,
-      siege.libelle_voie,
-    ].filter(Boolean).join(" ");
+    const adresse = [siege.numero_voie, siege.type_voie, siege.libelle_voie]
+      .filter(Boolean)
+      .join(" ");
 
     return {
       valid: true,

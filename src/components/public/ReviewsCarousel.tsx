@@ -94,9 +94,7 @@ export function ReviewsCarousel({ reviews }: Props) {
               </p>
             )}
             <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-700 dark:text-slate-300">
-                {r.clientName}
-              </span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{r.clientName}</span>
               {r.source && (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800">
                   {r.source}

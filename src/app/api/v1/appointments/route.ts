@@ -54,7 +54,9 @@ export async function GET(req: NextRequest) {
     ];
     if (cursor) filters.push(lt(appointments.createdAt, new Date(cursor)));
     if (status && ["pending", "confirmed", "cancelled", "completed"].includes(status)) {
-      filters.push(eq(appointments.status, status as "pending" | "confirmed" | "cancelled" | "completed"));
+      filters.push(
+        eq(appointments.status, status as "pending" | "confirmed" | "cancelled" | "completed")
+      );
     }
 
     const rows = await db

@@ -15,7 +15,9 @@ export async function requirePermission(permission: keyof typeof PLAN_PERMISSION
   if (!hasPermission) {
     return {
       error: NextResponse.json(
-        { error: `Fonctionnalité réservée au plan ${permission.includes("Premium") ? "Premium" : "Pro"}` },
+        {
+          error: `Fonctionnalité réservée au plan ${permission.includes("Premium") ? "Premium" : "Pro"}`,
+        },
         { status: 403 }
       ),
       user,

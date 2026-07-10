@@ -55,9 +55,7 @@ function verifyTokenEdge(token: string): boolean {
     if (parts.length !== 3) return false;
     const [userId, expiryStr, signature] = parts;
     if (!userId || !expiryStr || !signature) return false;
-    const expected = createHmac("sha256", secret)
-      .update(`${userId}.${expiryStr}`)
-      .digest("hex");
+    const expected = createHmac("sha256", secret).update(`${userId}.${expiryStr}`).digest("hex");
     const a = Buffer.from(signature, "hex");
     const b = Buffer.from(expected, "hex");
     if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
@@ -100,10 +98,7 @@ function buildCsp(): string {
     // Chat support optionnel (Lot 16.5)
     ...(process.env.NEXT_PUBLIC_CRISP_ID ? ["https://client.crisp.chat"] : []),
     ...(process.env.NEXT_PUBLIC_INTERCOM_APP_ID
-      ? [
-          "https://widget.intercom.io",
-          "https://js.intercomcdn.com",
-        ]
+      ? ["https://widget.intercom.io", "https://js.intercomcdn.com"]
       : []),
     // Sentry (si activé — dep optionnelle Lot 13)
     ...(process.env.NEXT_PUBLIC_SENTRY_DSN ? ["https://*.sentry.io"] : []),
@@ -118,7 +113,9 @@ function buildCsp(): string {
     "https://checkout.stripe.com",
     "https://challenges.cloudflare.com",
     ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),
-    ...(process.env.NEXT_PUBLIC_SENTRY_DSN ? ["https://*.sentry.io", "https://*.ingest.sentry.io"] : []),
+    ...(process.env.NEXT_PUBLIC_SENTRY_DSN
+      ? ["https://*.sentry.io", "https://*.ingest.sentry.io"]
+      : []),
     ...(process.env.NEXT_PUBLIC_CRISP_ID
       ? ["wss://client.relay.crisp.chat", "https://client.crisp.chat"]
       : []),
@@ -176,10 +173,7 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   res.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   if (process.env.NODE_ENV === "production") {
-    res.headers.set(
-      "Strict-Transport-Security",
-      "max-age=63072000; includeSubDomains; preload"
-    );
+    res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   }
   return res;
 }
@@ -188,7 +182,9 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicRoute = PUBLIC_ROUTES.has(pathname);
-  const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isPublicApi = PUBLIC_API_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
   const isPublicPage = PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isPublicRoute || isPublicApi || isPublicPage) {
@@ -208,26 +204,19 @@ export function proxy(request: NextRequest) {
         request.headers.get("host") ||
         request.nextUrl.host;
       const base = `${proto}://${host}`;
-      const res = NextResponse.redirect(
-        `${base}/login?from=${encodeURIComponent(pathname)}`
-      );
+      const res = NextResponse.redirect(`${base}/login?from=${encodeURIComponent(pathname)}`);
       // Purge d'un éventuel cookie expiré/falsifié
       res.cookies.delete("auth_token");
       res.cookies.delete("auth_user");
       return applySecurityHeaders(res);
     }
 
-    return applySecurityHeaders(
-      NextResponse.json({ error: "Non authentifié" }, { status: 401 })
-    );
+    return applySecurityHeaders(NextResponse.json({ error: "Non authentifié" }, { status: 401 }));
   }
 
   return applySecurityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/api/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/api/:path*"],
 };

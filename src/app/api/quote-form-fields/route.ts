@@ -14,7 +14,9 @@ const PutSchema = z.object({
     .array(
       z.object({
         label: z.string().trim().min(1).max(200),
-        type: z.enum(["text", "textarea", "number", "select", "checkbox", "date", "file"]).default("text"),
+        type: z
+          .enum(["text", "textarea", "number", "select", "checkbox", "date", "file"])
+          .default("text"),
         options: z.string().max(1000).optional().nullable(),
         required: z.boolean().default(false),
       })

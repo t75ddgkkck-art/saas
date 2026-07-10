@@ -38,6 +38,7 @@ X-Api-Key: vx_live_XXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 Format clé : `vx_live_` (ou `vx_test_`) + 24 chars base32 Crockford (sans I/O/L/U). Ex :
+
 ```
 vx_live_A3F7K2NPQR5TVWXYZBCD9EFG
 ```
@@ -55,12 +56,12 @@ Stockage : **hash SHA-256 uniquement**. La clé claire n'est visible qu'à la cr
 
 ### Endpoints livrés
 
-| Endpoint | Scope | Rôle |
-|---|---|---|
-| `GET /api/v1/me` | read | Infos du business (id, slug, nom, catégorie, contact) |
-| `GET /api/v1/appointments` | read | Liste paginée RDV, filtres `?limit=`, `?cursor=`, `?status=` |
+| Endpoint                    | Scope      | Rôle                                                           |
+| --------------------------- | ---------- | -------------------------------------------------------------- |
+| `GET /api/v1/me`            | read       | Infos du business (id, slug, nom, catégorie, contact)          |
+| `GET /api/v1/appointments`  | read       | Liste paginée RDV, filtres `?limit=`, `?cursor=`, `?status=`   |
 | `POST /api/v1/appointments` | read_write | Crée un RDV (clientId OU création client à la volée par phone) |
-| `GET /api/v1/clients` | read | Liste paginée clients CRM |
+| `GET /api/v1/clients`       | read       | Liste paginée clients CRM                                      |
 
 ### Pagination
 
@@ -135,11 +136,12 @@ Un endpoint avec `events: []` reçoit **tous** les events (pratique pour Zapier 
 Header : `X-Vitrix-Signature: t=<unix-ts>,v1=<hex-hmac>`
 
 Vérification en Node :
+
 ```js
 import { createHmac } from "crypto";
 
 function verify(body, header, secret) {
-  const [t, v1] = header.split(",").map(p => p.split("=")[1]);
+  const [t, v1] = header.split(",").map((p) => p.split("=")[1]);
   const expected = createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
   // Timing-safe compare recommandé (crypto.timingSafeEqual)
   return v1 === expected;
@@ -166,6 +168,7 @@ function verify(body, header, secret) {
 `src/components/layout/SupportBubble.tsx` — bouton flottant bas-droite du dashboard.
 
 3 modes selon env :
+
 - `NEXT_PUBLIC_CRISP_ID` défini → charge Crisp Live Chat (widget officiel)
 - `NEXT_PUBLIC_INTERCOM_APP_ID` défini → charge Intercom
 - Sinon → fallback `mailto:` vers `NEXT_PUBLIC_LEGAL_EMAIL`
@@ -185,11 +188,13 @@ function verify(body, header, secret) {
 **Réutilise le parrainage** — le programme d'affiliation grand-public est une extension du référent : un affilié = un user avec beaucoup de filleuls.
 
 Base structurelle en place :
+
 - `users.referral_code` = code d'affilié unique
 - `users.referred_by` = tracking
 - `users.referral_credit_months` = commission accumulée
 
 À faire dans un lot ultérieur (marketing) :
+
 - Landing dédiée `/affiliation` avec formulaire d'inscription programme
 - Dashboard reporting (clics, conversions, commission cumulée)
 - Paiement des commissions via Stripe Connect payout

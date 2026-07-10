@@ -33,11 +33,7 @@ const SIGNATURES: MagicSignature[] = [
   // WebP : RIFF ???? WEBP (4 bytes RIFF, 4 bytes size, 4 bytes WEBP)
   {
     mime: "image/webp",
-    bytes: [
-      0x52, 0x49, 0x46, 0x46,
-      null, null, null, null,
-      0x57, 0x45, 0x42, 0x50,
-    ],
+    bytes: [0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50],
   },
   // AVIF : ftypavif à l'offset 4 (souvent ftypavis, ftypavif, ftypheic…)
   {

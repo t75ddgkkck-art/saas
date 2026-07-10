@@ -53,19 +53,35 @@ export default function FAQPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       <div className="mx-auto max-w-3xl px-4 py-16">
-        <Link href="/" className="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">← Retour à Vitrix</Link>
-        <h1 className="mt-6 text-3xl font-bold text-slate-900 dark:text-slate-100">Questions fréquentes</h1>
-        <p className="mt-2 text-slate-500 dark:text-slate-400">Tout ce que vous devez savoir sur Vitrix</p>
+        <Link
+          href="/"
+          className="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+        >
+          ← Retour à Vitrix
+        </Link>
+        <h1 className="mt-6 text-3xl font-bold text-slate-900 dark:text-slate-100">
+          Questions fréquentes
+        </h1>
+        <p className="mt-2 text-slate-500 dark:text-slate-400">
+          Tout ce que vous devez savoir sur Vitrix
+        </p>
 
         <div className="mt-8 space-y-3">
           {faqs.map((faq, i) => (
-            <div key={i} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div
+              key={i}
+              className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800"
+            >
               <button
                 onClick={() => setOpen(open === i ? null : i)}
                 className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
               >
                 <span className="font-medium text-slate-900 dark:text-slate-100">{faq.q}</span>
-                {open === i ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
+                {open === i ? (
+                  <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                )}
               </button>
               {open === i && (
                 <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-400">
@@ -79,7 +95,10 @@ export default function FAQPage() {
         <div className="mt-12 rounded-2xl bg-slate-50 p-8 text-center dark:bg-slate-900">
           <h2 className="font-semibold text-slate-900 dark:text-slate-100">Une autre question ?</h2>
           <p className="mt-1 text-sm text-slate-500">Notre équipe vous répond sous 24h.</p>
-          <a href="mailto:contact@vitrix.fr" className="mt-4 inline-block rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900">
+          <a
+            href="mailto:contact@vitrix.fr"
+            className="mt-4 inline-block rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+          >
             Nous contacter
           </a>
         </div>

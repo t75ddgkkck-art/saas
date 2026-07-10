@@ -11,10 +11,7 @@ import type { EmailCategory } from "@/lib/unsubscribe";
  * True si l'email a opt-out pour cette catégorie OU pour "all".
  * Utilise l'index unique (lower(email), category) pour être rapide.
  */
-export async function isEmailOptedOut(
-  email: string,
-  category: EmailCategory
-): Promise<boolean> {
+export async function isEmailOptedOut(email: string, category: EmailCategory): Promise<boolean> {
   const normalized = email.trim().toLowerCase();
   try {
     const [row] = await db

@@ -1,6 +1,7 @@
 # Base de données (Lot 14)
 
 Ce document couvre :
+
 - Convention soft delete
 - Triggers `updated_at`
 - Contraintes CHECK longueur
@@ -14,14 +15,14 @@ Ce document couvre :
 
 ### Tables concernées
 
-| Table | Colonne | Comportement au delete |
-|---|---|---|
-| `users` | `deleted_at` | Login refusé, session invalidée dans `getCurrentUser` |
-| `businesses` | `deleted_at` | Masqué de `/annuaire`, `/[slug]`, `/metier/*`, `/ville/*`, sitemaps |
-| `clients` | `deleted_at` | À filtrer dans les listings CRM (à faire) |
-| `appointments` | `deleted_at` | À filtrer dans les calendriers (à faire) |
-| `quotes` | `deleted_at` | À filtrer dans le listing devis (à faire) |
-| `blog_posts` | `deleted_at` | Masqué du blog public + sitemap |
+| Table          | Colonne      | Comportement au delete                                              |
+| -------------- | ------------ | ------------------------------------------------------------------- |
+| `users`        | `deleted_at` | Login refusé, session invalidée dans `getCurrentUser`               |
+| `businesses`   | `deleted_at` | Masqué de `/annuaire`, `/[slug]`, `/metier/*`, `/ville/*`, sitemaps |
+| `clients`      | `deleted_at` | À filtrer dans les listings CRM (à faire)                           |
+| `appointments` | `deleted_at` | À filtrer dans les calendriers (à faire)                            |
+| `quotes`       | `deleted_at` | À filtrer dans le listing devis (à faire)                           |
+| `blog_posts`   | `deleted_at` | Masqué du blog public + sitemap                                     |
 
 ### Utilisation dans le code
 
@@ -35,10 +36,9 @@ await db.update(clients).set({ deletedAt: markDeleted() }).where(eq(clients.id, 
 await db.update(clients).set({ deletedAt: markRestored() }).where(eq(clients.id, id));
 
 // Lister uniquement les actifs
-db.select().from(clients).where(and(
-  eq(clients.businessId, bizId),
-  notDeleted(clients.deletedAt)
-));
+db.select()
+  .from(clients)
+  .where(and(eq(clients.businessId, bizId), notDeleted(clients.deletedAt)));
 ```
 
 ### Pourquoi ?
@@ -80,16 +80,16 @@ Le `sql/00_apply_safe.sql` boucle sur `users`, `businesses`, `clients`, `appoint
 
 Colonnes `text` sans limite → un user peut coller 1 GB. On applique :
 
-| Table.colonne | Limite chars |
-|---|---|
-| `clients.notes` | 10 000 |
-| `businesses.description` | 5 000 |
-| `businesses.service_area` | 2 000 |
-| `businesses.address` | 500 |
-| `businesses.loyalty_reward` | 1 000 |
-| `blog_posts.content` | 50 000 (≈ 8 000 mots) |
-| `blog_posts.excerpt` | 500 |
-| `notes.content` | 10 000 |
+| Table.colonne               | Limite chars          |
+| --------------------------- | --------------------- |
+| `clients.notes`             | 10 000                |
+| `businesses.description`    | 5 000                 |
+| `businesses.service_area`   | 2 000                 |
+| `businesses.address`        | 500                   |
+| `businesses.loyalty_reward` | 1 000                 |
+| `blog_posts.content`        | 50 000 (≈ 8 000 mots) |
+| `blog_posts.excerpt`        | 500                   |
+| `notes.content`             | 10 000                |
 
 Idempotent via `EXCEPTION WHEN duplicate_object THEN NULL`.
 
@@ -103,12 +103,12 @@ Avant : `businesses.owner_id → users.id` sans cascade → si un user est suppr
 
 Après :
 
-| FK | Comportement | Justif |
-|---|---|---|
-| `businesses.owner_id → users` | `CASCADE` | Un user supprimé emporte ses vitrines (RGPD) |
-| `appointments.created_by → users` | `SET NULL` | RDV conservés même si l'employé quitte l'équipe |
-| `quotes.created_by → users` | `SET NULL` | Idem pour les devis (historique client) |
-| `notes.created_by → users` | `CASCADE` | Notes = données personnelles du créateur |
+| FK                                | Comportement | Justif                                          |
+| --------------------------------- | ------------ | ----------------------------------------------- |
+| `businesses.owner_id → users`     | `CASCADE`    | Un user supprimé emporte ses vitrines (RGPD)    |
+| `appointments.created_by → users` | `SET NULL`   | RDV conservés même si l'employé quitte l'équipe |
+| `quotes.created_by → users`       | `SET NULL`   | Idem pour les devis (historique client)         |
+| `notes.created_by → users`        | `CASCADE`    | Notes = données personnelles du créateur        |
 
 Le `sql/00_apply_safe.sql` recrée les FKs avec la bonne politique. Idempotent.
 
@@ -117,6 +117,7 @@ Le `sql/00_apply_safe.sql` recrée les FKs avec la bonne politique. Idempotent.
 ## 5. Duplication enum (Lot 14.1)
 
 Le schéma avait 2 `pgEnum("appointment_status", …)` :
+
 - `appointmentStatusEnum` : `["pending", "confirmed", "cancelled", "completed"]` — utilisé
 - `appointmentStatuses` : `["pending", "confirmed", "in_progress", "completed", "cancelled", "no_show"]` — **jamais référencé, supprimé**
 
@@ -209,13 +210,14 @@ Le commentaire est maintenant dans `schema.ts`.
 
 ## 9. Backups Supabase (Lot 14.9)
 
-| Plan Supabase | Backup quotidien | Point-in-time recovery |
-|---|---|---|
-| Free | ✅ 7 jours | ❌ |
-| Pro ($25/mois) | ✅ 7 jours | ✅ 7 jours |
-| Team / Enterprise | ✅ 30 jours | ✅ 30 jours |
+| Plan Supabase     | Backup quotidien | Point-in-time recovery |
+| ----------------- | ---------------- | ---------------------- |
+| Free              | ✅ 7 jours       | ❌                     |
+| Pro ($25/mois)    | ✅ 7 jours       | ✅ 7 jours             |
+| Team / Enterprise | ✅ 30 jours      | ✅ 30 jours            |
 
 **Recommandation prod** :
+
 1. Passer Supabase en Pro dès qu'il y a > 10 payants actifs
 2. Activer le PITR (paramètres du projet)
 3. Faire un `pg_dump` mensuel externe (S3/OVH), en plus, pour ne pas dépendre de Supabase seul

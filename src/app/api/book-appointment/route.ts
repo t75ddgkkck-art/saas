@@ -56,11 +56,7 @@ export async function POST(request: NextRequest) {
     // Résoudre le business (par ID ou slug)
     const [business] = data.businessId
       ? await db.select().from(businesses).where(eq(businesses.id, data.businessId)).limit(1)
-      : await db
-          .select()
-          .from(businesses)
-          .where(eq(businesses.slug, data.businessSlug!))
-          .limit(1);
+      : await db.select().from(businesses).where(eq(businesses.slug, data.businessSlug!)).limit(1);
     if (!business) throw notFound("Professionnel introuvable");
 
     // Vérif date pas dans le passé (basique, en TZ serveur)
@@ -121,16 +117,20 @@ export async function POST(request: NextRequest) {
       .limit(1);
     if (slot) {
       // Éviter les doubles réservations du même créneau (race condition minimale)
-      if (slot.isBooked) throw badRequest("Ce créneau vient d'être réservé, choisissez-en un autre.");
-      await db.update(availabilitySlots).set({ isBooked: true }).where(eq(availabilitySlots.id, slot.id));
+      if (slot.isBooked)
+        throw badRequest("Ce créneau vient d'être réservé, choisissez-en un autre.");
+      await db
+        .update(availabilitySlots)
+        .set({ isBooked: true })
+        .where(eq(availabilitySlots.id, slot.id));
     }
 
     // Créer le RDV
-    const title = data.service || data.notes || `Rendez-vous — ${data.firstName} ${data.lastName}`.trim();
+    const title =
+      data.service || data.notes || `Rendez-vous — ${data.firstName} ${data.lastName}`.trim();
     const [startH, startM] = data.startTime.split(":").map(Number);
     const computedEnd =
-      data.endTime ||
-      `${String(startH + 1).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
+      data.endTime || `${String(startH + 1).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
 
     const [appointment] = await db
       .insert(appointments)
@@ -182,11 +182,7 @@ export async function POST(request: NextRequest) {
       sendEmail({ to: data.email, subject: clientTemplate.subject, html: clientTemplate.html })
     );
 
-    const [owner] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, business.ownerId))
-      .limit(1);
+    const [owner] = await db.select().from(users).where(eq(users.id, business.ownerId)).limit(1);
     if (owner?.email) {
       const proTemplate = EmailTemplates.newBookingPro({
         proName: owner.firstName,
@@ -213,10 +209,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const team = await db
-      .select()
-      .from(teamMembers)
-      .where(eq(teamMembers.businessId, business.id));
+    const team = await db.select().from(teamMembers).where(eq(teamMembers.businessId, business.id));
     for (const member of team.filter((m) => m.active)) {
       const t = EmailTemplates.newBookingPro({
         proName: member.firstName,

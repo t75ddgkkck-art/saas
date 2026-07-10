@@ -16,10 +16,13 @@
 @theme {
   /* --font-inter est injecté par next/font/google dans layout.tsx.
      Fallback système en cas de charge lente ou d'échec d'auto-hébergement. */
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans:
+    var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
 }
 
-html, body {
+html,
+body {
   font-family: var(--font-sans);
 }
 
@@ -100,23 +103,45 @@ body {
  * ---------------------------------------------------------------------------*/
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(-10px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-.animate-slide-up { animation: slideUp 0.3s ease-out; }
-.animate-slide-in { animation: slideIn 0.3s ease-out; }
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
 
 /* -----------------------------------------------------------------------------
  * Focus visible — WCAG 2.4.7
@@ -125,12 +150,12 @@ body {
  * ---------------------------------------------------------------------------*/
 
 :focus-visible {
-  outline: 2px solid #1d4ed8;      /* blue-700 : bon contraste light + dark */
+  outline: 2px solid #1d4ed8; /* blue-700 : bon contraste light + dark */
   outline-offset: 2px;
   border-radius: 4px;
 }
 .dark :focus-visible {
-  outline-color: #93c5fd;          /* blue-300 en dark */
+  outline-color: #93c5fd; /* blue-300 en dark */
 }
 
 /* Certains composants ont déjà leur propre focus-ring Tailwind :

@@ -187,19 +187,26 @@ export function SignaturePad({ onSave, onCancel, width = 600, height = 250 }: Si
         <Button variant="outline" size="sm" onClick={clear} disabled={!hasSignature}>
           <Trash2 className="mr-1 h-3 w-3" /> Effacer
         </Button>
-        <Button variant="outline" size="sm" onClick={() => {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          const link = document.createElement("a");
-          link.download = "signature.png";
-          link.href = canvas.toDataURL("image/png");
-          link.click();
-        }} disabled={!hasSignature}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const link = document.createElement("a");
+            link.download = "signature.png";
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+          }}
+          disabled={!hasSignature}
+        >
           <Download className="mr-1 h-3 w-3" /> Télécharger
         </Button>
         <div className="flex-1" />
         {onCancel && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>Annuler</Button>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            Annuler
+          </Button>
         )}
         <Button size="sm" onClick={handleSave} disabled={!hasSignature}>
           <Pen className="mr-1 h-3 w-3" /> Valider la signature

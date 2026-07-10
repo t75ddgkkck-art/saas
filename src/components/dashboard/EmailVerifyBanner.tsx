@@ -76,8 +76,8 @@ export function EmailVerifyBanner() {
         aria-hidden="true"
       />
       <p className="flex-1 text-sm text-amber-800 dark:text-amber-200">
-        Vérifiez votre adresse email <span className="font-medium">{user.email}</span> pour
-        activer toutes les fonctionnalités.
+        Vérifiez votre adresse email <span className="font-medium">{user.email}</span> pour activer
+        toutes les fonctionnalités.
       </p>
       <div className="flex gap-2">
         <button

@@ -78,11 +78,14 @@ export async function POST(req: NextRequest) {
     });
 
     // La rawKey n'est renvoyée QU'UNE FOIS ici (jamais stockée en clair).
-    return NextResponse.json({
-      key: rawKey,
-      keyPrefix,
-      warning: "Cette clé n'apparaîtra plus jamais. Copiez-la maintenant dans un endroit sûr.",
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        key: rawKey,
+        keyPrefix,
+        warning: "Cette clé n'apparaîtra plus jamais. Copiez-la maintenant dans un endroit sûr.",
+      },
+      { status: 201 }
+    );
   } catch (err) {
     return handleApiError(err, { route: "POST /api/account/api-keys" });
   }

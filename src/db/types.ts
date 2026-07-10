@@ -71,6 +71,9 @@ export type AppointmentInsert = typeof appointments.$inferInsert;
 export type ServiceInsert = typeof services.$inferInsert;
 
 // Alias sémantiques pour l'UI côté client (dérivés simples, sans PHI)
-export type PublicUser = Pick<User, "id" | "email" | "firstName" | "lastName" | "role" | "subscription">;
+export type PublicUser = Pick<
+  User,
+  "id" | "email" | "firstName" | "lastName" | "role" | "subscription"
+>;
 
 export type SubscriptionPlan = User["subscription"];

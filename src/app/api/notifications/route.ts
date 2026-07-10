@@ -81,10 +81,7 @@ export async function PATCH(request: NextRequest) {
     const data = await validateBody(request, PatchSchema);
 
     if (data.markAllRead) {
-      await db
-        .update(notifications)
-        .set({ isRead: true })
-        .where(eq(notifications.userId, user.id));
+      await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, user.id));
       return NextResponse.json({ success: true });
     }
 

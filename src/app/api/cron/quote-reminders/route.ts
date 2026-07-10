@@ -79,20 +79,13 @@ async function handler(request: NextRequest) {
         }
 
         // SMS uniquement pour les businesses avec option Premium activée
-        if (
-          client.phone &&
-          ownerSubscription === "premium" &&
-          business.reminderSmsEnabled
-        ) {
+        if (client.phone && ownerSubscription === "premium" && business.reminderSmsEnabled) {
           const r = await sendSMS({ to: client.phone, body: message });
           if (r.success) smsSent += 1;
         }
 
         // Marque le rappel envoyé pour ne pas répéter tous les jours
-        await db
-          .update(quotes)
-          .set({ reminderSentAt: new Date() })
-          .where(eq(quotes.id, quote.id));
+        await db.update(quotes).set({ reminderSentAt: new Date() }).where(eq(quotes.id, quote.id));
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         errors.push({ quoteId: quote.id, reason });

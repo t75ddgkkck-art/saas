@@ -27,13 +27,21 @@ export async function GET(request: NextRequest) {
     const items = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quoteId));
 
     // Fetch business
-    const bizResult = await db.select().from(businesses).where(eq(businesses.id, quoteData.businessId)).limit(1);
+    const bizResult = await db
+      .select()
+      .from(businesses)
+      .where(eq(businesses.id, quoteData.businessId))
+      .limit(1);
     const biz = bizResult[0];
 
     // Fetch client
     let clientName = "Client";
     if (quoteData.clientId) {
-      const clientResult = await db.select().from(clients).where(eq(clients.id, quoteData.clientId)).limit(1);
+      const clientResult = await db
+        .select()
+        .from(clients)
+        .where(eq(clients.id, quoteData.clientId))
+        .limit(1);
       if (clientResult.length > 0) {
         clientName = `${clientResult[0].firstName} ${clientResult[0].lastName}`;
       }
@@ -108,13 +116,17 @@ export async function GET(request: NextRequest) {
         </tr>
       </thead>
       <tbody>
-        ${items.map((item) => `
+        ${items
+          .map(
+            (item) => `
         <tr>
           <td>${item.description}</td>
           <td class="text-right">${item.quantity}</td>
           <td class="text-right">${parseFloat(item.unitPrice).toFixed(2)} €</td>
           <td class="text-right">${parseFloat(item.total).toFixed(2)} €</td>
-        </tr>`).join("")}
+        </tr>`
+          )
+          .join("")}
       </tbody>
     </table>
 
@@ -131,18 +143,26 @@ export async function GET(request: NextRequest) {
         <span>Total TTC</span>
         <span>${parseFloat(quoteData.total || "0").toFixed(2)} €</span>
       </div>
-      ${quoteData.depositAmount ? `
+      ${
+        quoteData.depositAmount
+          ? `
       <div class="totals-row" style="color: #059669;">
         <span>Acompte demandé</span>
         <span>${parseFloat(quoteData.depositAmount).toFixed(2)} €</span>
-      </div>` : ""}
+      </div>`
+          : ""
+      }
     </div>
 
-    ${quoteData.termsAndConditions ? `
+    ${
+      quoteData.termsAndConditions
+        ? `
     <div class="section" style="margin-top: 32px;">
       <div class="section-title">Conditions</div>
       <div class="address">${quoteData.termsAndConditions}</div>
-    </div>` : ""}
+    </div>`
+        : ""
+    }
 
     <div class="signature">
       <div class="sig-block">

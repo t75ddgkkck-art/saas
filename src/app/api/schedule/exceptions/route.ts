@@ -64,10 +64,7 @@ export async function POST(request: NextRequest) {
       .select({ id: scheduleExceptions.id })
       .from(scheduleExceptions)
       .where(
-        and(
-          eq(scheduleExceptions.businessId, business.id),
-          eq(scheduleExceptions.date, data.date)
-        )
+        and(eq(scheduleExceptions.businessId, business.id), eq(scheduleExceptions.date, data.date))
       )
       .limit(1);
 
@@ -111,10 +108,7 @@ export async function DELETE(request: NextRequest) {
     await db
       .delete(scheduleExceptions)
       .where(
-        and(
-          eq(scheduleExceptions.id, exceptionId),
-          eq(scheduleExceptions.businessId, business.id)
-        )
+        and(eq(scheduleExceptions.id, exceptionId), eq(scheduleExceptions.businessId, business.id))
       );
 
     return NextResponse.json({ success: true });

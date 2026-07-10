@@ -2,16 +2,16 @@
 
 ## 1. Vue d'ensemble
 
-| Fonction | Route API | Page UI | État |
-|---|---|---|---|
-| Login | `POST /api/auth/login` | `/login` | ✅ (avec captcha + resetOk banner) |
-| Register | `POST /api/auth/register` | `/register` | ✅ (avec captcha + envoi verify email) |
-| Mot de passe oublié | `POST /api/auth/forgot-password` | `/forgot-password` | ✅ |
-| Reset password | `POST /api/auth/reset-password` | `/reset-password?token=` | ✅ |
-| Verify email (envoi) | `POST /api/auth/verify-email/send` | (bouton settings + bannière) | ✅ |
-| Verify email (confirm) | `POST /api/auth/verify-email/confirm` | `/verify-email?token=` | ✅ |
-| Changer mdp | `PUT /api/account/password` | `/dashboard/settings?tab=securite` | ✅ |
-| Logout | `DELETE /api/auth/session` | (bouton sidebar) | ✅ (existant) |
+| Fonction               | Route API                             | Page UI                            | État                                   |
+| ---------------------- | ------------------------------------- | ---------------------------------- | -------------------------------------- |
+| Login                  | `POST /api/auth/login`                | `/login`                           | ✅ (avec captcha + resetOk banner)     |
+| Register               | `POST /api/auth/register`             | `/register`                        | ✅ (avec captcha + envoi verify email) |
+| Mot de passe oublié    | `POST /api/auth/forgot-password`      | `/forgot-password`                 | ✅                                     |
+| Reset password         | `POST /api/auth/reset-password`       | `/reset-password?token=`           | ✅                                     |
+| Verify email (envoi)   | `POST /api/auth/verify-email/send`    | (bouton settings + bannière)       | ✅                                     |
+| Verify email (confirm) | `POST /api/auth/verify-email/confirm` | `/verify-email?token=`             | ✅                                     |
+| Changer mdp            | `PUT /api/account/password`           | `/dashboard/settings?tab=securite` | ✅                                     |
+| Logout                 | `DELETE /api/auth/session`            | (bouton sidebar)                   | ✅ (existant)                          |
 
 ## 2. Architecture tokens
 
@@ -58,6 +58,7 @@
 ```
 
 Rate limits :
+
 - Forgot : 3/h/IP + max 3 tokens actifs/user
 - Reset : 10/h/IP (protège contre brute-force token, mais l'entropie 256 bits rend inutile)
 

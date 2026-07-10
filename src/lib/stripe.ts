@@ -103,7 +103,10 @@ export async function createSubscriptionSession(params: {
     customerId = customer.id;
 
     if (userData) {
-      await db.update(users).set({ stripeCustomerId: customerId }).where(eq(users.id, params.userId));
+      await db
+        .update(users)
+        .set({ stripeCustomerId: customerId })
+        .where(eq(users.id, params.userId));
     }
   }
 
@@ -157,10 +160,7 @@ export async function createSubscriptionSession(params: {
  * Ouvre le Customer Portal Stripe pour un user (facture, CB, historique).
  * → Zéro UI custom à maintenir, Stripe gère tout.
  */
-export async function createPortalSession(params: {
-  customerId: string;
-  returnUrl: string;
-}) {
+export async function createPortalSession(params: { customerId: string; returnUrl: string }) {
   const stripe = getStripe();
   return stripe.billingPortal.sessions.create({
     customer: params.customerId,

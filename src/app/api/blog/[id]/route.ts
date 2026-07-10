@@ -28,10 +28,7 @@ async function ownedPost(id: string) {
   return { post, business };
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     await ownedPost(id); // ⚠️  vérif d'appartenance (fix IDOR)

@@ -1,6 +1,5 @@
 import { db } from "@/db";
 import {
-
   businesses,
   workingHours,
   reviews,
@@ -129,7 +128,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "website",
       url: canonical,
       siteName: "Vitrix",
-      locale: business.language === "en" ? "en_US" : business.language === "es" ? "es_ES" : business.language === "de" ? "de_DE" : "fr_FR",
+      locale:
+        business.language === "en"
+          ? "en_US"
+          : business.language === "es"
+            ? "es_ES"
+            : business.language === "de"
+              ? "de_DE"
+              : "fr_FR",
       images: [{ url: ogImageUrl, width: 1200, height: 630, alt: business.name }],
     },
     twitter: {
@@ -166,18 +172,56 @@ export default async function PublicBusinessPage({ params }: Props) {
 
   // Récupérer le plan du propriétaire (pour masquer devis/IA sur plan gratuit)
   const { users } = await import("@/db/schema");
-  const ownerResult = await db.select({ subscription: users.subscription }).from(users).where(eq(users.id, business.ownerId)).limit(1);
+  const ownerResult = await db
+    .select({ subscription: users.subscription })
+    .from(users)
+    .where(eq(users.id, business.ownerId))
+    .limit(1);
   const ownerPlan = ownerResult[0]?.subscription || "free";
 
-  const [hours, reviewList, faqList, gallery, socials, availableSlots, servicesList] = await Promise.all([
-    db.select().from(workingHours).where(eq(workingHours.businessId, business.id)).orderBy(asc(workingHours.dayOfWeek)),
-    db.select().from(reviews).where(and(eq(reviews.businessId, business.id), eq(reviews.isPublished, true))).orderBy(desc(reviews.createdAt)).limit(10),
-    db.select().from(faqs).where(and(eq(faqs.businessId, business.id), eq(faqs.isPublished, true))).orderBy(asc(faqs.sortOrder)),
-    db.select().from(galleryItems).where(eq(galleryItems.businessId, business.id)).orderBy(asc(galleryItems.sortOrder)).limit(20),
-    db.select().from(socialLinks).where(eq(socialLinks.businessId, business.id)),
-    db.select().from(availabilitySlots).where(and(eq(availabilitySlots.businessId, business.id), eq(availabilitySlots.isBooked, false), eq(availabilitySlots.isBlocked, false))).orderBy(asc(availabilitySlots.date), asc(availabilitySlots.startTime)).limit(50),
-    db.select().from(services).where(eq(services.businessId, business.id)).orderBy(asc(services.sortOrder)),
-  ]);
+  const [hours, reviewList, faqList, gallery, socials, availableSlots, servicesList] =
+    await Promise.all([
+      db
+        .select()
+        .from(workingHours)
+        .where(eq(workingHours.businessId, business.id))
+        .orderBy(asc(workingHours.dayOfWeek)),
+      db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.businessId, business.id), eq(reviews.isPublished, true)))
+        .orderBy(desc(reviews.createdAt))
+        .limit(10),
+      db
+        .select()
+        .from(faqs)
+        .where(and(eq(faqs.businessId, business.id), eq(faqs.isPublished, true)))
+        .orderBy(asc(faqs.sortOrder)),
+      db
+        .select()
+        .from(galleryItems)
+        .where(eq(galleryItems.businessId, business.id))
+        .orderBy(asc(galleryItems.sortOrder))
+        .limit(20),
+      db.select().from(socialLinks).where(eq(socialLinks.businessId, business.id)),
+      db
+        .select()
+        .from(availabilitySlots)
+        .where(
+          and(
+            eq(availabilitySlots.businessId, business.id),
+            eq(availabilitySlots.isBooked, false),
+            eq(availabilitySlots.isBlocked, false)
+          )
+        )
+        .orderBy(asc(availabilitySlots.date), asc(availabilitySlots.startTime))
+        .limit(50),
+      db
+        .select()
+        .from(services)
+        .where(eq(services.businessId, business.id))
+        .orderBy(asc(services.sortOrder)),
+    ]);
 
   return (
     <PublicPage

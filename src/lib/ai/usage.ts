@@ -92,10 +92,7 @@ export interface QuotaCheck {
  * Vérifie si l'user peut faire un nouvel appel IA en fonction de son plan.
  * NE consomme pas de quota : uniquement une vérification.
  */
-export async function checkAiQuota(
-  userId: string,
-  plan: SubscriptionPlan
-): Promise<QuotaCheck> {
+export async function checkAiQuota(userId: string, plan: SubscriptionPlan): Promise<QuotaCheck> {
   const limit = AI_TOKEN_LIMITS[plan];
 
   if (limit === 0) {

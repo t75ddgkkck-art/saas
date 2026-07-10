@@ -7,43 +7,28 @@ import { serializeCsv, parseCsv } from "../../src/lib/csv";
 
 describe("serializeCsv (Lot 24)", () => {
   it("sérialise une ligne simple", () => {
-    const csv = serializeCsv(
-      [{ name: "Alice", age: 30 }],
-      ["name", "age"] as const
-    );
+    const csv = serializeCsv([{ name: "Alice", age: 30 }], ["name", "age"] as const);
     expect(csv).toContain("name,age");
     expect(csv).toContain("Alice,30");
   });
 
   it("quote les valeurs contenant une virgule", () => {
-    const csv = serializeCsv(
-      [{ name: "Dupont, Jean" }],
-      ["name"] as const
-    );
+    const csv = serializeCsv([{ name: "Dupont, Jean" }], ["name"] as const);
     expect(csv).toContain('"Dupont, Jean"');
   });
 
   it("escape les guillemets internes en doublant", () => {
-    const csv = serializeCsv(
-      [{ note: 'Il a dit "bonjour"' }],
-      ["note"] as const
-    );
+    const csv = serializeCsv([{ note: 'Il a dit "bonjour"' }], ["note"] as const);
     expect(csv).toContain('"Il a dit ""bonjour"""');
   });
 
   it("gère les newlines dans les cellules", () => {
-    const csv = serializeCsv(
-      [{ note: "ligne1\nligne2" }],
-      ["note"] as const
-    );
+    const csv = serializeCsv([{ note: "ligne1\nligne2" }], ["note"] as const);
     expect(csv).toContain('"ligne1\nligne2"');
   });
 
   it("retourne vide/null comme chaîne vide (pas 'null')", () => {
-    const csv = serializeCsv(
-      [{ v: null }, { v: undefined }],
-      ["v"] as const
-    );
+    const csv = serializeCsv([{ v: null }, { v: undefined }], ["v"] as const);
     // Header "v" + 2 lignes vides (juste des \r\n). On garde les fins vides
     // via un split explicite (pas de trim qui les mange).
     const lines = csv.split("\r\n");
@@ -111,8 +96,6 @@ describe("parseCsv (Lot 24)", () => {
     ];
     const csv = serializeCsv(original, ["name", "note"] as const);
     const parsed = parseCsv(csv);
-    expect(parsed).toEqual(
-      original.map((r) => ({ name: r.name, note: r.note }))
-    );
+    expect(parsed).toEqual(original.map((r) => ({ name: r.name, note: r.note })));
   });
 });

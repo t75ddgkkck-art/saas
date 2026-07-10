@@ -26,10 +26,7 @@ export async function POST(request: NextRequest) {
   if (!rl.ok) return rl.response;
 
   try {
-    const { quoteId, amount, type, businessId, clientId } = await validateBody(
-      request,
-      Schema
-    );
+    const { quoteId, amount, type, businessId, clientId } = await validateBody(request, Schema);
 
     if (isStripeConfigured()) {
       try {

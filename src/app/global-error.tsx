@@ -54,7 +54,14 @@ export default function GlobalError({
           L&apos;application n&apos;a pas pu démarrer. Notre équipe a été alertée automatiquement.
         </p>
         {error.digest && (
-          <p style={{ marginTop: "1rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#94a3b8" }}>
+          <p
+            style={{
+              marginTop: "1rem",
+              fontFamily: "monospace",
+              fontSize: "0.75rem",
+              color: "#94a3b8",
+            }}
+          >
             Code : {error.digest}
           </p>
         )}

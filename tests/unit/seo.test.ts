@@ -28,7 +28,8 @@ describe("SEO — clampText", () => {
 
 describe("SEO — clampTitle / clampDescription", () => {
   it("titre respecte la limite Google (60 chars)", () => {
-    const long = "Plomberie Dupont Père et Fils — Électricien Chauffagiste à Paris 15ème Arrondissement";
+    const long =
+      "Plomberie Dupont Père et Fils — Électricien Chauffagiste à Paris 15ème Arrondissement";
     expect(clampTitle(long).length).toBeLessThanOrEqual(60);
   });
 
@@ -41,7 +42,11 @@ describe("SEO — clampTitle / clampDescription", () => {
 
 describe("SEO — buildBusinessTitle", () => {
   it("format 'Nom — Catégorie à Ville'", () => {
-    const t = buildBusinessTitle({ name: "Ambiance Services", category: "plombier", city: "Rennes" });
+    const t = buildBusinessTitle({
+      name: "Ambiance Services",
+      category: "plombier",
+      city: "Rennes",
+    });
     expect(t).toContain("Ambiance Services");
     expect(t).toContain("Plombier");
     expect(t).toContain("Rennes");

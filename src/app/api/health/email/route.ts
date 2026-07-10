@@ -80,12 +80,10 @@ export async function GET() {
         ? []
         : [
             !hasApiKey && "Ajoutez RESEND_API_KEY dans les variables d'environnement Vercel.",
-            !spf.ok &&
-              `Ajoutez le record SPF sur ${domain} : "v=spf1 include:amazonses.com ~all"`,
+            !spf.ok && `Ajoutez le record SPF sur ${domain} : "v=spf1 include:amazonses.com ~all"`,
             !dmarc.ok &&
               `Ajoutez le record DMARC sur _dmarc.${domain} : "v=DMARC1; p=quarantine; rua=mailto:dmarc@${domain}"`,
-            !dkim.ok &&
-              `Ajoutez le record DKIM fourni par Resend sur resend._domainkey.${domain}`,
+            !dkim.ok && `Ajoutez le record DKIM fourni par Resend sur resend._domainkey.${domain}`,
           ].filter(Boolean),
     },
     { status }

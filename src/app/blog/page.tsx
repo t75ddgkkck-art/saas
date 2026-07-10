@@ -10,7 +10,8 @@ export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: "Blog - Conseils et astuces pour votre activité",
-  description: "Découvrez nos conseils pour améliorer votre visibilité et gérer votre activité d'artisan.",
+  description:
+    "Découvrez nos conseils pour améliorer votre visibilité et gérer votre activité d'artisan.",
 };
 
 async function fetchPublishedPosts() {
@@ -37,9 +38,7 @@ export default async function BlogPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="bg-white border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-12">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-            Blog
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Blog</h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
             Conseils et astuces pour les artisans
           </p>
@@ -74,17 +73,13 @@ export default async function BlogPage() {
                   <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">
                     {post.title}
                   </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    {business.name}
-                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{business.name}</p>
                   {post.excerpt && (
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-3 line-clamp-3">
                       {post.excerpt}
                     </p>
                   )}
-                  <div className="mt-4 text-sm text-blue-600 font-medium">
-                    Lire la suite →
-                  </div>
+                  <div className="mt-4 text-sm text-blue-600 font-medium">Lire la suite →</div>
                 </div>
               </Link>
             ))}

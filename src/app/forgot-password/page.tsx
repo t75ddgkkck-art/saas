@@ -68,8 +68,8 @@ export default function ForgotPasswordPage() {
               Vérifiez votre boîte mail
             </h2>
             <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
-              Si un compte est associé à cette adresse, vous allez recevoir un lien
-              de réinitialisation dans les prochaines minutes.
+              Si un compte est associé à cette adresse, vous allez recevoir un lien de
+              réinitialisation dans les prochaines minutes.
             </p>
             <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">
               Pensez à vérifier vos spams. Le lien expire dans 1 heure.
@@ -109,7 +109,10 @@ export default function ForgotPasswordPage() {
             </Button>
 
             <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-              <Link href="/login" className="font-medium text-slate-900 hover:underline dark:text-slate-100">
+              <Link
+                href="/login"
+                className="font-medium text-slate-900 hover:underline dark:text-slate-100"
+              >
                 Retour à la connexion
               </Link>
             </p>

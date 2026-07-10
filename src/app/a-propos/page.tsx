@@ -3,7 +3,8 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "À propos de Vitrix - La plateforme des artisans",
-  description: "Découvrez Vitrix, la plateforme qui aide les artisans à développer leur activité et trouver plus de clients.",
+  description:
+    "Découvrez Vitrix, la plateforme qui aide les artisans à développer leur activité et trouver plus de clients.",
 };
 
 export default function AboutPage() {
@@ -12,9 +13,7 @@ export default function AboutPage() {
       {/* Header */}
       <div className="bg-gradient-to-br from-blue-600 to-purple-700 text-white">
         <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold">
-            À propos de Vitrix
-          </h1>
+          <h1 className="text-4xl md:text-5xl font-bold">À propos de Vitrix</h1>
           <p className="mt-4 text-xl text-blue-100">
             La plateforme qui révolutionne le quotidien des artisans
           </p>
@@ -24,13 +23,11 @@ export default function AboutPage() {
       {/* Mission */}
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="prose prose-lg dark:prose-invert max-w-none">
-          <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-            Notre mission
-          </h2>
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Notre mission</h2>
           <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
-            Vitrix est né d&apos;un constat simple : les artisans passent trop de temps sur l&apos;administratif
-            et pas assez sur leur métier. Notre objectif est de leur redonner du temps en automatisant
-            tout ce qui peut l&apos;être.
+            Vitrix est né d&apos;un constat simple : les artisans passent trop de temps sur
+            l&apos;administratif et pas assez sur leur métier. Notre objectif est de leur redonner
+            du temps en automatisant tout ce qui peut l&apos;être.
           </p>
         </div>
 
@@ -58,11 +55,11 @@ export default function AboutPage() {
           <div className="grid md:grid-cols-2 gap-8">
             <div>
               <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-3">
-                 Simplicité
+                Simplicité
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Nous croyons que les outils professionnels doivent être simples à utiliser.
-                Pas de formation nécessaire, pas de complications.
+                Nous croyons que les outils professionnels doivent être simples à utiliser. Pas de
+                formation nécessaire, pas de complications.
               </p>
             </div>
             <div>
@@ -70,8 +67,8 @@ export default function AboutPage() {
                 ⚡ Efficacité
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Chaque fonctionnalité est pensée pour faire gagner du temps aux artisans.
-                Moins d&apos;administratif, plus de chantiers.
+                Chaque fonctionnalité est pensée pour faire gagner du temps aux artisans. Moins
+                d&apos;administratif, plus de chantiers.
               </p>
             </div>
             <div>
@@ -79,8 +76,8 @@ export default function AboutPage() {
                 🤝 Proximité
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Nous sommes à l&apos;écoute des artisans. Nos évolutions sont guidées
-                par leurs retours et leurs besoins réels.
+                Nous sommes à l&apos;écoute des artisans. Nos évolutions sont guidées par leurs
+                retours et leurs besoins réels.
               </p>
             </div>
             <div>
@@ -88,8 +85,8 @@ export default function AboutPage() {
                 🚀 Innovation
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Nous utilisons les dernières technologies (IA, automatisation) pour
-                offrir des outils modernes et performants.
+                Nous utilisons les dernières technologies (IA, automatisation) pour offrir des
+                outils modernes et performants.
               </p>
             </div>
           </div>

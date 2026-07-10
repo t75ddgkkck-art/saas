@@ -82,6 +82,7 @@ Nom de fichier : `clients-vitrix-YYYY-MM-DD.csv`
 ## 4. Fiche client détaillée
 
 `GET /api/clients/[id]` retourne :
+
 - Infos client (nom, email, phone, adresse, notes, source, createdAt)
 - Historique RDV (avec status incluant `no_show`)
 - Historique devis (avec status + total)
@@ -105,11 +106,13 @@ Page dashboard : `/dashboard/clients/[id]` — layout complet avec KPIs, warning
 **Cible** : `payments.status = 'pending'` depuis >= 7 jours ET `reminder_count < 3`.
 
 **Cadence** :
+
 - J+7 : 1ère relance aimable
 - J+15 (soit 8j après la 1ère) : 2ème rappel plus ferme
 - J+30 (soit 15j après la 2ème) : dernière avant mise en demeure
 
 **Anti-spam** :
+
 - `payments.last_reminder_at` + `payments.reminder_count` (colonnes ajoutées Lot 24)
 - Skip si pas d'email client (l'user peut relancer manuellement)
 - Cap dur 3 relances max
@@ -121,6 +124,7 @@ Page dashboard : `/dashboard/clients/[id]` — layout complet avec KPIs, warning
 ## 7. Colonnes DB ajoutées
 
 Dans `sql/00_apply_safe.sql` (bloc "4quinquies Lot 24") :
+
 - `ALTER TYPE appointment_status ADD VALUE IF NOT EXISTS 'no_show'`
 - `clients.no_shows_count integer NOT NULL DEFAULT 0`
 - `payments.last_reminder_at timestamp`

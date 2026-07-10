@@ -7,11 +7,52 @@ import { Badge } from "@/components/ui/Badge";
 import { Star, ThumbsUp, Send, Check, Sparkles, Copy } from "lucide-react";
 
 const mockReviews = [
-  { id: 1, name: "Marie L.", rating: 5, comment: "Excellent service ! Jean est intervenu rapidement pour une fuite d'eau. Travail impeccable et prix raisonnable.", source: "google", date: "2025-01-12", published: true },
-  { id: 2, name: "Pierre M.", rating: 5, comment: "Très professionnel et ponctuel. Il a réparé notre chauffe-eau en moins d'une heure.", source: "google", date: "2025-01-11", published: true },
-  { id: 3, name: "Sophie B.", rating: 4, comment: "Bon travail, un peu d'attente mais le résultat est parfait.", source: "platform", date: "2025-01-10", published: true },
-  { id: 4, name: "Lucas R.", rating: 5, comment: "Intervention d'urgence un dimanche soir. Service exceptionnel !", source: "google", date: "2025-01-09", published: true },
-  { id: 5, name: "Claire P.", rating: 3, comment: "Correct mais un peu cher.", source: "platform", date: "2025-01-08", published: false },
+  {
+    id: 1,
+    name: "Marie L.",
+    rating: 5,
+    comment:
+      "Excellent service ! Jean est intervenu rapidement pour une fuite d'eau. Travail impeccable et prix raisonnable.",
+    source: "google",
+    date: "2025-01-12",
+    published: true,
+  },
+  {
+    id: 2,
+    name: "Pierre M.",
+    rating: 5,
+    comment: "Très professionnel et ponctuel. Il a réparé notre chauffe-eau en moins d'une heure.",
+    source: "google",
+    date: "2025-01-11",
+    published: true,
+  },
+  {
+    id: 3,
+    name: "Sophie B.",
+    rating: 4,
+    comment: "Bon travail, un peu d'attente mais le résultat est parfait.",
+    source: "platform",
+    date: "2025-01-10",
+    published: true,
+  },
+  {
+    id: 4,
+    name: "Lucas R.",
+    rating: 5,
+    comment: "Intervention d'urgence un dimanche soir. Service exceptionnel !",
+    source: "google",
+    date: "2025-01-09",
+    published: true,
+  },
+  {
+    id: 5,
+    name: "Claire P.",
+    rating: 3,
+    comment: "Correct mais un peu cher.",
+    source: "platform",
+    date: "2025-01-08",
+    published: false,
+  },
 ];
 
 export default function ReviewsPage() {
@@ -29,7 +70,7 @@ export default function ReviewsPage() {
         body: JSON.stringify({ reviewId: String(reviewId) }),
       });
       const data = await res.json();
-      setAiReplies(prev => ({ ...prev, [reviewId]: data.reply || data.error }));
+      setAiReplies((prev) => ({ ...prev, [reviewId]: data.reply || data.error }));
     } finally {
       setLoadingReply(null);
     }
@@ -45,12 +86,15 @@ export default function ReviewsPage() {
   return (
     <div className="space-y-6">
       <div className="rounded-xl bg-blue-50 p-4 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-        ⭐ <strong>Bientôt disponible :</strong> importez automatiquement vos vrais avis Google Business sur votre vitrine. Fini les faux avis !
+        ⭐ <strong>Bientôt disponible :</strong> importez automatiquement vos vrais avis Google
+        Business sur votre vitrine. Fini les faux avis !
       </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Avis clients</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Gérez les avis de vos clients</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Gérez les avis de vos clients
+          </p>
         </div>
         <Button>
           <Send className="mr-2 h-4 w-4" />
@@ -64,22 +108,31 @@ export default function ReviewsPage() {
           <CardContent className="p-6 text-center">
             <div className="flex items-center justify-center gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className={`h-6 w-6 ${i < Math.round(avgRating) ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}`} />
+                <Star
+                  key={i}
+                  className={`h-6 w-6 ${i < Math.round(avgRating) ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}`}
+                />
               ))}
             </div>
-            <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">{avgRating.toFixed(1)}</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">
+              {avgRating.toFixed(1)}
+            </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Note moyenne</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{reviews.filter((r) => r.published).length}</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              {reviews.filter((r) => r.published).length}
+            </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Avis publiés</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{reviews.filter((r) => r.source === "google").length}</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              {reviews.filter((r) => r.source === "google").length}
+            </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Avis Google</p>
           </CardContent>
         </Card>
@@ -96,14 +149,19 @@ export default function ReviewsPage() {
                     {review.name[0]}
                   </div>
                   <div>
-                    <h3 className="font-medium text-slate-900 dark:text-slate-100">{review.name}</h3>
+                    <h3 className="font-medium text-slate-900 dark:text-slate-100">
+                      {review.name}
+                    </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{review.date}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex gap-0.5">
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`h-4 w-4 ${i < review.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}`} />
+                      <Star
+                        key={i}
+                        className={`h-4 w-4 ${i < review.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}`}
+                      />
                     ))}
                   </div>
                   <Badge variant={review.source === "google" ? "info" : "default"}>
@@ -112,23 +170,47 @@ export default function ReviewsPage() {
                   {!review.published && <Badge variant="warning">Non publié</Badge>}
                 </div>
               </div>
-              {review.comment && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{review.comment}</p>}
+              {review.comment && (
+                <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{review.comment}</p>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {review.published ? (
-                  <Badge variant="success"><Check className="mr-1 h-3 w-3" /> Publié</Badge>
+                  <Badge variant="success">
+                    <Check className="mr-1 h-3 w-3" /> Publié
+                  </Badge>
                 ) : (
-                  <Button variant="outline" size="sm"><ThumbsUp className="mr-1 h-3 w-3" /> Publier</Button>
+                  <Button variant="outline" size="sm">
+                    <ThumbsUp className="mr-1 h-3 w-3" /> Publier
+                  </Button>
                 )}
-                <Button variant="outline" size="sm" loading={loadingReply === review.id} onClick={() => generateReply(review.id)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={loadingReply === review.id}
+                  onClick={() => generateReply(review.id)}
+                >
                   <Sparkles className="mr-1 h-3 w-3" /> Répondre avec l'IA
                 </Button>
               </div>
               {aiReplies[review.id] && (
                 <div className="mt-3 rounded-xl bg-purple-50 p-4 dark:bg-purple-900/10">
-                  <p className="text-xs font-medium uppercase tracking-wider text-purple-500 mb-1">✨ Réponse suggérée</p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300">{aiReplies[review.id]}</p>
-                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => copyReply(review.id)}>
-                    {copiedReply === review.id ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
+                  <p className="text-xs font-medium uppercase tracking-wider text-purple-500 mb-1">
+                    ✨ Réponse suggérée
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    {aiReplies[review.id]}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => copyReply(review.id)}
+                  >
+                    {copiedReply === review.id ? (
+                      <Check className="mr-1 h-3 w-3" />
+                    ) : (
+                      <Copy className="mr-1 h-3 w-3" />
+                    )}
                     {copiedReply === review.id ? "Copié !" : "Copier la réponse"}
                   </Button>
                 </div>

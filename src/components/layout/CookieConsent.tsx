@@ -48,9 +48,8 @@ export function CookieConsent() {
             id="cookie-consent-desc"
             className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400"
           >
-            Vitrix utilise uniquement des cookies strictement nécessaires (session
-            de connexion). Aucun cookie publicitaire ou de pistage n&apos;est déposé.
-            En savoir plus dans notre{" "}
+            Vitrix utilise uniquement des cookies strictement nécessaires (session de connexion).
+            Aucun cookie publicitaire ou de pistage n&apos;est déposé. En savoir plus dans notre{" "}
             <Link
               href="/confidentialite"
               className="underline decoration-slate-400 underline-offset-2 hover:text-slate-900 dark:hover:text-slate-100"

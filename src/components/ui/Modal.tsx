@@ -57,8 +57,7 @@ export function Modal({
   // Body scroll lock + compensation de scrollbar pour éviter le jump horizontal
   useEffect(() => {
     if (!isOpen) return;
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     const prevOverflow = document.body.style.overflow;
     const prevPaddingRight = document.body.style.paddingRight;
     document.body.style.overflow = "hidden";
@@ -178,10 +177,7 @@ export function Modal({
                 </h2>
               )}
               {description && (
-                <p
-                  id={descId}
-                  className="text-sm text-slate-500 dark:text-slate-400"
-                >
+                <p id={descId} className="text-sm text-slate-500 dark:text-slate-400">
                   {description}
                 </p>
               )}

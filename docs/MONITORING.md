@@ -1,6 +1,7 @@
 # Monitoring & Observabilité (Lot 13)
 
 Ce document couvre :
+
 - Sentry (optionnel)
 - Alerting webhook (Slack/Discord)
 - Healthcheck étendu
@@ -132,14 +133,17 @@ Une même alerte (même titre + route) est throttlée à 1/5min par process pour
 {
   "users": { "total": 1200, "newLast7d": 45, "newLast30d": 180, "verified": 950 },
   "subscriptions": {
-    "free": 800, "pro": 300, "premium": 100,
-    "trialing": 25, "pastDue": 3,
+    "free": 800,
+    "pro": 300,
+    "premium": 100,
+    "trialing": 25,
+    "pastDue": 3,
     "canceledLast30d": 12,
     "mrrEurCents": 1660000
   },
   "appointments": { "total": 5400, "last7d": 320, "last30d": 1500, "upcoming": 140 },
   "businesses": { "total": 450, "activeLast30d": 380 },
-  "ai": { "totalCallsLast30d": 12000, "totalCostUsd": 34.20 },
+  "ai": { "totalCallsLast30d": 12000, "totalCostUsd": 34.2 },
   "conversion": { "ratio": 0.14, "registered": 180, "paid": 25 }
 }
 ```
@@ -161,6 +165,7 @@ Fonctionnalités :
 ### Actions admin loggées
 
 Chaque action est écrite dans `admin_events` avec :
+
 - `actor_user_id` : admin qui a fait l'action
 - `target_user_id` : user impacté
 - `action` : `ban_user`, `unban_user`, `override_plan`, `refund`, ...

@@ -27,9 +27,7 @@ export default function NotFound() {
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Link href="/">
-          <Button leftIcon={<Home className="h-4 w-4" aria-hidden="true" />}>
-            Accueil
-          </Button>
+          <Button leftIcon={<Home className="h-4 w-4" aria-hidden="true" />}>Accueil</Button>
         </Link>
         <Link href="/annuaire">
           <Button variant="outline" leftIcon={<Search className="h-4 w-4" aria-hidden="true" />}>

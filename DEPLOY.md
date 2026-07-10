@@ -26,15 +26,15 @@
 
 5. **Environment Variables** (ajoutez toutes ces clés):
 
-| Variable | Valeur |
-|----------|--------|
-| `DATABASE_URL` | `postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres` |
-| `NEXT_PUBLIC_APP_URL` | `https://votre-app.onrender.com` (URL Render) |
-| `NEXTAUTH_SECRET` | `openssl rand -base64 32` (générer localement) |
-| `NEXTAUTH_URL` | `https://votre-app.onrender.com` |
-| `OPENAI_API_KEY` | `sk-proj-...` (optionnel) |
-| `STRIPE_SECRET_KEY` | `sk_live_...` (optionnel) |
-| `RESEND_API_KEY` | `re_...` (optionnel) |
+| Variable              | Valeur                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | `postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres` |
+| `NEXT_PUBLIC_APP_URL` | `https://votre-app.onrender.com` (URL Render)                                             |
+| `NEXTAUTH_SECRET`     | `openssl rand -base64 32` (générer localement)                                            |
+| `NEXTAUTH_URL`        | `https://votre-app.onrender.com`                                                          |
+| `OPENAI_API_KEY`      | `sk-proj-...` (optionnel)                                                                 |
+| `STRIPE_SECRET_KEY`   | `sk_live_...` (optionnel)                                                                 |
+| `RESEND_API_KEY`      | `re_...` (optionnel)                                                                      |
 
 6. Cliquez sur **Create Web Service**
 7. Attendez le déploiement (~3-5 min)
@@ -42,6 +42,7 @@
 ### 3. Variables minimales requises
 
 Pour un déploiement fonctionnel **minimum**:
+
 ```
 DATABASE_URL=postgresql://...
 NEXT_PUBLIC_APP_URL=https://...
@@ -64,20 +65,21 @@ Même procédure que ci-dessus.
    - **Add New > Project**
    - Importez votre repo GitHub
    - Vercel détecte automatiquement **Next.js**
-   
+
 4. **Environment Variables** (Vercel Dashboard > Settings > Environment):
 
-| Variable | Valeur |
-|----------|--------|
-| `DATABASE_URL` | `postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres` |
-| `NEXT_PUBLIC_APP_URL` | `https://votre-app.vercel.app` |
-| `NEXTAUTH_SECRET` | Généré avec `openssl rand -base64 32` |
+| Variable              | Valeur                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | `postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres` |
+| `NEXT_PUBLIC_APP_URL` | `https://votre-app.vercel.app`                                                            |
+| `NEXTAUTH_SECRET`     | Généré avec `openssl rand -base64 32`                                                     |
 
 5. Deploy!
 
 ### Configuration Vercel automatique
 
 Vercel détecte automatiquement:
+
 - **Framework**: Next.js 16
 - **Build Command**: `next build`
 - **Output Directory**: `.next`
@@ -131,15 +133,18 @@ psql "postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:
 ## Troubleshooting
 
 ### Erreur de connection DB
+
 - Vérifiez que le **Pooler** est activé sur Supabase (Settings > Database > Connection Pooling)
 - Utilisez le mode **Transaction** (port 6543), pas Session (port 5432)
 - Ajoutez votre IP dans les **Allowed IPs** sur Supabase
 
 ### Build échoue sur Render
+
 - Vérifiez que `DATABASE_URL` est correct
 - Augmentez la RAM si le build OOM (`Starter` au lieu de `Free`)
 
 ### Middleware bloque le dashboard
+
 - Vérifiez que les cookies sont bien définis
 - En dev local, utilisez `http://localhost:3000`
 - En production, assurez-vous que `NEXTAUTH_URL` correspond au domaine

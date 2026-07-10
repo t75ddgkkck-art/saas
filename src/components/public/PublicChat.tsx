@@ -3,12 +3,24 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send, Bot } from "lucide-react";
 
-interface Msg { role: "user" | "assistant"; content: string }
+interface Msg {
+  role: "user" | "assistant";
+  content: string;
+}
 
-export function PublicChat({ businessId, businessName }: { businessId: string; businessName: string }) {
+export function PublicChat({
+  businessId,
+  businessName,
+}: {
+  businessId: string;
+  businessName: string;
+}) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: `Bonjour ! 👋 Je suis l'assistant de ${businessName}. Posez-moi vos questions : tarifs, disponibilités, services...` },
+    {
+      role: "assistant",
+      content: `Bonjour ! 👋 Je suis l'assistant de ${businessName}. Posez-moi vos questions : tarifs, disponibilités, services...`,
+    },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,7 +34,7 @@ export function PublicChat({ businessId, businessName }: { businessId: string; b
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
-    setMessages(prev => [...prev, { role: "user", content: text }]);
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
     setInput("");
     setLoading(true);
     try {
@@ -32,9 +44,21 @@ export function PublicChat({ businessId, businessName }: { businessId: string; b
         body: JSON.stringify({ businessId, message: text, sessionId: sessionId.current }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply || "Désolé, je n'ai pas pu répondre. Contactez-nous directement !" }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.reply || "Désolé, je n'ai pas pu répondre. Contactez-nous directement !",
+        },
+      ]);
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Erreur de connexion. Réessayez ou contactez-nous par téléphone." }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Erreur de connexion. Réessayez ou contactez-nous par téléphone.",
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -83,12 +107,17 @@ export function PublicChat({ businessId, businessName }: { businessId: string; b
           {/* Messages */}
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-sm ${
-                  m.role === "user"
-                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                    : "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100"
-                }`}>
+              <div
+                key={i}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-sm ${
+                    m.role === "user"
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                      : "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  }`}
+                >
                   {m.content}
                 </div>
               </div>
@@ -96,22 +125,34 @@ export function PublicChat({ businessId, businessName }: { businessId: string; b
             {loading && (
               <div className="flex gap-1 rounded-2xl bg-slate-100 px-4 py-3 w-fit dark:bg-slate-800">
                 <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "120ms" }} />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: "240ms" }} />
+                <span
+                  className="h-2 w-2 animate-bounce rounded-full bg-slate-400"
+                  style={{ animationDelay: "120ms" }}
+                />
+                <span
+                  className="h-2 w-2 animate-bounce rounded-full bg-slate-400"
+                  style={{ animationDelay: "240ms" }}
+                />
               </div>
             )}
             <div ref={endRef} />
           </div>
 
           {/* Input */}
-          <form onSubmit={e => { e.preventDefault(); send(); }} className="flex gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              send();
+            }}
+            className="flex gap-2 border-t border-slate-200 p-3 dark:border-slate-800"
+          >
             <label htmlFor="public-chat-input" className="sr-only">
               Votre question
             </label>
             <input
               id="public-chat-input"
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Votre question..."
               className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />

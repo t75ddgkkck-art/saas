@@ -10,13 +10,7 @@ import { cn } from "@/lib/utils";
  * Le bouton "Actualiser" force un rechargement quand l'utilisateur a
  * sauvegardé un changement (l'iframe ne se re-render pas seule).
  */
-export function VitrinePreview({
-  slug,
-  className,
-}: {
-  slug: string;
-  className?: string;
-}) {
+export function VitrinePreview({ slug, className }: { slug: string; className?: string }) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [reloadKey, setReloadKey] = useState(0);
 

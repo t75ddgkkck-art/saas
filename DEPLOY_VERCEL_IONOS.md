@@ -21,31 +21,32 @@ Guide pas-à-pas pour brancher votre domaine IONOS sur un déploiement Vercel de
 
 Copiez toutes les variables suivantes en cochant **Production**, **Preview** et **Development** selon les cas.
 
-| Variable | Prod | Preview | Dev | Notes |
-|---|---|---|---|---|
-| `DATABASE_URL` | ✅ | ✅ | ✅ | Connection pooler Supabase (`?pgbouncer=true&connection_limit=1`) |
-| `NEXTAUTH_SECRET` | ✅ | ✅ | ✅ | `openssl rand -base64 32` — **≥ 32 caractères obligatoire** |
-| `NEXTAUTH_URL` | ✅ | ⛔ | ⛔ | `https://votre-domaine.fr` en prod |
-| `NEXT_PUBLIC_APP_URL` | ✅ | ✅ | ✅ | Même valeur que `NEXTAUTH_URL` en prod |
-| `INSEE_API_KEY` | ⭕ | ⭕ | ⭕ | Optionnel (fallback Luhn si absent) |
-| `STRIPE_SECRET_KEY` | ✅ | test | test | `sk_live_…` en prod, `sk_test_…` en preview |
-| `STRIPE_PUBLISHABLE_KEY` | ✅ | test | test | Idem |
-| `STRIPE_WEBHOOK_SECRET` | ✅ | test | ⛔ | Voir §3 |
-| `STRIPE_PRICE_ID_PRO` | ✅ | test | test | |
-| `STRIPE_PRICE_ID_PREMIUM` | ✅ | test | test | |
-| `OPENAI_API_KEY` | ⭕ | ⭕ | ⭕ | Le chat a un fallback sans IA |
-| `RESEND_API_KEY` | ⭕ | ⭕ | ⭕ | Nécessaire pour emails transac |
-| `RESEND_FROM_EMAIL` | ⭕ | ⭕ | ⭕ | `noreply@votre-domaine.fr` |
-| `TWILIO_ACCOUNT_SID` | ⭕ | ⛔ | ⛔ | SMS Premium uniquement |
-| `TWILIO_AUTH_TOKEN` | ⭕ | ⛔ | ⛔ | |
-| `TWILIO_PHONE_NUMBER` | ⭕ | ⛔ | ⛔ | |
-| `CRON_SECRET` | ✅ | ⛔ | ⛔ | Généré par Vercel automatiquement pour les crons. **Utilisez la même valeur** dans vos scripts d'appel manuel. |
-| `GOOGLE_SITE_VERIFICATION` | ⭕ | ⛔ | ⛔ | Pour Google Search Console |
-| `LOG_LEVEL` | ⭕ | ⭕ | ⭕ | `info` par défaut en prod, `debug` recommandé en dev |
+| Variable                   | Prod | Preview | Dev  | Notes                                                                                                          |
+| -------------------------- | ---- | ------- | ---- | -------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`             | ✅   | ✅      | ✅   | Connection pooler Supabase (`?pgbouncer=true&connection_limit=1`)                                              |
+| `NEXTAUTH_SECRET`          | ✅   | ✅      | ✅   | `openssl rand -base64 32` — **≥ 32 caractères obligatoire**                                                    |
+| `NEXTAUTH_URL`             | ✅   | ⛔      | ⛔   | `https://votre-domaine.fr` en prod                                                                             |
+| `NEXT_PUBLIC_APP_URL`      | ✅   | ✅      | ✅   | Même valeur que `NEXTAUTH_URL` en prod                                                                         |
+| `INSEE_API_KEY`            | ⭕   | ⭕      | ⭕   | Optionnel (fallback Luhn si absent)                                                                            |
+| `STRIPE_SECRET_KEY`        | ✅   | test    | test | `sk_live_…` en prod, `sk_test_…` en preview                                                                    |
+| `STRIPE_PUBLISHABLE_KEY`   | ✅   | test    | test | Idem                                                                                                           |
+| `STRIPE_WEBHOOK_SECRET`    | ✅   | test    | ⛔   | Voir §3                                                                                                        |
+| `STRIPE_PRICE_ID_PRO`      | ✅   | test    | test |                                                                                                                |
+| `STRIPE_PRICE_ID_PREMIUM`  | ✅   | test    | test |                                                                                                                |
+| `OPENAI_API_KEY`           | ⭕   | ⭕      | ⭕   | Le chat a un fallback sans IA                                                                                  |
+| `RESEND_API_KEY`           | ⭕   | ⭕      | ⭕   | Nécessaire pour emails transac                                                                                 |
+| `RESEND_FROM_EMAIL`        | ⭕   | ⭕      | ⭕   | `noreply@votre-domaine.fr`                                                                                     |
+| `TWILIO_ACCOUNT_SID`       | ⭕   | ⛔      | ⛔   | SMS Premium uniquement                                                                                         |
+| `TWILIO_AUTH_TOKEN`        | ⭕   | ⛔      | ⛔   |                                                                                                                |
+| `TWILIO_PHONE_NUMBER`      | ⭕   | ⛔      | ⛔   |                                                                                                                |
+| `CRON_SECRET`              | ✅   | ⛔      | ⛔   | Généré par Vercel automatiquement pour les crons. **Utilisez la même valeur** dans vos scripts d'appel manuel. |
+| `GOOGLE_SITE_VERIFICATION` | ⭕   | ⛔      | ⛔   | Pour Google Search Console                                                                                     |
+| `LOG_LEVEL`                | ⭕   | ⭕      | ⭕   | `info` par défaut en prod, `debug` recommandé en dev                                                           |
 
 ✅ = obligatoire · ⭕ = optionnel · ⛔ = ne pas définir
 
 **Générer un secret fort :**
+
 ```bash
 openssl rand -base64 48
 ```
@@ -76,6 +77,7 @@ Vous avez deux options :
 Créez / modifiez ces enregistrements :
 
 **Pour l'apex `vitrix.fr` :**
+
 ```
 Type : A
 Nom  : @   (ou vide)
@@ -84,6 +86,7 @@ TTL  : 3600
 ```
 
 **Pour `www.vitrix.fr` :**
+
 ```
 Type : CNAME
 Nom  : www
@@ -107,6 +110,7 @@ Puis gérez tous vos enregistrements dans Vercel. Plus flexible mais vous perdez
 ### 2.3 Enregistrements complémentaires
 
 **Emails IONOS (si vous utilisez la messagerie IONOS)** — **ne pas les supprimer** :
+
 ```
 Type : MX      Nom : @    Valeur : mx00.ionos.fr   Priorité : 10
 Type : MX      Nom : @    Valeur : mx01.ionos.fr   Priorité : 10
@@ -114,6 +118,7 @@ Type : TXT     Nom : @    Valeur : "v=spf1 include:_spf-a.ionos.com ~all"
 ```
 
 **Si vous utilisez Resend pour envoyer** (`RESEND_FROM_EMAIL=noreply@vitrix.fr`), suivez la procédure dans [Resend → Domains](https://resend.com/domains) qui vous demandera d'ajouter :
+
 ```
 Type : TXT      Nom : resend._domainkey    Valeur : (fournie par Resend)
 Type : TXT      Nom : @                    Valeur : "v=spf1 include:amazonses.com ~all"  (à combiner avec l'existant)
@@ -165,6 +170,7 @@ curl -I https://vitrix.fr/favicon.ico
 ```
 
 Lighthouse (dans Chrome DevTools) doit remonter :
+
 - ✅ PWA installable
 - ✅ Icônes correctes (192 + 512, maskable OK)
 - ✅ HTTPS + HSTS
@@ -176,15 +182,15 @@ Lighthouse (dans Chrome DevTools) doit remonter :
 
 Les crons sont déclarés dans `vercel.json` (déjà présent dans le repo) :
 
-| Path | Schedule (UTC) | Effet |
-|---|---|---|
-| `/api/cron/quote-reminders` | `0 9 * * *` | Relance quotidienne des devis > 7j |
-| `/api/cron/weekly-summary` | `0 18 * * 0` | Rapport hebdo dimanche 18h |
-| `/api/cron/reminder-sms` | `0 8 * * *` | Rappels SMS avant RDV |
+| Path                        | Schedule (UTC) | Effet                              |
+| --------------------------- | -------------- | ---------------------------------- |
+| `/api/cron/quote-reminders` | `0 9 * * *`    | Relance quotidienne des devis > 7j |
+| `/api/cron/weekly-summary`  | `0 18 * * 0`   | Rapport hebdo dimanche 18h         |
+| `/api/cron/reminder-sms`    | `0 8 * * *`    | Rappels SMS avant RDV              |
 
 Vercel ajoute automatiquement l'en-tête `Authorization: Bearer $CRON_SECRET` — les routes vérifient ce header. **Aucun setup manuel nécessaire** côté cron.
 
-⚠️  Les crons Vercel sont **désactivés en Preview**, ils ne tournent qu'en Production.
+⚠️ Les crons Vercel sont **désactivés en Preview**, ils ne tournent qu'en Production.
 
 ---
 
@@ -203,15 +209,15 @@ Le rollback est instantané et n'affecte pas la DB.
 
 Config recommandée pour démarrer (< 100 users) :
 
-| Service | Plan | Coût mensuel |
-|---|---|---|
-| Vercel | Hobby (personnel) | 0 € |
-| Vercel | Pro (commercial) | 20 $ |
-| Supabase | Free | 0 € |
-| Supabase | Pro (backups quotidiens + 8 Go) | 25 $ |
-| Resend | Free (100 mails/j) | 0 € |
-| Stripe | Frais par transaction | 1.4% + 0.25 € (Europe) |
-| OpenAI | Usage | ~0.15 $ / 1000 chats |
-| IONOS | .fr | ~10 €/an |
+| Service  | Plan                            | Coût mensuel           |
+| -------- | ------------------------------- | ---------------------- |
+| Vercel   | Hobby (personnel)               | 0 €                    |
+| Vercel   | Pro (commercial)                | 20 $                   |
+| Supabase | Free                            | 0 €                    |
+| Supabase | Pro (backups quotidiens + 8 Go) | 25 $                   |
+| Resend   | Free (100 mails/j)              | 0 €                    |
+| Stripe   | Frais par transaction           | 1.4% + 0.25 € (Europe) |
+| OpenAI   | Usage                           | ~0.15 $ / 1000 chats   |
+| IONOS    | .fr                             | ~10 €/an               |
 
 **Total démarrage** : ~10 €/an pour un usage perso, ~50 €/mois pour du commercial sérieux.

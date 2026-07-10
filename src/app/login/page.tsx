@@ -133,7 +133,10 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-slate-500 dark:text-slate-400">Pas encore de compte ? </span>
-            <Link href="/register" className="font-medium text-slate-900 hover:underline dark:text-slate-100">
+            <Link
+              href="/register"
+              className="font-medium text-slate-900 hover:underline dark:text-slate-100"
+            >
               S&apos;inscrire avec mon SIRET
             </Link>
           </div>

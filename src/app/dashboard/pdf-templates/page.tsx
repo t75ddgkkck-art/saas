@@ -31,9 +31,7 @@ export default function PdfTemplatesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          Templates PDF
-        </h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Templates PDF</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Choisissez le style de vos devis et factures
         </p>
@@ -44,26 +42,20 @@ export default function PdfTemplatesPage() {
           <Card
             key={template.id}
             className={`cursor-pointer transition-all ${
-              selectedTemplate === template.id
-                ? "ring-2 ring-blue-500"
-                : "hover:shadow-md"
+              selectedTemplate === template.id ? "ring-2 ring-blue-500" : "hover:shadow-md"
             }`}
             onClick={() => setSelectedTemplate(template.id)}
           >
             <CardContent className="p-6">
-              <div className={`h-32 ${template.color} rounded-lg mb-4 flex items-center justify-center`}>
+              <div
+                className={`h-32 ${template.color} rounded-lg mb-4 flex items-center justify-center`}
+              >
                 <span className="text-4xl">📄</span>
               </div>
-              <h3 className="font-semibold text-slate-900 dark:text-slate-100">
-                {template.name}
-              </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {template.description}
-              </p>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">{template.name}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{template.description}</p>
               {selectedTemplate === template.id && (
-                <div className="mt-3 text-xs font-medium text-blue-600">
-                  ✓ Sélectionné
-                </div>
+                <div className="mt-3 text-xs font-medium text-blue-600">✓ Sélectionné</div>
               )}
             </CardContent>
           </Card>

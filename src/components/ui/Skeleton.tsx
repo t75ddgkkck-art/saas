@@ -10,10 +10,7 @@ export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>
     <div
       role="status"
       aria-hidden="true"
-      className={cn(
-        "animate-pulse rounded-lg bg-slate-200/70 dark:bg-slate-800",
-        className
-      )}
+      className={cn("animate-pulse rounded-lg bg-slate-200/70 dark:bg-slate-800", className)}
       {...props}
     />
   );

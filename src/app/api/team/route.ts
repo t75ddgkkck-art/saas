@@ -6,7 +6,14 @@ import { eq, and } from "drizzle-orm";
 import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/validation";
 import { PLAN_PERMISSIONS, type SubscriptionPlan } from "@/lib/permissions";
-import { handleApiError, badRequest, conflict, forbidden, unauthorized, notFound } from "@/lib/api-error";
+import {
+  handleApiError,
+  badRequest,
+  conflict,
+  forbidden,
+  unauthorized,
+  notFound,
+} from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
@@ -68,9 +75,7 @@ export async function POST(request: NextRequest) {
     const [dup] = await db
       .select({ id: teamMembers.id })
       .from(teamMembers)
-      .where(
-        and(eq(teamMembers.businessId, business.id), eq(teamMembers.email, data.email))
-      )
+      .where(and(eq(teamMembers.businessId, business.id), eq(teamMembers.email, data.email)))
       .limit(1);
     if (dup) throw conflict("Ce membre est déjà dans votre équipe.");
 

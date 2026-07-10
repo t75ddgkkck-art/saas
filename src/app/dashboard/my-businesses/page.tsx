@@ -40,7 +40,14 @@ export default function MyBusinessesPage() {
   const [showModal, setShowModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
-    name: "", category: "", siret: "", address: "", city: "", postalCode: "", phone: "", description: ""
+    name: "",
+    category: "",
+    siret: "",
+    address: "",
+    city: "",
+    postalCode: "",
+    phone: "",
+    description: "",
   });
 
   useEffect(() => {
@@ -52,8 +59,11 @@ export default function MyBusinessesPage() {
       const res = await fetch("/api/my-businesses");
       const data = await res.json();
       setBusinesses(data.businesses || []);
-    } catch (e) { console.error(e); }
-    finally { setIsLoading(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -69,10 +79,22 @@ export default function MyBusinessesPage() {
       if (res.ok) {
         fetchBusinesses();
         setShowModal(false);
-        setFormData({ name: "", category: "", siret: "", address: "", city: "", postalCode: "", phone: "", description: "" });
+        setFormData({
+          name: "",
+          category: "",
+          siret: "",
+          address: "",
+          city: "",
+          postalCode: "",
+          phone: "",
+          description: "",
+        });
       }
-    } catch (e) { console.error(e); }
-    finally { setIsCreating(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const categoryInfo = (cat: string) => CATEGORIES.find((c) => c.id === cat);
@@ -81,8 +103,12 @@ export default function MyBusinessesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Mes établissements</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Gérez toutes vos pages professionnelles</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            Mes établissements
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Gérez toutes vos pages professionnelles
+          </p>
         </div>
         <Button onClick={() => setShowModal(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -91,13 +117,19 @@ export default function MyBusinessesPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>
+        <div className="flex justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
       ) : businesses.length === 0 ? (
         <Card>
           <CardContent className="py-20 text-center">
             <Building2 className="mx-auto mb-4 h-12 w-12 text-slate-300 dark:text-slate-700" />
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Aucun établissement</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Créez votre premier établissement pour commencer.</p>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Aucun établissement
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              Créez votre premier établissement pour commencer.
+            </p>
             <Button className="mt-4" onClick={() => setShowModal(true)}>
               <Plus className="mr-2 h-4 w-4" /> Créer mon établissement
             </Button>
@@ -115,8 +147,12 @@ export default function MyBusinessesPage() {
                       {cat?.icon || "🏪"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate">{biz.name}</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{cat?.name || biz.category}</p>
+                      <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {biz.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+                        {cat?.name || biz.category}
+                      </p>
                     </div>
                   </div>
 
@@ -162,21 +198,72 @@ export default function MyBusinessesPage() {
       )}
 
       {/* Create modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Nouvel établissement" description="Créez une nouvelle page professionnelle" size="lg">
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title="Nouvel établissement"
+        description="Créez une nouvelle page professionnelle"
+        size="lg"
+      >
         <div className="space-y-4">
-          <Input label="Nom de l'établissement" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Ex: Dupont Plomberie Paris 15" />
-          <Select label="Type d'activité" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="Sélectionnez..." options={CATEGORIES.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))} />
-          <Input label="SIRET" value={formData.siret} onChange={(e) => setFormData({ ...formData, siret: e.target.value })} placeholder="123 456 789 01234" />
-          <Input label="Adresse" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="12 Rue de la Paix" />
+          <Input
+            label="Nom de l'établissement"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Ex: Dupont Plomberie Paris 15"
+          />
+          <Select
+            label="Type d'activité"
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            placeholder="Sélectionnez..."
+            options={CATEGORIES.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))}
+          />
+          <Input
+            label="SIRET"
+            value={formData.siret}
+            onChange={(e) => setFormData({ ...formData, siret: e.target.value })}
+            placeholder="123 456 789 01234"
+          />
+          <Input
+            label="Adresse"
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            placeholder="12 Rue de la Paix"
+          />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Code postal" value={formData.postalCode} onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })} placeholder="75001" />
-            <Input label="Ville" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} placeholder="Paris" />
+            <Input
+              label="Code postal"
+              value={formData.postalCode}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+              placeholder="75001"
+            />
+            <Input
+              label="Ville"
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              placeholder="Paris"
+            />
           </div>
-          <Input label="Téléphone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+331 45 67 89 01" />
-          <Textarea label="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Décrivez cet établissement..." />
+          <Input
+            label="Téléphone"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            placeholder="+331 45 67 89 01"
+          />
+          <Textarea
+            label="Description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Décrivez cet établissement..."
+          />
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowModal(false)}>Annuler</Button>
-            <Button onClick={handleCreate} loading={isCreating}>Créer l&apos;établissement</Button>
+            <Button variant="outline" onClick={() => setShowModal(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleCreate} loading={isCreating}>
+              Créer l&apos;établissement
+            </Button>
           </div>
         </div>
       </Modal>

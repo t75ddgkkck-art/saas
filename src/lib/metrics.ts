@@ -87,21 +87,15 @@ export interface BusinessMetrics {
  */
 export async function getBusinessMetrics(): Promise<BusinessMetrics> {
   return cached("business-metrics", async () => {
-    const [
-      usersRow,
-      subsRow,
-      apptsRow,
-      bizRow,
-      aiRow,
-      canceledRow,
-    ] = await Promise.all([
+    const [usersRow, subsRow, apptsRow, bizRow, aiRow, canceledRow] = await Promise.all([
       safe(
-        () => db.execute<{
-          total: string;
-          new_7d: string;
-          new_30d: string;
-          verified: string;
-        }>(sql`
+        () =>
+          db.execute<{
+            total: string;
+            new_7d: string;
+            new_30d: string;
+            verified: string;
+          }>(sql`
           SELECT
             COUNT(*)::text AS total,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::text AS new_7d,
@@ -113,13 +107,14 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
         "users"
       ),
       safe(
-        () => db.execute<{
-          free: string;
-          pro: string;
-          premium: string;
-          trialing: string;
-          past_due: string;
-        }>(sql`
+        () =>
+          db.execute<{
+            free: string;
+            pro: string;
+            premium: string;
+            trialing: string;
+            past_due: string;
+          }>(sql`
           SELECT
             COUNT(*) FILTER (WHERE subscription = 'free')::text AS free,
             COUNT(*) FILTER (WHERE subscription = 'pro')::text AS pro,
@@ -129,19 +124,18 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
           FROM users
         `),
         {
-          rows: [
-            { free: "0", pro: "0", premium: "0", trialing: "0", past_due: "0" },
-          ],
+          rows: [{ free: "0", pro: "0", premium: "0", trialing: "0", past_due: "0" }],
         },
         "subscriptions"
       ),
       safe(
-        () => db.execute<{
-          total: string;
-          last_7d: string;
-          last_30d: string;
-          upcoming: string;
-        }>(sql`
+        () =>
+          db.execute<{
+            total: string;
+            last_7d: string;
+            last_30d: string;
+            upcoming: string;
+          }>(sql`
           SELECT
             COUNT(*)::text AS total,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::text AS last_7d,
@@ -155,7 +149,8 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
         "appointments"
       ),
       safe(
-        () => db.execute<{ total: string; active_30d: string }>(sql`
+        () =>
+          db.execute<{ total: string; active_30d: string }>(sql`
           SELECT
             COUNT(*)::text AS total,
             COUNT(DISTINCT b.id) FILTER (WHERE a.created_at >= NOW() - INTERVAL '30 days')::text AS active_30d
@@ -166,7 +161,8 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
         "businesses"
       ),
       safe(
-        () => db.execute<{ calls: string; cost_usd: string }>(sql`
+        () =>
+          db.execute<{ calls: string; cost_usd: string }>(sql`
           SELECT
             COUNT(*)::text AS calls,
             COALESCE(SUM(estimated_cost_usd), 0)::text AS cost_usd
@@ -177,7 +173,8 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
         "ai"
       ),
       safe(
-        () => db.execute<{ canceled: string }>(sql`
+        () =>
+          db.execute<{ canceled: string }>(sql`
           SELECT COUNT(*)::text AS canceled
           FROM users
           WHERE subscription_status = 'canceled'
@@ -201,8 +198,7 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
     // Prix en euros dans PLANS → on convertit en cents pour le stockage/agrégation
     const proCents = Math.round((PLANS.pro?.monthlyPrice ?? 0) * 100);
     const premiumCents = Math.round((PLANS.premium?.monthlyPrice ?? 0) * 100);
-    const mrrEurCents =
-      Number(s.pro) * proCents + Number(s.premium) * premiumCents;
+    const mrrEurCents = Number(s.pro) * proCents + Number(s.premium) * premiumCents;
 
     return {
       users: {
@@ -243,10 +239,15 @@ export async function getBusinessMetrics(): Promise<BusinessMetrics> {
  * Taux de conversion register → premier abonnement payant sur 30j.
  * Retourne un ratio [0..1].
  */
-export async function getConversionRate30d(): Promise<{ ratio: number; registered: number; paid: number }> {
+export async function getConversionRate30d(): Promise<{
+  ratio: number;
+  registered: number;
+  paid: number;
+}> {
   return cached("conversion-30d", async () => {
     const row = await safe(
-      () => db.execute<{ registered: string; paid: string }>(sql`
+      () =>
+        db.execute<{ registered: string; paid: string }>(sql`
         SELECT
           COUNT(*)::text AS registered,
           COUNT(*) FILTER (WHERE subscription IN ('pro','premium'))::text AS paid

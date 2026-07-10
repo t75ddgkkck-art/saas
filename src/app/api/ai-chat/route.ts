@@ -46,14 +46,20 @@ export async function POST(request: NextRequest) {
     const servicesText =
       bizServices.length > 0
         ? bizServices
-            .map((s) => `- ${s.name}: ${s.price || "Sur devis"} (${s.description || "pas de description"})`)
+            .map(
+              (s) =>
+                `- ${s.name}: ${s.price || "Sur devis"} (${s.description || "pas de description"})`
+            )
             .join("\n")
         : "Aucun service renseigné pour le moment.";
 
     const hoursText =
       bizHours.length > 0
         ? bizHours
-            .map((h) => `${DAYS[h.dayOfWeek]}: ${h.isClosed ? "Fermé" : `${h.startTime} - ${h.endTime}`}`)
+            .map(
+              (h) =>
+                `${DAYS[h.dayOfWeek]}: ${h.isClosed ? "Fermé" : `${h.startTime} - ${h.endTime}`}`
+            )
             .join("\n")
         : "Horaires non renseignés.";
 

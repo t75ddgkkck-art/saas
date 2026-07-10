@@ -117,8 +117,7 @@ export default async function StatusPage() {
           </div>
           {health?.timestamp && (
             <p className="mt-2 pl-6 text-xs text-slate-500 dark:text-slate-400">
-              Dernière vérification :{" "}
-              {new Date(health.timestamp).toLocaleString("fr-FR")}
+              Dernière vérification : {new Date(health.timestamp).toLocaleString("fr-FR")}
             </p>
           )}
         </div>
@@ -134,11 +133,7 @@ export default async function StatusPage() {
                 <span
                   aria-hidden="true"
                   className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                    c.ok
-                      ? "bg-emerald-500"
-                      : c.critical
-                        ? "bg-red-500"
-                        : "bg-amber-500"
+                    c.ok ? "bg-emerald-500" : c.critical ? "bg-red-500" : "bg-amber-500"
                   }`}
                 />
                 <div>
@@ -146,9 +141,7 @@ export default async function StatusPage() {
                     {LABELS[c.name] || c.name}
                   </p>
                   {c.detail && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {c.detail}
-                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{c.detail}</p>
                   )}
                 </div>
               </div>

@@ -13,8 +13,7 @@
 import { logger } from "@/lib/logger";
 
 export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-export const OPENAI_BASE_URL =
-  process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+export const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 export const OPENAI_TIMEOUT_MS = parseInt(process.env.OPENAI_TIMEOUT_MS || "30000", 10);
 
 export function isAiConfigured(): boolean {
@@ -137,7 +136,10 @@ export async function aiComplete(opts: AiCompletionOpts): Promise<AiCompletionRe
  */
 export async function aiCompleteStream(
   opts: AiCompletionOpts
-): Promise<{ ok: true; stream: ReadableStream<Uint8Array>; model: string } | { ok: false; error: string; code?: string }> {
+): Promise<
+  | { ok: true; stream: ReadableStream<Uint8Array>; model: string }
+  | { ok: false; error: string; code?: string }
+> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "OPENAI_API_KEY missing", code: "no_key" };

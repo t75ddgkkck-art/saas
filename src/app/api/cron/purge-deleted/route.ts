@@ -21,14 +21,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  users,
-  businesses,
-  clients,
-  appointments,
-  quotes,
-  blogPosts,
-} from "@/db/schema";
+import { users, businesses, clients, appointments, quotes, blogPosts } from "@/db/schema";
 import { and, isNotNull, lt } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 import { captureException } from "@/lib/monitoring";
@@ -102,9 +95,6 @@ export async function GET(request: NextRequest) {
       severity: "critical",
       extra: { retentionDays, purged },
     });
-    return NextResponse.json(
-      { error: "purge failed", partial: purged },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "purge failed", partial: purged }, { status: 500 });
   }
 }

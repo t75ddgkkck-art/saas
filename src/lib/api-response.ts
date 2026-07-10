@@ -16,36 +16,55 @@ export function successResponse<T>(data: T, message?: string): NextResponse<ApiR
 }
 
 export function errorResponse(error: string, status: number = 400): NextResponse<ApiResponse> {
-  return NextResponse.json({
-    success: false,
-    error,
-  }, { status });
+  return NextResponse.json(
+    {
+      success: false,
+      error,
+    },
+    { status }
+  );
 }
 
-export function unauthorizedResponse(message: string = "Non authentifié"): NextResponse<ApiResponse> {
-  return NextResponse.json({
-    success: false,
-    error: message,
-  }, { status: 401 });
+export function unauthorizedResponse(
+  message: string = "Non authentifié"
+): NextResponse<ApiResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+    },
+    { status: 401 }
+  );
 }
 
 export function forbiddenResponse(message: string = "Accès interdit"): NextResponse<ApiResponse> {
-  return NextResponse.json({
-    success: false,
-    error: message,
-  }, { status: 403 });
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+    },
+    { status: 403 }
+  );
 }
 
-export function notFoundResponse(message: string = "Ressource introuvable"): NextResponse<ApiResponse> {
-  return NextResponse.json({
-    success: false,
-    error: message,
-  }, { status: 404 });
+export function notFoundResponse(
+  message: string = "Ressource introuvable"
+): NextResponse<ApiResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+    },
+    { status: 404 }
+  );
 }
 
 export function serverErrorResponse(message: string = "Erreur serveur"): NextResponse<ApiResponse> {
-  return NextResponse.json({
-    success: false,
-    error: message,
-  }, { status: 500 });
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+    },
+    { status: 500 }
+  );
 }

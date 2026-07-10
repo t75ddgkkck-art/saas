@@ -14,10 +14,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireAdmin();
-    const [metrics, conversion] = await Promise.all([
-      getBusinessMetrics(),
-      getConversionRate30d(),
-    ]);
+    const [metrics, conversion] = await Promise.all([getBusinessMetrics(), getConversionRate30d()]);
     return NextResponse.json({ ...metrics, conversion });
   } catch (err) {
     return handleApiError(err, { route: "GET /api/admin/metrics" });

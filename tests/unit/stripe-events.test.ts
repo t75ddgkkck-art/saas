@@ -43,11 +43,8 @@ dbSelectWhere.mockReturnValue({ limit: dbLimit });
 
 process.env.NEXT_PUBLIC_APP_URL = "https://www.vitrix.fr";
 
-const {
-  handleCheckoutCompleted,
-  handleSubscriptionUpdated,
-  handleSubscriptionDeleted,
-} = await import("@/lib/stripe-events");
+const { handleCheckoutCompleted, handleSubscriptionUpdated, handleSubscriptionDeleted } =
+  await import("@/lib/stripe-events");
 
 describe("stripe-events — handleCheckoutCompleted", () => {
   beforeEach(() => {

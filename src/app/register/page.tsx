@@ -7,7 +7,15 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
-import { Store, CheckCircle2, AlertCircle, Loader2, ArrowLeft, ArrowRight, Shield } from "lucide-react";
+import {
+  Store,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  ArrowLeft,
+  ArrowRight,
+  Shield,
+} from "lucide-react";
 import { CATEGORIES } from "@/lib/utils";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 
@@ -228,7 +236,9 @@ export default function RegisterPage() {
                 {s < step ? <CheckCircle2 className="h-4 w-4" /> : s}
               </div>
               {s < 3 && (
-                <div className={`h-0.5 w-8 transition-colors ${s < step ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`} />
+                <div
+                  className={`h-0.5 w-8 transition-colors ${s < step ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                />
               )}
             </div>
           ))}
@@ -236,9 +246,15 @@ export default function RegisterPage() {
 
         {/* Step labels */}
         <div className="flex justify-center gap-8 text-xs text-slate-500 dark:text-slate-400">
-          <span className={step === 1 ? "font-semibold text-slate-900 dark:text-slate-100" : ""}>Compte</span>
-          <span className={step === 2 ? "font-semibold text-slate-900 dark:text-slate-100" : ""}>Entreprise</span>
-          <span className={step === 3 ? "font-semibold text-slate-900 dark:text-slate-100" : ""}>Coordonnées</span>
+          <span className={step === 1 ? "font-semibold text-slate-900 dark:text-slate-100" : ""}>
+            Compte
+          </span>
+          <span className={step === 2 ? "font-semibold text-slate-900 dark:text-slate-100" : ""}>
+            Entreprise
+          </span>
+          <span className={step === 3 ? "font-semibold text-slate-900 dark:text-slate-100" : ""}>
+            Coordonnées
+          </span>
         </div>
 
         {/* SIRET Badge */}
@@ -248,7 +264,10 @@ export default function RegisterPage() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200/60 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl border border-slate-200/60 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        >
           {error && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -260,13 +279,51 @@ export default function RegisterPage() {
           {step === 1 && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Prénom" placeholder="Jean" value={formData.firstName} onChange={(e) => updateField("firstName", e.target.value)} required />
-                <Input label="Nom" placeholder="Dupont" value={formData.lastName} onChange={(e) => updateField("lastName", e.target.value)} required />
+                <Input
+                  label="Prénom"
+                  placeholder="Jean"
+                  value={formData.firstName}
+                  onChange={(e) => updateField("firstName", e.target.value)}
+                  required
+                />
+                <Input
+                  label="Nom"
+                  placeholder="Dupont"
+                  value={formData.lastName}
+                  onChange={(e) => updateField("lastName", e.target.value)}
+                  required
+                />
               </div>
-              <Input label="Email professionnel" type="email" placeholder="contact@entreprise.fr" value={formData.email} onChange={(e) => updateField("email", e.target.value)} required />
-              <Input label="Mot de passe" type="password" placeholder="8 caractères minimum" value={formData.password} onChange={(e) => updateField("password", e.target.value)} required />
-              <Input label="Confirmer le mot de passe" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)} required />
-              <Button type="button" className="w-full" onClick={handleNext} rightIcon={<ArrowRight className="h-4 w-4" />}>
+              <Input
+                label="Email professionnel"
+                type="email"
+                placeholder="contact@entreprise.fr"
+                value={formData.email}
+                onChange={(e) => updateField("email", e.target.value)}
+                required
+              />
+              <Input
+                label="Mot de passe"
+                type="password"
+                placeholder="8 caractères minimum"
+                value={formData.password}
+                onChange={(e) => updateField("password", e.target.value)}
+                required
+              />
+              <Input
+                label="Confirmer le mot de passe"
+                type="password"
+                placeholder="••••••••"
+                value={formData.confirmPassword}
+                onChange={(e) => updateField("confirmPassword", e.target.value)}
+                required
+              />
+              <Button
+                type="button"
+                className="w-full"
+                onClick={handleNext}
+                rightIcon={<ArrowRight className="h-4 w-4" />}
+              >
                 Continuer
               </Button>
             </div>
@@ -308,27 +365,64 @@ export default function RegisterPage() {
                     Vérifier le SIRET
                   </Button>
                   {siretStatus === "valid" && (
-                    <Badge variant="success" className="self-center">SIRET vérifié ✓</Badge>
+                    <Badge variant="success" className="self-center">
+                      SIRET vérifié ✓
+                    </Badge>
                   )}
                 </div>
               </div>
 
               {siretInfo && (
                 <div className="rounded-xl bg-emerald-50 p-4 text-sm dark:bg-emerald-900/20">
-                  {siretInfo.name && <p className="font-medium text-emerald-800 dark:text-emerald-300">{siretInfo.name}</p>}
-                  {siretInfo.address && <p className="text-emerald-600 dark:text-emerald-400">{siretInfo.address}</p>}
+                  {siretInfo.name && (
+                    <p className="font-medium text-emerald-800 dark:text-emerald-300">
+                      {siretInfo.name}
+                    </p>
+                  )}
+                  {siretInfo.address && (
+                    <p className="text-emerald-600 dark:text-emerald-400">{siretInfo.address}</p>
+                  )}
                 </div>
               )}
 
-              <Input label="Nom de l'entreprise" placeholder="Ex: Dupont Plomberie" value={formData.businessName} onChange={(e) => updateField("businessName", e.target.value)} required />
-              <Select label="Type d'activité" placeholder="Sélectionnez votre activité" value={formData.category} onChange={(e) => updateField("category", e.target.value)} options={CATEGORIES.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))} required />
-              <Textarea label="Description (optionnel)" placeholder="Décrivez votre activité en quelques lignes..." value={formData.description} onChange={(e) => updateField("description", e.target.value)} />
+              <Input
+                label="Nom de l'entreprise"
+                placeholder="Ex: Dupont Plomberie"
+                value={formData.businessName}
+                onChange={(e) => updateField("businessName", e.target.value)}
+                required
+              />
+              <Select
+                label="Type d'activité"
+                placeholder="Sélectionnez votre activité"
+                value={formData.category}
+                onChange={(e) => updateField("category", e.target.value)}
+                options={CATEGORIES.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))}
+                required
+              />
+              <Textarea
+                label="Description (optionnel)"
+                placeholder="Décrivez votre activité en quelques lignes..."
+                value={formData.description}
+                onChange={(e) => updateField("description", e.target.value)}
+              />
 
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)} leftIcon={<ArrowLeft className="h-4 w-4" />}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setStep(1)}
+                  leftIcon={<ArrowLeft className="h-4 w-4" />}
+                >
                   Retour
                 </Button>
-                <Button type="button" className="flex-1" onClick={handleNext} rightIcon={<ArrowRight className="h-4 w-4" />}>
+                <Button
+                  type="button"
+                  className="flex-1"
+                  onClick={handleNext}
+                  rightIcon={<ArrowRight className="h-4 w-4" />}
+                >
                   Continuer
                 </Button>
               </div>
@@ -338,19 +432,49 @@ export default function RegisterPage() {
           {/* Step 3: Contact */}
           {step === 3 && (
             <div className="space-y-4">
-              <Input label="Téléphone" placeholder="+336 12 34 56 78" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} />
-              <Input label="Adresse" placeholder="12 Rue de la Paix" value={formData.address} onChange={(e) => updateField("address", e.target.value)} />
+              <Input
+                label="Téléphone"
+                placeholder="+336 12 34 56 78"
+                value={formData.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
+              />
+              <Input
+                label="Adresse"
+                placeholder="12 Rue de la Paix"
+                value={formData.address}
+                onChange={(e) => updateField("address", e.target.value)}
+              />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Code postal" placeholder="75001" value={formData.postalCode} onChange={(e) => updateField("postalCode", e.target.value)} />
-                <Input label="Ville" placeholder="Paris" value={formData.city} onChange={(e) => updateField("city", e.target.value)} required />
+                <Input
+                  label="Code postal"
+                  placeholder="75001"
+                  value={formData.postalCode}
+                  onChange={(e) => updateField("postalCode", e.target.value)}
+                />
+                <Input
+                  label="Ville"
+                  placeholder="Paris"
+                  value={formData.city}
+                  onChange={(e) => updateField("city", e.target.value)}
+                  required
+                />
               </div>
 
               {/* Résumé */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800">
-                <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Résumé</h4>
+                <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Résumé
+                </h4>
                 <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                  <p><strong>{formData.firstName} {formData.lastName}</strong> — {formData.email}</p>
-                  <p><strong>{formData.businessName}</strong> — SIRET : {formData.siret}</p>
+                  <p>
+                    <strong>
+                      {formData.firstName} {formData.lastName}
+                    </strong>{" "}
+                    — {formData.email}
+                  </p>
+                  <p>
+                    <strong>{formData.businessName}</strong> — SIRET : {formData.siret}
+                  </p>
                   <p>{formData.city}</p>
                 </div>
               </div>
@@ -359,7 +483,13 @@ export default function RegisterPage() {
               <CaptchaWidget onToken={setCaptchaToken} />
 
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(2)} leftIcon={<ArrowLeft className="h-4 w-4" />}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setStep(2)}
+                  leftIcon={<ArrowLeft className="h-4 w-4" />}
+                >
                   Retour
                 </Button>
                 <Button type="submit" className="flex-1" loading={isLoading}>
@@ -371,7 +501,10 @@ export default function RegisterPage() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-slate-500 dark:text-slate-400">Déjà inscrit ? </span>
-            <Link href="/login" className="font-medium text-slate-900 hover:underline dark:text-slate-100">
+            <Link
+              href="/login"
+              className="font-medium text-slate-900 hover:underline dark:text-slate-100"
+            >
               Se connecter
             </Link>
           </div>

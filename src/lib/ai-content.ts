@@ -1,9 +1,6 @@
 import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
 import { aiComplete, isAiConfigured } from "@/lib/ai/client";
-import {
-  socialPostSystemPrompt,
-  monthlyReportSystemPrompt,
-} from "@/lib/ai/prompts";
+import { socialPostSystemPrompt, monthlyReportSystemPrompt } from "@/lib/ai/prompts";
 import { checkAiQuota, recordAiUsage } from "@/lib/ai/usage";
 import type { SubscriptionPlan } from "@/lib/permissions";
 

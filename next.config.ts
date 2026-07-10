@@ -75,15 +75,11 @@ const nextConfig: NextConfig = {
       // Cache long pour les images/icons (contenu déjà versionné dans le nom)
       {
         source: "/icons/(.*)",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=604800, immutable" },
-        ],
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, immutable" }],
       },
       {
         source: "/(favicon.ico|favicon.svg|apple-icon.png|og-image.png|og-image.svg)",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=86400, must-revalidate" },
-        ],
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, must-revalidate" }],
       },
     ];
   },

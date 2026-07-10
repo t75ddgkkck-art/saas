@@ -64,10 +64,7 @@ export function Lightbox({ items, startIndex, onClose }: Props) {
     () => setIndex((i) => (i - 1 + items.length) % items.length),
     [items.length]
   );
-  const goNext = useCallback(
-    () => setIndex((i) => (i + 1) % items.length),
-    [items.length]
-  );
+  const goNext = useCallback(() => setIndex((i) => (i + 1) % items.length), [items.length]);
 
   // Clavier + scroll lock + focus restore
   useEffect(() => {

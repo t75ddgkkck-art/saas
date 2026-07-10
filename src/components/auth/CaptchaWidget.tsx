@@ -49,9 +49,7 @@ function loadScriptOnce(): Promise<void> {
     if (typeof window === "undefined") return resolve();
     if (window.turnstile) return resolve();
     // Est-ce que le script est déjà dans le DOM (chargement précédent) ?
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${SCRIPT_SRC}"]`
-    );
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);
     if (existing) {
       existing.addEventListener("load", () => resolve(), { once: true });
       existing.addEventListener("error", () => reject(new Error("Turnstile script error")), {

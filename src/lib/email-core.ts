@@ -31,8 +31,7 @@ export interface EmailOptions {
 }
 
 export type EmailResult =
-  | { success: true; id?: string; simulated?: boolean }
-  | { success: false; error: string };
+  { success: true; id?: string; simulated?: boolean } | { success: false; error: string };
 
 /**
  * Envoi brut (bloquant). À utiliser DIRECTEMENT uniquement si on veut connaître

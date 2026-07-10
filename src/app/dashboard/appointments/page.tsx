@@ -25,16 +25,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/useConfirm";
 import { PageTitle } from "@/components/layout/PageTitle";
-import {
-  Calendar,
-  Clock,
-  Plus,
-  CheckCircle2,
-  XCircle,
-  User,
-  Trash2,
-  Phone,
-} from "lucide-react";
+import { Calendar, Clock, Plus, CheckCircle2, XCircle, User, Trash2, Phone } from "lucide-react";
 
 type Status = "pending" | "confirmed" | "cancelled" | "completed";
 type FilterStatus = Status | "all";
@@ -141,9 +132,8 @@ export default function AppointmentsPage() {
       upcoming: items.filter(
         (a) => a.date > today && a.status !== "cancelled" && a.status !== "completed"
       ).length,
-      week: items.filter(
-        (a) => a.date >= today && a.date <= in7Iso && a.status !== "cancelled"
-      ).length,
+      week: items.filter((a) => a.date >= today && a.date <= in7Iso && a.status !== "cancelled")
+        .length,
       completed30d: items.filter((a) => a.status === "completed" && a.date >= in30Iso).length,
     };
   }, [items]);
@@ -247,8 +237,16 @@ export default function AppointmentsPage() {
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Aujourd'hui" value={kpi.today.toString()} icon={<Calendar className="h-4 w-4" />} />
-        <Kpi label="Cette semaine" value={kpi.week.toString()} icon={<Calendar className="h-4 w-4" />} />
+        <Kpi
+          label="Aujourd'hui"
+          value={kpi.today.toString()}
+          icon={<Calendar className="h-4 w-4" />}
+        />
+        <Kpi
+          label="Cette semaine"
+          value={kpi.week.toString()}
+          icon={<Calendar className="h-4 w-4" />}
+        />
         <Kpi label="À venir" value={kpi.upcoming.toString()} icon={<Clock className="h-4 w-4" />} />
         <Kpi
           label="Terminés (30j)"
@@ -314,9 +312,7 @@ export default function AppointmentsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-medium text-slate-900 dark:text-slate-100">
-                        {a.title}
-                      </h3>
+                      <h3 className="font-medium text-slate-900 dark:text-slate-100">{a.title}</h3>
                       <Badge variant={statusConfig[a.status].variant}>
                         {statusConfig[a.status].label}
                       </Badge>
@@ -412,7 +408,9 @@ export default function AppointmentsPage() {
           />
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Client</h4>
+            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Client
+            </h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 label="Prénom"

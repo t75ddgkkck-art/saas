@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# Pre-commit hook (Lot 28) — safeguard qualité avant chaque commit.
+#
+# 1. lint-staged : formatte + lint les fichiers stagés uniquement (rapide)
+# 2. Si un fichier crée une erreur → commit rejeté, l'user doit corriger
+#
+# Bypass ponctuel : `git commit --no-verify` (ne pas abuser)
+#
+# Perf : lint-staged parallélise, ~2-5s sur un commit standard 3-5 fichiers.
+
+npx lint-staged

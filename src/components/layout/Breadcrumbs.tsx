@@ -48,9 +48,7 @@ function humanize(segment: string): string {
   if (UUID_RE.test(segment)) return "…";
   if (LABELS[segment]) return LABELS[segment];
   // Fallback : "quote-form-fields" → "Quote form fields"
-  return segment
-    .replace(/-/g, " ")
-    .replace(/^./, (c) => c.toUpperCase());
+  return segment.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 export function Breadcrumbs() {
@@ -82,10 +80,7 @@ export function Breadcrumbs() {
               />
             )}
             {item.isLast ? (
-              <span
-                aria-current="page"
-                className="font-medium text-slate-700 dark:text-slate-300"
-              >
+              <span aria-current="page" className="font-medium text-slate-700 dark:text-slate-300">
                 {item.label}
               </span>
             ) : (

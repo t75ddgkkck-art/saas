@@ -37,8 +37,7 @@ const Schema = z.object({
 // L'attaquant ne peut PAS distinguer si un email est enregistré.
 const GENERIC_RESPONSE = {
   ok: true,
-  message:
-    "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.",
+  message: "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.",
 };
 
 export async function POST(req: NextRequest) {
@@ -94,9 +93,10 @@ export async function POST(req: NextRequest) {
         ip,
       });
 
-      const appUrl = (
-        process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"
-      ).replace(/\/$/, "");
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr").replace(
+        /\/$/,
+        ""
+      );
       const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
 
       const template = EmailTemplates.passwordReset({

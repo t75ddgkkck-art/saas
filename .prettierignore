@@ -1,0 +1,42 @@
+# Généré / build
+.next/
+.turbo/
+.vercel/
+out/
+build/
+dist/
+coverage/
+node_modules/
+test-results/
+playwright-report/
+
+# Cache
+.cache/
+*.log
+
+# Lock files (auto-géré par le package manager)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Assets binaires
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.pdf
+*.woff
+*.woff2
+*.svg
+
+# Doc et changelog : laisser le formatage manuel (tables markdown alignées, etc.)
+CHANGELOG_AUDIT.md
+AUDIT_FULL_V2.md
+AUDIT_REPORT.md
+
+# SQL manuel : indent significatif préservé
+sql/
+
+# Mobile (Expo) : géré par sa propre config si un jour on l'active
+mobile/

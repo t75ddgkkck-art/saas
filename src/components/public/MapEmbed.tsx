@@ -29,14 +29,7 @@ interface Props {
   height?: number;
 }
 
-export function MapEmbed({
-  latitude,
-  longitude,
-  address,
-  city,
-  zoom = 15,
-  height = 260,
-}: Props) {
+export function MapEmbed({ latitude, longitude, address, city, zoom = 15, height = 260 }: Props) {
   // Bounding box ~500m autour du point (delta 0.005° ≈ 555m à l'équateur, un peu moins à Paris)
   const delta = 0.005;
   const bbox = useMemo(
@@ -58,8 +51,7 @@ export function MapEmbed({
 
   // Itinéraire : Google Maps directions vers l'adresse (mobile détecte et ouvre l'app native)
   // Encodage safe. On préfère l'adresse texte à latlng car plus lisible dans l'app itinéraire.
-  const directionsQuery = [address, city].filter(Boolean).join(", ") ||
-    `${latitude},${longitude}`;
+  const directionsQuery = [address, city].filter(Boolean).join(", ") || `${latitude},${longitude}`;
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(directionsQuery)}`;
 
   return (

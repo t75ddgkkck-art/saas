@@ -15,7 +15,8 @@ const genericArticles: BlogArticle[] = [
   {
     title: "Comment bien choisir son artisan : 5 critères essentiels",
     slug: "bien-choisir-son-artisan",
-    excerpt: "Assurances, avis, devis détaillé... Voici les points à vérifier avant de confier vos travaux à un professionnel.",
+    excerpt:
+      "Assurances, avis, devis détaillé... Voici les points à vérifier avant de confier vos travaux à un professionnel.",
     category: "general",
     keywords: ["artisan", "choisir", "devis", "assurance", "avis clients"],
     content: `# Comment bien choisir son artisan : 5 critères essentiels
@@ -47,7 +48,8 @@ Vérifiez que l'entreprise est bien déclarée. C'est une garantie de sérieux e
   {
     title: "Pourquoi demander un devis avant tous travaux ?",
     slug: "pourquoi-demander-un-devis",
-    excerpt: "Le devis protège le client comme le professionnel. Découvrez ce qu'il doit contenir et pourquoi il est indispensable.",
+    excerpt:
+      "Le devis protège le client comme le professionnel. Découvrez ce qu'il doit contenir et pourquoi il est indispensable.",
     category: "general",
     keywords: ["devis", "travaux", "obligation", "prix", "protection"],
     content: `# Pourquoi demander un devis avant tous travaux ?
@@ -75,7 +77,8 @@ Une fois signé, le devis engage les deux parties : le professionnel sur le prix
   {
     title: "Entretien de votre logement : le calendrier des vérifications annuelles",
     slug: "calendrier-entretien-logement",
-    excerpt: "Chauffage, plomberie, électricité, toiture : voici les vérifications à programmer chaque année pour éviter les mauvaises surprises.",
+    excerpt:
+      "Chauffage, plomberie, électricité, toiture : voici les vérifications à programmer chaque année pour éviter les mauvaises surprises.",
     category: "general",
     keywords: ["entretien", "logement", "maintenance", "prévention", "vérifications"],
     content: `# Entretien de votre logement : le calendrier des vérifications annuelles
@@ -116,7 +119,8 @@ export const generateBlogArticles = (category: string): BlogArticle[] => {
       {
         title: "5 signes qui montrent que votre plomberie doit être rénovée",
         slug: "5-signes-renovation-plomberie",
-        excerpt: "Vous pensez que votre plomberie vieillit ? Voici les signes qui ne trompent pas et quand il faut agir.",
+        excerpt:
+          "Vous pensez que votre plomberie vieillit ? Voici les signes qui ne trompent pas et quand il faut agir.",
         category: "plombier",
         keywords: ["plomberie", "rénovation", "fuite", "tuyaux", "diagnostic"],
         content: `# 5 signes qui montrent que votre plomberie doit être rénovée
@@ -150,7 +154,8 @@ Au-delà de 30-40 ans, il est recommandé de faire inspecter votre plomberie par
       {
         title: "Mettre son installation électrique aux normes : pourquoi et comment",
         slug: "mettre-installation-electrique-aux-normes",
-        excerpt: "Une installation aux normes garantit votre sécurité. Découvrez les étapes clés de la mise aux normes NF C 15-100.",
+        excerpt:
+          "Une installation aux normes garantit votre sécurité. Découvrez les étapes clés de la mise aux normes NF C 15-100.",
         category: "electricien",
         keywords: ["électricité", "normes", "sécurité", "tableau électrique", "diagnostic"],
         content: `# Mettre son installation électrique aux normes
@@ -177,7 +182,8 @@ La norme NF C 15-100 encadre les installations électriques en France. Elle évo
       {
         title: "Les tendances coiffure 2025 : ce qu'il faut savoir",
         slug: "tendances-coiffure-2025",
-        excerpt: "Découvrez les coupes et couleurs qui feront sensation cette année. Du bob français au balayage miel.",
+        excerpt:
+          "Découvrez les coupes et couleurs qui feront sensation cette année. Du bob français au balayage miel.",
         category: "coiffeur",
         keywords: ["coiffure", "tendances", "coupe", "coloration", "2025"],
         content: `# Les tendances coiffure 2025

@@ -31,10 +31,7 @@ export const dynamic = "force-dynamic";
 
 const Schema = z.object({
   token: z.string().length(64, "Token invalide"),
-  password: z
-    .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères")
-    .max(200),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères").max(200),
 });
 
 export async function POST(req: NextRequest) {

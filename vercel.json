@@ -31,15 +31,11 @@
   "headers": [
     {
       "source": "/favicon.ico",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400, must-revalidate" }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, must-revalidate" }]
     },
     {
       "source": "/(favicon\\.svg|apple-icon\\.png|icons/.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=604800, immutable" }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800, immutable" }]
     },
     {
       "source": "/manifest.webmanifest",

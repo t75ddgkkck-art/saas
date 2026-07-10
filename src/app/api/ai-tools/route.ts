@@ -8,10 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { handleApiError, unauthorized, forbidden } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { aiComplete, isAiConfigured } from "@/lib/ai/client";
-import {
-  monthlyReportSystemPrompt,
-  socialPostSystemPrompt,
-} from "@/lib/ai/prompts";
+import { monthlyReportSystemPrompt, socialPostSystemPrompt } from "@/lib/ai/prompts";
 import { checkAiQuota, recordAiUsage } from "@/lib/ai/usage";
 import type { SubscriptionPlan } from "@/lib/permissions";
 
@@ -81,7 +78,9 @@ export async function POST(request: NextRequest) {
         db
           .select()
           .from(appointments)
-          .where(and(eq(appointments.businessId, business.id), gte(appointments.createdAt, monthAgo))),
+          .where(
+            and(eq(appointments.businessId, business.id), gte(appointments.createdAt, monthAgo))
+          ),
         db
           .select()
           .from(quotes)
@@ -100,7 +99,9 @@ export async function POST(request: NextRequest) {
       const revenue = pmts
         .filter((p) => p.status === "completed")
         .reduce((s, p) => s + parseFloat(p.amount), 0);
-      const quotesSigned = qts.filter((q) => q.status === "signed" || q.status === "accepted").length;
+      const quotesSigned = qts.filter(
+        (q) => q.status === "signed" || q.status === "accepted"
+      ).length;
       const conversionRate = qts.length > 0 ? Math.round((quotesSigned / qts.length) * 100) : 0;
       const sources: Record<string, number> = {};
       visits.forEach((v) => {

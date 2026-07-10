@@ -28,10 +28,7 @@ export default defineConfig([
       // Préfère const
       "prefer-const": "warn",
       // Détecte les variables non utilisées mais tolère "_prefixed"
-      "no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
 ]);

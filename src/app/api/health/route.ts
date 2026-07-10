@@ -83,9 +83,7 @@ function checkMonitoring(): Check {
     name: "monitoring",
     ok: enabled,
     critical: false,
-    detail: enabled
-      ? "Sentry actif"
-      : "SENTRY_DSN non défini (fallback logs uniquement)",
+    detail: enabled ? "Sentry actif" : "SENTRY_DSN non défini (fallback logs uniquement)",
   };
 }
 

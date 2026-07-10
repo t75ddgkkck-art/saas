@@ -24,20 +24,15 @@ export const metadata: Metadata = {
 // Valeurs par défaut affichables même sans env vars (dev / démo).
 // À surcharger via NEXT_PUBLIC_LEGAL_* pour la prod.
 const publisherName = process.env.NEXT_PUBLIC_LEGAL_PUBLISHER || "Vitrix (à compléter)";
-const publisherAddress =
-  process.env.NEXT_PUBLIC_LEGAL_ADDRESS || "Adresse à compléter";
-const publisherEmail =
-  process.env.NEXT_PUBLIC_LEGAL_EMAIL || "contact@vitrix.fr";
+const publisherAddress = process.env.NEXT_PUBLIC_LEGAL_ADDRESS || "Adresse à compléter";
+const publisherEmail = process.env.NEXT_PUBLIC_LEGAL_EMAIL || "contact@vitrix.fr";
 const publisherPhone = process.env.NEXT_PUBLIC_LEGAL_PHONE || "";
 const publisherSiren = process.env.NEXT_PUBLIC_LEGAL_SIREN || "SIREN à compléter";
-const publisherRcs =
-  process.env.NEXT_PUBLIC_LEGAL_RCS || "RCS à compléter";
-const publisherCapital =
-  process.env.NEXT_PUBLIC_LEGAL_CAPITAL || "Capital social à compléter";
+const publisherRcs = process.env.NEXT_PUBLIC_LEGAL_RCS || "RCS à compléter";
+const publisherCapital = process.env.NEXT_PUBLIC_LEGAL_CAPITAL || "Capital social à compléter";
 const publisherDirector =
   process.env.NEXT_PUBLIC_LEGAL_DIRECTOR || "Directeur de la publication à compléter";
-const publisherVat =
-  process.env.NEXT_PUBLIC_LEGAL_VAT || "TVA intracommunautaire à compléter";
+const publisherVat = process.env.NEXT_PUBLIC_LEGAL_VAT || "TVA intracommunautaire à compléter";
 
 export default function MentionsLegalesPage() {
   return (
@@ -53,8 +48,8 @@ export default function MentionsLegalesPage() {
           Mentions légales
         </h1>
         <p className="mt-2 text-sm text-slate-500">
-          Conformément aux dispositions de l&apos;article 6-III de la loi n° 2004-575 du
-          21 juin 2004 pour la Confiance dans l&apos;Économie Numérique (LCEN).
+          Conformément aux dispositions de l&apos;article 6-III de la loi n° 2004-575 du 21 juin
+          2004 pour la Confiance dans l&apos;Économie Numérique (LCEN).
         </p>
 
         <div className="mt-8 space-y-8 text-slate-700 dark:text-slate-300">
@@ -96,9 +91,15 @@ export default function MentionsLegalesPage() {
               Hébergement
             </h2>
             <p className="mt-3 text-sm leading-relaxed">
-              Le site est hébergé par <strong>Vercel Inc.</strong>, 340 S Lemon Ave #4133,
-              Walnut, CA 91789, États-Unis — <a href="https://vercel.com" className="text-blue-600 hover:underline dark:text-blue-400">vercel.com</a>.
-              La base de données est hébergée par <strong>Supabase</strong> (localisation UE :
+              Le site est hébergé par <strong>Vercel Inc.</strong>, 340 S Lemon Ave #4133, Walnut,
+              CA 91789, États-Unis —{" "}
+              <a
+                href="https://vercel.com"
+                className="text-blue-600 hover:underline dark:text-blue-400"
+              >
+                vercel.com
+              </a>
+              . La base de données est hébergée par <strong>Supabase</strong> (localisation UE :
               région Frankfurt).
             </p>
           </section>
@@ -108,8 +109,8 @@ export default function MentionsLegalesPage() {
               Nom de domaine
             </h2>
             <p className="mt-3 text-sm leading-relaxed">
-              Le nom de domaine est enregistré auprès de <strong>IONOS SARL</strong>,
-              7 place de la Gare, BP 70109, 57200 Sarreguemines Cedex, France.
+              Le nom de domaine est enregistré auprès de <strong>IONOS SARL</strong>, 7 place de la
+              Gare, BP 70109, 57200 Sarreguemines Cedex, France.
             </p>
           </section>
 
@@ -118,15 +119,15 @@ export default function MentionsLegalesPage() {
               Propriété intellectuelle
             </h2>
             <p className="mt-3 text-sm leading-relaxed">
-              L&apos;ensemble des éléments présents sur ce site (textes, logos, images,
-              code source, marque Vitrix) est protégé par le droit de la propriété
-              intellectuelle. Toute reproduction non autorisée est interdite.
+              L&apos;ensemble des éléments présents sur ce site (textes, logos, images, code source,
+              marque Vitrix) est protégé par le droit de la propriété intellectuelle. Toute
+              reproduction non autorisée est interdite.
             </p>
             <p className="mt-2 text-sm leading-relaxed">
-              Les contenus publiés par les utilisateurs (vitrines pro, articles de blog,
-              photos, avis) restent la propriété de leurs auteurs. En les publiant sur
-              Vitrix, ils accordent à Vitrix une licence gratuite, non-exclusive et
-              mondiale pour les afficher dans le cadre du service.
+              Les contenus publiés par les utilisateurs (vitrines pro, articles de blog, photos,
+              avis) restent la propriété de leurs auteurs. En les publiant sur Vitrix, ils accordent
+              à Vitrix une licence gratuite, non-exclusive et mondiale pour les afficher dans le
+              cadre du service.
             </p>
           </section>
 
@@ -170,9 +171,7 @@ export default function MentionsLegalesPage() {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:gap-4">
-      <dt className="text-slate-500 sm:w-56 sm:shrink-0 dark:text-slate-400">
-        {label}
-      </dt>
+      <dt className="text-slate-500 sm:w-56 sm:shrink-0 dark:text-slate-400">{label}</dt>
       <dd className="font-medium">{value}</dd>
     </div>
   );
