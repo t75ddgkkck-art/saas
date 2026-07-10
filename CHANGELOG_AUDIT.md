@@ -4,6 +4,120 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 20 — Lot 23 Vitrine publique boostée
+
+Adresse les manques UX identifiés sur la vitrine :
+- ❌ Galerie sans lightbox (clic = rien) → **fait avec swipe + clavier**
+- ❌ Map Google Maps buggée (coord Islande en dur dans `pb=!`) → **remplacé par OSM propre + itinéraire**
+- ❌ Avis en liste verticale sans limite → **carousel scroll-snap horizontal**
+- ❌ Vidéos jamais rendues malgré `type: "video"` en DB → **support YouTube + Vimeo + URL brute**
+- ✅ Bonus : partage enrichi (title + text + url) + fallback copie presse-papier
+
+## Nouveaux composants publics
+
+### `<Lightbox>` (Lot 23)
+**Zéro dépendance NPM** (pas de yet-another-react-lightbox — trop lourd pour ~10 photos), 200 lignes maison :
+- Overlay full-screen noir
+- Flèches gauche/droite (clavier + boutons UI)
+- Fermeture Escape ou clic-outside
+- **Swipe tactile mobile** (touchstart/touchend, seuil 50px)
+- Support **YouTube** (`youtu.be`, `youtube.com/watch`, `/embed/`, `/shorts/`)
+- Support **Vimeo** (`vimeo.com/id`, `player.vimeo.com/video/id`)
+- Support URL brute vidéo (`<video>` natif pour mp4/webm)
+- Compteur "3 / 12"
+- Scroll lock body + focus restore (héritage Modal Lot 4)
+- A11y : role="dialog", aria-modal, aria-labelledby dynamique
+- Extractors YouTube/Vimeo exportés via `__lightboxInternals` pour tests
+
+### `<MapEmbed>` (Lot 23)
+Remplace l'ancienne iframe Google Maps buggée :
+- **OpenStreetMap** (gratuit, RGPD-friendly, pas de tracking)
+- Bounding box calculée depuis lat/lon + delta 0.005° (~500m) — plus jamais coord Islande hardcodée
+- **Bouton "Itinéraire"** ouvre Google Maps directions (universel : deep link app mobile natif Android/iOS + interop desktop)
+- **Bouton "Voir sur OSM"** pour ouvrir en plein écran
+- Adresse texte préférée à latlng pour l'itinéraire (plus lisible dans l'app)
+- Iframe lazy-loaded
+
+### `<ReviewsCarousel>` (Lot 23)
+Remplace la liste verticale des avis :
+- Mobile : 1 avis visible, swipe tactile
+- Tablet : 2 avis en même temps
+- Desktop : 3 avis en même temps
+- Scroll-snap CSS `[scroll-snap-type:x_mandatory]` (natif)
+- Flèches Prev/Next disabled auto en fin/début (via `scroll` event)
+- Zéro dépendance NPM
+- A11y : role="region", aria-roledescription="carousel", boutons focusables avec disabled
+
+## Intégration dans `PublicPage.tsx`
+
+- **Galerie** : `<button>` autour de chaque image, click → `setLightboxIndex(i)`. Badge play ▶ sur les items `type: "video"`
+- **Map** : bloc "Adresse" remplacé par `<MapEmbed>` (ancien pb=Google supprimé)
+- **Avis** : remplacement `reviews.map` par `<ReviewsCarousel>` avec mapping `source: "google" → "Google"`
+- **Partage** : `navigator.share({ title, text, url })` avec `text = business.description`, fallback copie presse-papier + toast
+
+## Fichiers créés/modifiés
+
+**Créés** :
+- `src/components/public/Lightbox.tsx` (200 lignes, 0 dep)
+- `src/components/public/MapEmbed.tsx` (85 lignes, 0 dep)
+- `src/components/public/ReviewsCarousel.tsx` (120 lignes, 0 dep)
+- `tests/unit/lightbox.test.ts` (9 tests)
+- `tests/unit/map-embed.test.ts` (4 tests)
+
+**Modifiés** :
+- `src/app/[slug]/PublicPage.tsx` — imports + state lightbox + refactor galerie/map/reviews/share
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 258/258 tests (34 fichiers, +13 nouveaux)
+✅ npx next build      → 0 warning, compilé en 17s
+```
+
+## Impact business
+
+- **Galerie utilisable** enfin : les photos étaient là mais impossibles à voir en grand → conversion RDV/devis boostée
+- **Fin du bug map** : la carte affichait toujours l'Islande depuis toujours (pb=! Google hardcodé). Désormais vraie position + itinéraire fonctionnel
+- **Vidéos supportées** : les pros peuvent héberger sur YouTube (gratuit, illimité, meilleur SEO) + preview dans la lightbox
+- **Confiance visiteurs** : carousel avis moderne (vs liste austère) → augmente CTR bouton "Prendre RDV"
+- **RGPD** : passage Google Maps → OSM = un bandeau cookie de moins à gérer si on active analytics un jour
+- **Mobile-first** : swipe tactile natif partout (lightbox + carousel)
+
+## Actions post-déploiement
+
+Aucune migration SQL. Test après déploiement :
+1. Sur une vitrine publique (`/[slug]`) avec au moins 2 photos : cliquer → lightbox s'ouvre, flèches marchent, swipe mobile marche, Escape ferme
+2. Sur vitrine avec `latitude`/`longitude` set : carte OSM s'affiche correctement (position réelle, pas Islande) + bouton "Itinéraire" ouvre Google Maps
+3. Sur vitrine avec ≥ 3 avis : carousel affiche, flèches actives, swipe mobile
+4. Ajouter une entrée `gallery` avec `type: "video"` + URL YouTube → badge play ▶ + ouverture lightbox joue la vidéo
+5. Cliquer "Partager" sur mobile : dialog natif iOS/Android avec preview correcte
+
+## Historique commits
+
+```
+d03c4ae  lot 23 vitrine boostée: Lightbox swipeable + MapEmbed OSM + ReviewsCarousel + vidéo YT/Vimeo
+b75dc3a  lot 22 UX cohérente: ConfirmDialog + useConfirm + Breadcrumbs + PageTitle, 10 alert() nettoyés
+d97b927  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
+8f3a974  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic
+7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
+a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 19 — Lot 22 UX cohérente : Toast/Modal/Breadcrumbs partout
 
 Comble les gros trous UX identifiés dans l'audit "état actuel" :
@@ -111,7 +225,7 @@ Aucune migration SQL. Pure amélioration UI/UX.
 ## Historique commits
 
 ```
-a825abf  lot 22 UX cohérente: ConfirmDialog + useConfirm + Breadcrumbs + PageTitle, 10 alert() nettoyés
+b75dc3a  lot 22 UX cohérente: ConfirmDialog + useConfirm + Breadcrumbs + PageTitle, 10 alert() nettoyés
 d97b927  lot 20 câblage réel: RDV + paiements + recherche unifiée + EmptyState + skeletons routes
 8f3a974  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic
 7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé

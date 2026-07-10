@@ -35,6 +35,9 @@ import { WorkingHoursCard } from "./sections/WorkingHoursCard";
 import { QrCodeCard } from "./sections/QrCodeCard";
 import { PublicFooter } from "./sections/PublicFooter";
 import { OptimizedImage } from "@/components/ui/OptimizedImage";
+import { Lightbox, type LightboxItem } from "@/components/public/Lightbox";
+import { MapEmbed } from "@/components/public/MapEmbed";
+import { ReviewsCarousel } from "@/components/public/ReviewsCarousel";
 import type { Business, Service } from "@/db/types";
 
 // Types partiels acceptés par le composant (colonnes réellement affichées).
@@ -115,6 +118,8 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
   const [showQuote, setShowQuote] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
+  // Lot 23 : lightbox galerie (index de l'item ouvert, null = fermé)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [reviewText, setReviewText] = useState("");
   const [reviewName, setReviewName] = useState("");
   const [reviewEmail, setReviewEmail] = useState("");
@@ -406,8 +411,20 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
             </Button>
             )}
             <Button variant="outline" className="h-12" leftIcon={<Share2 className="h-4 w-4" />} onClick={() => {
-              if (navigator.share) navigator.share({ title: business.name, url: window.location.href });
-              else navigator.clipboard.writeText(window.location.href);
+              // Lot 23 : partage enrichi (title + text + url) → meilleure preview sur WhatsApp/iMessage.
+              // Fallback : copie l'URL + toast succès si Web Share API absente (desktop Chrome).
+              const shareData = {
+                title: business.name,
+                text: business.description || `Découvrez ${business.name}`,
+                url: window.location.href,
+              };
+              if (navigator.share) {
+                navigator.share(shareData).catch(() => { /* user annule = OK, on tait */ });
+              } else {
+                navigator.clipboard.writeText(window.location.href)
+                  .then(() => toast.success("Lien copié dans le presse-papier"))
+                  .catch(() => toast.error("Impossible de copier le lien"));
+              }
             }}>
               {t(lang, "share")}
             </Button>
@@ -556,44 +573,70 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
               </p>
             )}
             {business.latitude && business.longitude && (
-              <div className="mt-4 overflow-hidden rounded-xl">
-                <iframe
-                  src={`https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2624.9914406081573!2d${business.longitude}!3d${business.latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNjjCsDUxJzIzLjgiTiAywrAyMScwNy45IkU!5e0!3m2!1sfr!2sfr!4v1`}
-                  width="100%"
-                  height="220"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  className="rounded-xl"
-                  title="Carte"
+              <div className="mt-4">
+                {/* Lot 23 : OpenStreetMap au lieu de Google Maps buggée
+                    (l'ancien pb=! contenait des coords hardcodées Islande !)
+                    + bouton "Itinéraire" universel mobile natif. */}
+                <MapEmbed
+                  latitude={Number(business.latitude)}
+                  longitude={Number(business.longitude)}
+                  address={business.address}
+                  city={business.city}
                 />
               </div>
             )}
           </div>
         )}
 
-        {/* Gallery */}
+        {/* Gallery (Lot 23 : clic → lightbox swipeable, badge vidéo si applicable) */}
         {gallery.length > 0 && (
           <div className="mt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Galerie ({gallery.length})
             </h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {gallery.map((item) => (
-                <div key={item.id} className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+              {gallery.map((item, i) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setLightboxIndex(i)}
+                  aria-label={
+                    item.type === "video"
+                      ? `Ouvrir la vidéo ${item.title || i + 1}`
+                      : `Agrandir la photo ${item.title || i + 1}`
+                  }
+                  className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-slate-800"
+                >
                   <OptimizedImage
-                    src={item.url}
+                    src={item.thumbnailUrl || item.url}
                     alt={item.title || `Photo galerie ${business.name}`}
                     fill
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 250px"
                     loading="lazy"
                     className="object-cover transition-transform duration-300 group-hover:scale-110"
                   />
-                </div>
+                  {item.type === "video" && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 flex items-center justify-center bg-black/30 text-white transition group-hover:bg-black/40"
+                    >
+                      <span className="rounded-full bg-white/90 p-3 text-slate-900">
+                        ▶
+                      </span>
+                    </span>
+                  )}
+                </button>
               ))}
             </div>
           </div>
         )}
+
+        {/* Lightbox (rendu conditionnel via state, se ferme sur click extérieur/Escape) */}
+        <Lightbox
+          items={gallery as LightboxItem[]}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
 
         {/* Reviews */}
         {showReviews && (
@@ -621,30 +664,18 @@ export function PublicPage({ business, hours, reviews, faqs, gallery, socials, s
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">Soyez le premier à laisser un avis !</p>
           )}
           {reviews.length > 0 && (
-            <div className="mt-5 space-y-4">
-              {reviews.map((review) => (
-                <div key={review.id} className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-900 dark:text-slate-100">{review.clientName}</span>
-                    <div className="flex items-center gap-0.5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-3.5 w-3.5 ${i < review.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {review.comment && (
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{review.comment}</p>
-                  )}
-                  {review.source && (
-                    <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                      {review.source === "google" ? "Google" : "Plateforme"}
-                    </span>
-                  )}
-                </div>
-              ))}
+            <div className="mt-5">
+              {/* Lot 23 : carousel scroll-snap avec swipe mobile (auparavant liste verticale) */}
+              <ReviewsCarousel
+                reviews={reviews.map((r) => ({
+                  id: r.id,
+                  clientName: r.clientName,
+                  rating: r.rating,
+                  comment: r.comment,
+                  createdAt: r.createdAt,
+                  source: r.source === "google" ? "Google" : r.source,
+                }))}
+              />
             </div>
           )}
         </div>
