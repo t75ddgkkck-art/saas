@@ -1,0 +1,9 @@
+# Lot 27 — désactive les issues blank : force à passer par les templates.
+blank_issues_enabled: false
+contact_links:
+  - name: 🔐 Signalement de vulnérabilité
+    url: mailto:security@vitrix.fr
+    about: Bug de sécurité → signalement privé uniquement (jamais d'issue publique)
+  - name: 💬 Support utilisateur
+    url: mailto:support@vitrix.fr
+    about: Question sur l'usage, facturation, compte

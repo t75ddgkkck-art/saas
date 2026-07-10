@@ -16,20 +16,20 @@ Le hook `pre-commit` est installé automatiquement grâce au script `prepare` (h
 
 ## Scripts principaux
 
-| Commande | Rôle |
-|---|---|
-| `npm run dev` | Serveur Next avec HMR |
-| `npm run build` | Build prod (Turbopack) |
-| `npm run typecheck` | `tsc --noEmit`, 0 erreur exigée |
-| `npm run lint` | ESLint |
-| `npm run lint:fix` | ESLint avec auto-fix |
-| `npm run format` | Prettier — formate TOUT le repo |
-| `npm run format:check` | Vérifie sans écrire (utile CI) |
-| `npm run test` | Vitest run (one-shot) |
-| `npm run test:watch` | Vitest en mode watch dev |
-| `npm run test:e2e` | Playwright E2E |
-| `npm run check` | typecheck + lint + format:check (avant push) |
-| `npm run audit:check` | `npm audit` production, échoue >= moderate |
+| Commande               | Rôle                                         |
+| ---------------------- | -------------------------------------------- |
+| `npm run dev`          | Serveur Next avec HMR                        |
+| `npm run build`        | Build prod (Turbopack)                       |
+| `npm run typecheck`    | `tsc --noEmit`, 0 erreur exigée              |
+| `npm run lint`         | ESLint                                       |
+| `npm run lint:fix`     | ESLint avec auto-fix                         |
+| `npm run format`       | Prettier — formate TOUT le repo              |
+| `npm run format:check` | Vérifie sans écrire (utile CI)               |
+| `npm run test`         | Vitest run (one-shot)                        |
+| `npm run test:watch`   | Vitest en mode watch dev                     |
+| `npm run test:e2e`     | Playwright E2E                               |
+| `npm run check`        | typecheck + lint + format:check (avant push) |
+| `npm run audit:check`  | `npm audit` production, échoue >= moderate   |
 
 ## Convention commits
 
@@ -42,6 +42,7 @@ fix(auth): reset password token expire à 1h au lieu de 24h
 ```
 
 Bad :
+
 ```
 wip
 update
@@ -91,6 +92,7 @@ Voir `docs/DB.md` section conventions.
 ## Sécurité
 
 Toute modification touchant à :
+
 - L'authentification
 - Le rate-limiting
 - Les uploads
@@ -104,6 +106,7 @@ Toute modification touchant à :
 **Bug de sécurité** : `security@vitrix.fr` (ne PAS ouvrir d'issue publique).
 
 **Bug fonctionnel** : issue GitHub avec :
+
 - Steps to reproduce
 - Comportement attendu vs observé
 - Env (browser, OS, plan Vitrix)

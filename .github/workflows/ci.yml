@@ -1,0 +1,193 @@
+name: CI
+
+# Lot 27 — Pipeline CI complet Vitrix.
+#
+# Objectif : rattraper ce que le husky pre-commit laisse passer via `--no-verify`
+# et bloquer toute PR qui casse la codebase.
+#
+# Jobs (tous en parallèle sauf `build` qui dépend de `test`) :
+#   - typecheck : tsc --noEmit
+#   - lint      : eslint .
+#   - format    : prettier --check .
+#   - test      : vitest run --coverage (upload artifact)
+#   - audit     : npm audit --audit-level=moderate --production
+#   - build     : next build (avec env dummy)
+#
+# Déclenché sur push main + toutes les PRs.
+# Concurrence : annule les runs précédents sur la même branche (économise CI minutes).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Env vars dummy pour permettre au build Next / aux imports de passer
+  # sans jamais toucher un vrai service. Aucune donnée sensible ici.
+  NODE_ENV: test
+  NEXT_TELEMETRY_DISABLED: 1
+  NEXTAUTH_SECRET: testsecrettestsecrettestsecret1234
+  DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+  # NextAuth exige une URL absolue même en test
+  NEXTAUTH_URL: http://localhost:3000
+
+jobs:
+  # -------------------------------------------------------------------
+  # Setup partagé : install deps une fois, cache pour les autres jobs
+  # -------------------------------------------------------------------
+  install:
+    name: Install deps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - name: Install
+        # `npm ci` = install déterministe depuis package-lock.json (échoue si lock désync).
+        # `--ignore-scripts` évite que husky (`prepare`) tourne en CI (inutile).
+        run: npm ci --ignore-scripts
+
+  # -------------------------------------------------------------------
+  # Typecheck TypeScript strict
+  # -------------------------------------------------------------------
+  typecheck:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+
+  # -------------------------------------------------------------------
+  # Lint ESLint (règles Next 16 + custom)
+  # -------------------------------------------------------------------
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+
+  # -------------------------------------------------------------------
+  # Prettier — vérifie que le code est déjà formaté
+  # -------------------------------------------------------------------
+  format:
+    name: Prettier
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+
+  # -------------------------------------------------------------------
+  # Tests unitaires + coverage
+  # -------------------------------------------------------------------
+  test:
+    name: Vitest + coverage
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run tests with coverage
+        run: npm run test:coverage
+      - name: Upload coverage artifact
+        # Coverage HTML dispo dans "Actions > run > Artifacts" pendant 14j.
+        # Si un jour on branche Codecov/Coveralls, l'artifact lcov est prêt.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage/
+          retention-days: 14
+
+  # -------------------------------------------------------------------
+  # Audit sécurité npm (non bloquant sur low/moderate en prod)
+  # -------------------------------------------------------------------
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    needs: install
+    # On ne bloque pas la CI sur les CVE tant qu'elles ne sont pas patchables
+    # (souvent bloquées par une transitive dep). Signal, pas gate.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: npm audit (production only, moderate+)
+        run: npm run audit:check
+
+  # -------------------------------------------------------------------
+  # Build Next.js — dernière porte, dépend des jobs qualité
+  # -------------------------------------------------------------------
+  build:
+    name: Next build
+    runs-on: ubuntu-latest
+    needs: [typecheck, lint, format, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build (Turbopack)
+        # Les env vars critiques sont définies au niveau workflow (voir `env:` en haut).
+        # `typescript.ignoreBuildErrors: true` dans next.config.ts évite l'OOM en sandbox 2GB.
+        # En CI GitHub (7 GB RAM), on POURRAIT laisser Next re-typecheck, mais ce serait
+        # redondant avec le job `typecheck` : on garde la config actuelle.
+        run: npm run build
+
+  # -------------------------------------------------------------------
+  # Résultat global : ce job passe uniquement si TOUS les autres passent.
+  # Utile pour un unique required check dans les settings de branche.
+  # -------------------------------------------------------------------
+  ci-success:
+    name: CI success
+    runs-on: ubuntu-latest
+    needs: [typecheck, lint, format, test, build]
+    if: always()
+    steps:
+      - name: Verify all jobs succeeded
+        run: |
+          if [[ "${{ needs.typecheck.result }}" != "success" ]] || \
+             [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.format.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ Un ou plusieurs jobs CI ont échoué"
+            exit 1
+          fi
+          echo "✅ Tous les jobs CI OK"

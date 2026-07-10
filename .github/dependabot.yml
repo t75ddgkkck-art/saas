@@ -1,0 +1,74 @@
+# Lot 27 — Dependabot config.
+#
+# Objectif : remonter automatiquement les mises à jour de sécurité + minor patches.
+# Fréquence hebdo (lundi 9h Paris) pour éviter de spammer les mainteneurs.
+#
+# Groupes :
+#   - Toutes les deps de dev (types, lint, test) → 1 PR groupée hebdo
+#   - Prod deps → PR séparées (review au cas par cas, blast radius plus large)
+#
+# Les majors sont IGNORÉS par défaut : trop souvent breaking, on les upgrade manuellement.
+version: 2
+updates:
+  # ------- Dépendances NPM -------
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    groups:
+      # Toutes les deps de dev sont groupées (une seule PR/semaine)
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      # Sécu : groupé + prioritaire (sur toutes deps)
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Next / React / Tailwind : upgrade manuel (breaking fréquents)
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@tailwindcss/postcss"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      # Drizzle → API change souvent, on watch manuel
+      - dependency-name: drizzle-orm
+        update-types: ["version-update:semver-major"]
+      - dependency-name: drizzle-kit
+        update-types: ["version-update:semver-major"]
+
+  # ------- GitHub Actions -------
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: chore(ci)
+      include: scope

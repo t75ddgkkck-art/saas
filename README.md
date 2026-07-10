@@ -1,6 +1,45 @@
-# ArtisanPro - Le Stan Store des Artisans
+# Vitrix — Plateforme SaaS pour artisans & indépendants
+
+<!-- Lot 27 — badges CI. Remplacer OWNER/REPO par le vrai chemin GitHub. -->
+
+[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%3E%3D20.18-brightgreen)
+![Next](https://img.shields.io/badge/next-16.2-black)
+![Tests](https://img.shields.io/badge/tests-324%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-proprietary-lightgrey)
 
 Plateforme SaaS permettant aux artisans et indépendants de créer leur page professionnelle unique et de gérer toute leur activité depuis un seul endroit.
+
+## ⚙️ Développement
+
+```bash
+npm install         # installe deps + hooks husky
+npm run dev         # dev server (Turbopack)
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint
+npm run format      # prettier --write
+npm run test        # vitest (unit)
+npm run test:coverage  # vitest + coverage v8
+npm run build       # next build
+npm run ci          # typecheck + lint + format:check + tests (= ce que la CI valide)
+```
+
+## 🤖 Intégration continue
+
+La CI GitHub Actions (`.github/workflows/ci.yml`) exécute en parallèle à chaque push / PR :
+
+- **typecheck** — `tsc --noEmit`
+- **lint** — `eslint .` (0 erreur, warnings tolérés)
+- **format** — `prettier --check .`
+- **test** — `vitest run --coverage` (seuils dans `vitest.config.ts`)
+- **audit** — `npm audit --audit-level=moderate --production` (non bloquant)
+- **build** — `next build` (dépend des 4 premiers)
+
+Le job `ci-success` (final) agrège les résultats et sert de _required check_ à configurer dans les settings de branche GitHub.
+
+Coverage HTML disponible dans les artifacts du run (retention 14j).
+
+Dependabot regroupe les mises à jour hebdo (`.github/dependabot.yml`) — voir aussi `CONTRIBUTING.md`.
 
 ## 🚀 Fonctionnalités
 

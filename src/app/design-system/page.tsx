@@ -47,9 +47,7 @@ export default function DesignSystemPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="mx-auto max-w-5xl px-4 py-12">
         <header className="mb-12">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-            Design System
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Design System</h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
             Composants UI Vitrix. Chaque section montre les variantes disponibles avec leur code.
           </p>
