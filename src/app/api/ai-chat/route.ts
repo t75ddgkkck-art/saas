@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { businesses, services, workingHours } from "@/db/schema";
+import { businesses, users, services, workingHours } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { handleApiError } from "@/lib/api-error";
+import { handleApiError, paymentRequired } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { aiComplete, isAiConfigured } from "@/lib/ai/client";
 import { publicChatSystemPrompt, publicChatFallback } from "@/lib/ai/prompts";
+// F1 (Lot 29) : le chatbot est réservé aux pros Premium. Route publique
+// (visiteurs vitrine), donc on gate sur le plan du BUSINESS OWNER, pas de la session.
+import { canUse } from "@/lib/entitlements";
+import type { SubscriptionPlan } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +40,23 @@ export async function POST(request: NextRequest) {
       .limit(1);
     if (!business) {
       return NextResponse.json({ error: "Business introuvable" }, { status: 404 });
+    }
+
+    // F1 : vérifier que le pro (owner du business) a le plan qui débloque le chatbot.
+    // Si un visiteur envoie un businessId dont l'owner est Free, on refuse — le
+    // chatbot n'aurait pas dû être exposé côté vitrine, mais on ferme la porte à double.
+    const [owner] = await db
+      .select({ subscription: users.subscription })
+      .from(users)
+      .where(eq(users.id, business.ownerId))
+      .limit(1);
+    const ownerPlan = (owner?.subscription || "free") as SubscriptionPlan;
+    if (!canUse(ownerPlan, "ai.chat")) {
+      throw paymentRequired("Le chatbot n'est pas activé sur cette vitrine.", {
+        feature: "ai.chat",
+        requiredPlan: "premium",
+        currentPlan: ownerPlan,
+      });
     }
 
     const [bizServices, bizHours] = await Promise.all([

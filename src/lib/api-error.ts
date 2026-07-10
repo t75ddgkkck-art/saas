@@ -12,10 +12,17 @@ import { captureException } from "@/lib/monitoring";
 export class HttpError extends Error {
   status: number;
   code?: string;
-  constructor(status: number, message: string, code?: string) {
+  /**
+   * Détails structurés joints au JSON de réponse.
+   * Utilisé notamment par `paymentRequired` pour transmettre `requiredPlan` et `feature`
+   * au client (upgrade contextuel).
+   */
+  details?: Record<string, unknown>;
+  constructor(status: number, message: string, code?: string, details?: Record<string, unknown>) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -35,6 +42,19 @@ export function conflict(message = "Conflit") {
   return new HttpError(409, message, "CONFLICT");
 }
 
+/**
+ * F1 (Lot 29) — 402 Payment Required.
+ * Utilisé par `requireEntitlement()` quand le plan de l'user n'inclut pas
+ * la feature demandée. Le body contient `{ error, code: "PLAN_REQUIRED", requiredPlan, feature }`
+ * pour que le client puisse déclencher un flow d'upgrade contextuel.
+ */
+export function paymentRequired(
+  message = "Cette fonctionnalité nécessite un plan supérieur",
+  details?: { requiredPlan?: string; feature?: string; currentPlan?: string }
+) {
+  return new HttpError(402, message, "PLAN_REQUIRED", details as Record<string, unknown>);
+}
+
 export function handleApiError(
   err: unknown,
   context?: { route?: string; userId?: string }
@@ -43,7 +63,11 @@ export function handleApiError(
     // Erreur métier attendue : on log en info/warn, pas en error
     logger.warn(`[api] ${err.status} ${err.message}`, { ...context, code: err.code });
     // On ne remonte PAS les 4xx à Sentry (bruit inutile)
-    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    // On merge les `details` (ex : requiredPlan/feature pour un 402) dans le body.
+    return NextResponse.json(
+      { error: err.message, code: err.code, ...(err.details ?? {}) },
+      { status: err.status }
+    );
   }
 
   const message = err instanceof Error ? err.message : String(err);

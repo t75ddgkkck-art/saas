@@ -7,6 +7,8 @@ import { getCurrentBusiness } from "@/lib/session";
 import { awardLoyaltyPoints, redeemLoyaltyPoints } from "@/lib/loyalty";
 import { handleApiError, unauthorized, badRequest, notFound, forbidden } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+// F1 (Lot 29) : gate d'entitlement — le programme de fidélité est Premium only.
+import { requireEntitlement } from "@/lib/require-entitlement";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,10 @@ const Schema = z.discriminatedUnion("action", [
 
 export async function GET() {
   try {
+    // F1 : gate — un user Free qui bypasserait la sidebar ne doit pas
+    // pouvoir lire les points de fidélité (fuite de valeur).
+    await requireEntitlement("loyalty.enable");
+
     const business = await getCurrentBusiness();
     if (!business) return NextResponse.json({ balances: [] });
 
@@ -58,6 +64,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // F1 : gate en 402 avant même de parser le body
+    await requireEntitlement("loyalty.enable");
+
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
 

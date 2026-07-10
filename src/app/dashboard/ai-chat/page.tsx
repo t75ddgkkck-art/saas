@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Send, Bot, User, Sparkles, Zap, Clock } from "lucide-react";
+// F1 (Lot 29) : gate d'entitlement — la page entière est réservée aux Premium.
+import { UpgradeGate } from "@/components/entitlements/UpgradeGate";
 
 interface Message {
   id: string;
@@ -43,7 +45,19 @@ const aiResponses: Record<string, string> = {
   zone: "Notre zone d'intervention couvre :\n\n📍 **Paris** (tous les arrondissements)\n📍 **Banlieue proche** (dans un rayon de 10km)\n\nPour les interventions plus éloignées, contactez-nous pour vérifier la faisabilité.",
 };
 
+// F1 : wrapper de gate — un user Free/Pro qui atterrit ici voit un CTA upgrade,
+// pas l'interface chat cassée. On garde le composant interne intouché.
 export default function AIChatPage() {
+  return (
+    <div className="mx-auto max-w-4xl p-4 sm:p-6">
+      <UpgradeGate feature="ai.chat">
+        <AIChatInner />
+      </UpgradeGate>
+    </div>
+  );
+}
+
+function AIChatInner() {
   // Lot 18 B2/B3 : on part sur un message d'accueil neutre ("notre équipe"),
   // puis on le remplace dès que le business est chargé pour afficher son vrai nom.
   const [messages, setMessages] = useState<Message[]>(() => [buildInitialMessage(null)]);

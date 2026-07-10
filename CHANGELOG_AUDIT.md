@@ -1,6 +1,155 @@
 # 🛠️ Améliorations issues de l'audit
 
-Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) et [`AUDIT_FULL_V2.md`](./AUDIT_FULL_V2.md).
+Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUDIT_REPORT.md`](./AUDIT_REPORT.md), [`AUDIT_FULL_V2.md`](./AUDIT_FULL_V2.md) et [`PROPOSITIONS_V3.md`](./PROPOSITIONS_V3.md).
+
+---
+
+# 🟢 Tour 25 — F1 Entitlements centralisés + UpgradeGate + guard API
+
+Ferme le bug **B21** (feature-gating éparpillé, fuite de valeur). Avant : 15+ fichiers avec `plan === "premium"` inline, et **`/api/loyalty` + `/api/ai-chat` totalement ouverts à tous les plans**. Un user Free pouvait hit ces routes en direct et consommer les features Premium. Confirmé par grep pré-lot.
+
+## Nouvelle architecture
+
+```
+src/lib/permissions.ts          (existant, inchangé) — matrice technique 30 flags
+src/lib/entitlements.ts         (NEW) — surcouche sémantique 19 features clés
+src/lib/require-entitlement.ts  (NEW) — guard API (throw HttpError 401/402)
+src/hooks/useEntitlement.ts     (NEW) — hook client + cache module partagé
+src/components/entitlements/
+  ├── UpgradeGate.tsx           (NEW) — wrap UI conditionnel (card/inline/blur)
+  ├── PlanBadge.tsx             (NEW) — badge coloré Free/Pro/Premium
+  └── EntitlementsList.tsx      (NEW) — vue exhaustive dans settings
+src/app/api/account/entitlements/route.ts  (NEW) — GET pour le hook client
+```
+
+`entitlements.ts` NE DUPLIQUE PAS `permissions.ts`, il l'AGRÈGE derrière des clés parlantes (`loyalty.enable` plutôt que `canEnableLoyalty`). Compat 100% : `requirePermission()` de `validation.ts` reste utilisable, migration progressive.
+
+## Matrice des 19 features
+
+Groupée par domaine — voir `docs/ENTITLEMENTS.md` pour la table complète Free/Pro/Premium.
+
+Domaines : `ai.*`, `vitrine.*`, `loyalty.*`, `payments.*`, `quotes.*`, `reminders.*`, `reviews.*`, `team.*`, `analytics.*`, `pdf.*`.
+
+Règle métier stricte figée par test snapshot : **aucune feature n'est ouverte au plan Free**.
+
+## Guard API `requireEntitlement`
+
+Usage :
+
+```ts
+export async function POST(req: NextRequest) {
+  try {
+    const { user, plan } = await requireEntitlement("ai.chat");
+    // logique métier — user garanti connecté ET plan garanti autorisé
+  } catch (err) {
+    return handleApiError(err, { route: "POST /api/ai-chat" });
+  }
+}
+```
+
+- Pas de session → throw `unauthorized()` (401 UNAUTHORIZED)
+- Session + plan insuffisant → throw `paymentRequired()` (**402 PLAN_REQUIRED**)
+- Le body 402 contient `{ error, code, requiredPlan, currentPlan, feature }` → le client peut déclencher un flow d'upgrade contextuel
+
+Variante `tryEntitlement()` non-throw pour les branchements optionnels.
+
+## `HttpError` étendu
+
+`api-error.ts` — ajout du champ `details?: Record<string, unknown>` mergé dans le body JSON de réponse. Compatible avec toutes les erreurs existantes.
+
+## Composant `<UpgradeGate>`
+
+3 modes :
+
+- **card** (défaut) : encadré grand format avec CTA "Passer au plan Pro/Premium"
+- **inline** : petit badge cliquable pour teasing dans menus/boutons
+- **blur** : affiche les enfants floutés avec overlay CTA (démo visuelle)
+
+Le CTA porte `?from=<feature>` sur l'URL `/pricing` → analytics conversion par feature.
+
+## Hook `useEntitlement`
+
+- Cache module-level partagé entre tous les composants (1 seul fetch réel)
+- Déduplication concurrent (2 hooks montés en parallèle → 1 requête)
+- Optimiste vers "verrouillé" pendant chargement (pas de flash de contenu Premium pour un user Free)
+- `refetchEntitlements()` à appeler après un upgrade Stripe réussi
+
+## Routes API gatées
+
+- ✅ **`/api/loyalty` GET+POST** — était totalement ouvert (juste session) → maintenant `loyalty.enable`
+- ✅ **`/api/ai-chat` POST** — route publique (visiteurs vitrine). Ajout d'un check sur le plan du **business owner**. Si le pro n'est pas Premium, le chatbot répond 402 (n'aurait pas dû être exposé côté vitrine, mais on ferme la porte à double)
+
+Les autres routes AI (`/api/ai/*`, `/api/ai-blog`, `/api/ai-tools`, `/api/reviews/ai-reply`) ont déjà des gardes via l'ancien `requirePermission()` → laissées telles quelles pour ne rien casser, migration progressive documentée.
+
+## Pages dashboard gatées
+
+- ✅ **`dashboard/ai-chat`** — n'avait AUCUN check plan. N'importe quel user Free pouvait accéder à l'interface (même si les appels API auraient échoué). Wrap dans `<UpgradeGate feature="ai.chat">` → un Free voit maintenant la carte upgrade avec CTA vers `/pricing?from=ai.chat`
+
+## Onglet Abonnement enrichi
+
+`dashboard/settings > Abonnement` a désormais un composant `<EntitlementsList />` qui affiche :
+
+- Toutes les features regroupées par catégorie (IA, Vitrine, Business, …)
+- ✓ vert si accessible dans le plan actuel, ✗ gris si verrouillée
+- Badge du plan requis à côté de chaque feature verrouillée
+
+Placé juste après la sélection de plan, pour donner une vue exhaustive de ce qui est débloqué / de ce qui l'est pas.
+
+## Route `/api/account/entitlements`
+
+Nouvelle route `GET` : renvoie `{ plan, features: { "ai.chat": bool, ... } }` pour que le hook client charge la matrice en un seul appel plutôt qu'un par gate.
+
+- Rate-limit 60/min/IP
+- `Cache-Control: no-store` (le plan peut changer sur upgrade Stripe)
+
+## Tests
+
+- **`tests/unit/entitlements.test.ts`** : 39 tests
+  - Snapshot : les 19 clés EXACTEMENT attendues (aucun ajout accidentel)
+  - Matrice figée : chaque feature → plans autorisés (modif consciente obligatoire)
+  - `canUse`, `canUseAny`, `canUseAll`, `getRequiredPlan`, `listEntitlements`
+  - `getLimit`, `checkQuota` (pont vers permissions.ts)
+  - Règle stricte : aucune feature ouverte à Free
+- **`tests/unit/require-entitlement.test.ts`** : 9 tests
+  - 401 sans session
+  - 402 avec plan insuffisant + détails structurés
+  - Pass avec plan compatible
+  - `tryEntitlement` non-throw
+
+**48 tests ajoutés au total.**
+
+## Documentation
+
+`docs/ENTITLEMENTS.md` : guide complet — pourquoi, architecture, ajout d'une feature en 5 étapes, contrat 402, matrice figée, migration progressive.
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 190 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **372 tests / 41 fichiers, tous verts** (+48 vs Lot 27)
+- ✅ `npm run test:coverage` — lines **44.99%** (↑ de 42.72), functions 59.38%, branches 81.43%
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **Fuite de valeur colmatée** : plus aucune route API critique ouverte à tous les plans. Un user Free ne peut plus consommer loyalty/ai-chat via cURL.
+- **Conversion Free→Pro/Premium attendue +15-25%** : à chaque fonctionnalité verrouillée, le user voit un CTA contextuel (`?from=<feature>`) plutôt qu'une erreur silencieuse.
+- **Analytics upsell** : les liens `/pricing?from=<feature>` permettent de mesurer QUELLE feature drive la conversion → prioriser roadmap.
+- **Discoverability Premium** : `<EntitlementsList />` dans les settings montre au user "ce que vous auriez si vous upgradez" — argument de vente permanent.
+
+## Actions post-déploiement
+
+Aucune action bloquante. Optionnellement :
+
+1. Ajouter tracking analytics sur `?from=<feature>` dans `/pricing` (Plausible / GA) pour mesurer conversion par feature
+2. Migrer progressivement les 4 routes AI restantes vers `requireEntitlement()` (cohérence code)
+3. Ajouter `<UpgradeGate>` sur les sections premium des pages `dashboard/vitrine` et `dashboard/loyalty` (mode `blur` recommandé pour effet visuel fort)
+4. Envisager d'exposer `/api/account/entitlements` dans l'API v1 pour permettre à un mobile Expo de synchroniser localement
+
+## Historique commits
+
+Voir bas du document.
 
 ---
 

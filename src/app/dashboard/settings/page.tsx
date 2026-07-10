@@ -9,6 +9,8 @@ import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { SecurityTab } from "./_components/SecurityTab";
+// F1 (Lot 29) : vue détaillée entitlements dans l'onglet Abonnement.
+import { EntitlementsList } from "@/components/entitlements/EntitlementsList";
 import {
   User,
   Globe,
@@ -427,6 +429,9 @@ export default function SettingsPage() {
             <p className="text-center text-xs text-slate-500">
               Paiement sécurisé par Stripe · Sans engagement · Résiliable à tout moment
             </p>
+
+            {/* F1 : vue détaillée par feature (ce qui est débloqué / verrouillé) */}
+            <EntitlementsList />
 
             {/* Annulation de l'abonnement en cours */}
             {currentPlan !== "free" && (
