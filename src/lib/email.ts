@@ -290,4 +290,74 @@ export const EmailTemplates = {
       </div>
     `,
   }),
+
+  // ========== AUTH : réinitialisation mot de passe (Lot 19) ==========
+  passwordReset: (data: {
+    firstName: string;
+    resetUrl: string;
+    ip?: string | null;
+    expiryMinutes: number;
+  }) => ({
+    subject: "Réinitialisation de votre mot de passe Vitrix",
+    html: baseWrapper(
+      `
+      <h1 style="color: #0f172a; font-size: 22px; margin: 0 0 16px;">Réinitialisation de mot de passe</h1>
+      <p style="color: #334155; margin: 0 0 16px;">Bonjour ${data.firstName},</p>
+      <p style="color: #334155; margin: 0 0 24px;">
+        Vous avez demandé à réinitialiser le mot de passe de votre compte Vitrix.
+        Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
+      </p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${data.resetUrl}" style="display: inline-block; background: #0f172a; color: white; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 600;">
+          Réinitialiser mon mot de passe
+        </a>
+      </div>
+      <p style="color: #64748b; font-size: 13px; margin: 0 0 8px;">
+        Ce lien expire dans ${data.expiryMinutes} minutes et ne peut être utilisé qu'une seule fois.
+      </p>
+      <p style="color: #64748b; font-size: 13px; margin: 0 0 16px;">
+        Si vous n'êtes pas à l'origine de cette demande, ignorez cet email — votre mot de passe restera inchangé.
+        ${data.ip ? `<br/>Demande envoyée depuis l'IP <code style="font-family: monospace;">${data.ip}</code>.` : ""}
+      </p>
+      <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0; word-break: break-all;">
+        Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br/>
+        <a href="${data.resetUrl}" style="color: #64748b;">${data.resetUrl}</a>
+      </p>
+    `,
+      "Vitrix"
+    ),
+  }),
+
+  // ========== AUTH : vérification email (Lot 19) ==========
+  emailVerify: (data: {
+    firstName: string;
+    verifyUrl: string;
+    expiryHours: number;
+  }) => ({
+    subject: "Confirmez votre adresse email Vitrix",
+    html: baseWrapper(
+      `
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="display: inline-block; background: #dbeafe; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; font-size: 28px;">✉️</div>
+      </div>
+      <h1 style="color: #0f172a; font-size: 22px; text-align: center; margin: 0 0 12px;">Bienvenue chez Vitrix !</h1>
+      <p style="color: #334155; text-align: center; margin: 0 0 24px;">
+        Bonjour ${data.firstName}, il ne reste qu'une étape pour activer votre compte : confirmer votre adresse email.
+      </p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${data.verifyUrl}" style="display: inline-block; background: #0f172a; color: white; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 600;">
+          Confirmer mon email
+        </a>
+      </div>
+      <p style="color: #64748b; font-size: 13px; text-align: center; margin: 0 0 16px;">
+        Ce lien expire dans ${data.expiryHours} heures.
+      </p>
+      <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0; word-break: break-all;">
+        Lien de secours :<br/>
+        <a href="${data.verifyUrl}" style="color: #64748b;">${data.verifyUrl}</a>
+      </p>
+    `,
+      "Vitrix"
+    ),
+  }),
 };

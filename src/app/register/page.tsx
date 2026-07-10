@@ -9,11 +9,13 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Store, CheckCircle2, AlertCircle, Loader2, ArrowLeft, ArrowRight, Shield } from "lucide-react";
 import { CATEGORIES } from "@/lib/utils";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [siretStatus, setSiretStatus] = useState<"checking" | "valid" | "invalid" | "idle">("idle");
   const [siretInfo, setSiretInfo] = useState<{ name?: string; address?: string } | null>(null);
   // Lot 18 B9 : capture le code parrain depuis `?ref=VX-XXXXXX` dans l'URL.
@@ -164,10 +166,13 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Lot 18 B9 : on ajoute le referralCode si présent — le backend
-        // (Lot 16) accepte déjà ce champ optionnel et l'ignore s'il est
-        // invalide (résolution safe via resolveReferralCode).
-        body: JSON.stringify({ ...formData, referralCode }),
+        // Lot 18 B9 : referralCode si présent (résolution safe côté backend).
+        // Lot 19 : captchaToken — obligatoire si TURNSTILE_SECRET_KEY set, ignoré sinon.
+        body: JSON.stringify({
+          ...formData,
+          referralCode,
+          captchaToken: captchaToken ?? undefined,
+        }),
       });
 
       const data = await res.json();
@@ -349,6 +354,9 @@ export default function RegisterPage() {
                   <p>{formData.city}</p>
                 </div>
               </div>
+
+              {/* Lot 19 : captcha Turnstile — invisible si pas de site key */}
+              <CaptchaWidget onToken={setCaptchaToken} />
 
               <div className="flex gap-3">
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(2)} leftIcon={<ArrowLeft className="h-4 w-4" />}>

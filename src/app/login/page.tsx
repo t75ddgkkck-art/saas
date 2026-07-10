@@ -1,16 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Store, Loader2, Shield } from "lucide-react";
+import { Store, Loader2, Shield, CheckCircle2 } from "lucide-react";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Lot 19 : message flash après reset password réussi (redirigé ici par /reset-password)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("resetOk") === "1") {
+      setNotice("Mot de passe mis à jour. Connectez-vous avec votre nouveau mot de passe.");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +33,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, captchaToken: captchaToken ?? undefined }),
       });
       const data = await res.json();
 
@@ -60,6 +72,14 @@ export default function LoginPage() {
           Réservé aux professionnels vérifiés
         </div>
 
+        {/* Notice flash (Lot 19 : après reset) */}
+        {notice && (
+          <div className="flex items-start gap-2 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            {notice}
+          </div>
+        )}
+
         {/* Form */}
         <div className="rounded-2xl border border-slate-200/60 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -71,6 +91,7 @@ export default function LoginPage() {
             <Input
               label="Email"
               type="email"
+              autoComplete="email"
               placeholder="vous@entreprise.fr"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -79,11 +100,25 @@ export default function LoginPage() {
             <Input
               label="Mot de passe"
               type="password"
+              autoComplete="current-password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+
+            {/* Lot 19 : lien mot de passe oublié */}
+            <div className="text-right text-sm">
+              <Link
+                href="/forgot-password"
+                className="font-medium text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
+
+            <CaptchaWidget onToken={setCaptchaToken} />
+
             <Button type="submit" className="w-full" loading={isLoading}>
               {isLoading ? (
                 <>

@@ -1075,3 +1075,79 @@ export const webhookDeliveries = pgTable(
     retryIdx: index("webhook_deliveries_retry_idx").on(t.success, t.attemptCount),
   })
 );
+
+// ============== AUTH TOKENS (Lot 19) ==============
+// Tokens à usage unique pour :
+//  - password_reset : lien envoyé par email pour réinitialiser le mdp
+//  - email_verify   : double opt-in confirmation d'inscription
+//  - magic_link     : (futur) connexion sans mot de passe
+//
+// SÉCURITÉ :
+//  - Seul le HASH SHA-256 est stocké (le token clair transite dans l'URL de l'email
+//    puis est jeté). Si la DB fuite, les tokens ne sont pas réutilisables.
+//  - Single-use : `used_at` est renseigné à la 1ère consommation → rejet des replays.
+//  - TTL court (1h reset, 24h verify) via `expires_at`.
+//  - IP stockée pour audit / détection abus.
+export const authTokenTypeEnum = pgEnum("auth_token_type", [
+  "password_reset",
+  "email_verify",
+  "magic_link",
+]);
+
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    type: authTokenTypeEnum("type").notNull(),
+    // Hash SHA-256 hex du token (64 chars). Le token clair n'est jamais stocké.
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    // Non-null = déjà consommé (single-use)
+    usedAt: timestamp("used_at"),
+    // IP de génération (audit) + IP de consommation stockée en meta jsonb
+    ip: varchar("ip", { length: 45 }),
+    meta: jsonb("meta"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Lookup par hash à la consommation (hot path) — critique pour perf + sécurité
+    hashIdx: uniqueIndex("auth_tokens_hash_uidx").on(t.tokenHash),
+    // Cron nettoyage des expirés
+    expiresIdx: index("auth_tokens_expires_idx").on(t.expiresAt),
+    // Anti-spam : "combien de tokens actifs pour ce user + type ?"
+    userTypeIdx: index("auth_tokens_user_type_idx").on(t.userId, t.type, t.createdAt),
+  })
+);
+
+// ============== SESSIONS (Lot 19 multi-device) ==============
+// Registre des sessions actives d'un user pour "Mes sessions" + "Déconnecter partout".
+// Complémentaire au cookie signé HMAC de session.ts : le cookie prouve l'auth,
+// la table permet de RÉVOQUER une session sans changer le secret global.
+//
+// Vérification côté getCurrentUser : après avoir décodé le cookie, on check
+// que la session existe et n'a pas été révoquée. Si absente → cookie ignoré.
+export const sessions = pgTable(
+  "sessions",
+  {
+    // ID de session = fingerprint stocké dans le cookie (à côté du userId).
+    // On stocke le HASH pour même raison que auth_tokens (fuite DB non-exploitable).
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // Hash SHA-256 du session token → lookup rapide, safe si DB fuite
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    // Métadonnées visibles côté user (dashboard "mes sessions")
+    userAgent: varchar("user_agent", { length: 500 }),
+    ip: varchar("ip", { length: 45 }),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+    // Non-null = révoquée (soft), la session ne peut plus authentifier
+    revokedAt: timestamp("revoked_at"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    hashIdx: uniqueIndex("sessions_hash_uidx").on(t.tokenHash),
+    userCreatedIdx: index("sessions_user_created_idx").on(t.userId, t.createdAt),
+    expiresIdx: index("sessions_expires_idx").on(t.expiresAt),
+  })
+);

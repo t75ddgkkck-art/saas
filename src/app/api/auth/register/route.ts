@@ -8,9 +8,11 @@ import { verifySiret } from "@/lib/siret";
 import { generateUniqueSlug } from "@/lib/utils";
 import { createSessionToken } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { badRequest, conflict, handleApiError } from "@/lib/api-error";
+import { verifyCaptcha } from "@/lib/captcha";
+import { badRequest, conflict, handleApiError, unauthorized } from "@/lib/api-error";
 import { logger } from "@/lib/logger";
 import { generateUniqueReferralCode, resolveReferralCode } from "@/lib/referral";
+import { sendVerifyEmail } from "@/lib/send-verify-email";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,8 @@ const RegisterSchema = z.object({
   // Lot 16.3 parrainage : code fourni via ?ref=... au register.
   // Résolu côté serveur (jamais confiance au client).
   referralCode: z.string().trim().max(20).optional().nullable(),
+  // Lot 19 : captcha Turnstile (optionnel, skip en dev sans TURNSTILE_SECRET_KEY)
+  captchaToken: z.string().optional(),
 });
 
 const DEFAULT_HOURS = [
@@ -62,6 +66,17 @@ export async function POST(request: NextRequest) {
       );
     }
     const data = parsed.data;
+
+    // Lot 19 : captcha Turnstile — skip auto en dev sans secret.
+    // On refuse l'inscription si captcha configuré et invalide.
+    const clientIp =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      null;
+    const captcha = await verifyCaptcha(data.captchaToken, { ip: clientIp });
+    if (!captcha.ok && captcha.reason !== "no_secret") {
+      throw unauthorized("Vérification anti-robot échouée. Rechargez la page et réessayez.");
+    }
 
     // Vérif SIRET (INSEE ou Luhn fallback)
     const siretVerification = await verifySiret(data.siret);
@@ -218,6 +233,22 @@ export async function POST(request: NextRequest) {
     logger.info("user.registered", {
       userId: created.user.id,
       businessId: created.business.id,
+    });
+
+    // Lot 19 : envoi email de vérification, non-bloquant.
+    // On ne fait pas `await` critique — le user est déjà loggé, l'email arrive
+    // dans les secondes qui suivent. En cas d'échec on log mais on ne fail pas
+    // la création du compte.
+    void sendVerifyEmail({
+      userId: created.user.id,
+      email: created.user.email,
+      firstName: created.user.firstName,
+      ip: clientIp,
+    }).catch((err) => {
+      logger.warn("[register] verify email non envoyé", {
+        userId: created.user.id,
+        err: err instanceof Error ? err.message : String(err),
+      });
     });
 
     return response;

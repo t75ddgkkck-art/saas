@@ -17,6 +17,8 @@ interface User {
   lastName: string;
   role: string;
   subscription: string;
+  // Lot 19 : exposé par /api/auth/session pour bannière verify email
+  emailVerified?: boolean;
 }
 
 type RegisterPayload = Record<string, unknown>;

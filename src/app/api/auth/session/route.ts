@@ -18,6 +18,9 @@ export async function GET() {
       lastName: user.lastName,
       role: user.role,
       subscription: user.subscription,
+      // Lot 19 : le dashboard a besoin de savoir si l'email est vérifié
+      // pour afficher la bannière "vérifiez votre email".
+      emailVerified: user.emailVerified,
     },
   });
 }

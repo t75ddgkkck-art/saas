@@ -14,8 +14,11 @@ export const metadata: Metadata = {
   description: "État en temps réel des services Vitrix (base de données, paiements, emails, IA).",
 };
 
-// Revalidation ISR : 30s → équilibre fraîcheur/coût.
-export const revalidate = 30;
+// Lot 19 fix build : force-dynamic pour éviter le prerender au BUILD (qui
+// tapait sur `NEXT_PUBLIC_APP_URL/api/health` inexistant en local build → hang).
+// Coût OK : /status n'est pas hot, un render par visite est acceptable.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface HealthCheck {
   name: string;
@@ -46,12 +49,20 @@ async function fetchHealth(): Promise<HealthResponse | null> {
   try {
     // Base URL absolue : nécessaire côté serveur pour aller sur son propre endpoint
     const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const res = await fetch(`${base}/api/health`, {
-      // On veut la version fraîche à chaque revalidate ISR (pas de cache)
-      cache: "no-store",
-    });
-    if (!res.ok && res.status !== 503) return null;
-    return await res.json();
+    // Lot 19 fix : timeout hard 3s pour éviter que /status hang si /api/health lag.
+    // Retour null → l'UI affiche "Incident en cours" (safe fallback).
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 3000);
+    try {
+      const res = await fetch(`${base}/api/health`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!res.ok && res.status !== 503) return null;
+      return await res.json();
+    } finally {
+      clearTimeout(t);
+    }
   } catch {
     return null;
   }

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { verifyPassword } from "@/lib/auth";
 import { createSessionToken } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { verifyCaptcha } from "@/lib/captcha";
 import { badRequest, handleApiError, unauthorized } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ const TOKEN_EXPIRY_SEC = 7 * 24 * 60 * 60;
 const LoginSchema = z.object({
   email: z.string().email("Email invalide").max(255),
   password: z.string().min(1, "Mot de passe requis").max(200),
+  // Lot 19 : captcha optionnel côté schéma (obligatoire seulement en prod
+  // via TURNSTILE_SECRET_KEY, le verifyCaptcha gère le skip auto en dev).
+  captchaToken: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -28,8 +32,20 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       throw badRequest(parsed.error.issues[0]?.message ?? "Données invalides");
     }
-    const { email, password } = parsed.data;
+    const { email, password, captchaToken } = parsed.data;
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Lot 19 : captcha Turnstile. Skip auto en dev (pas de TURNSTILE_SECRET_KEY).
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      null;
+    const captcha = await verifyCaptcha(captchaToken, { ip });
+    if (!captcha.ok && captcha.reason !== "no_secret") {
+      // On ne dit pas explicitement "captcha" pour ne pas donner d'info à un bot.
+      // Le rate-limit + le message générique gèrent la posture globale.
+      throw unauthorized("Vérification anti-robot échouée. Rechargez la page et réessayez.");
+    }
 
     const userResult = await db
       .select()

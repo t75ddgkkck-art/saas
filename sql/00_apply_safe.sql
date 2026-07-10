@@ -586,6 +586,66 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4quater. Lot 19 — Auth complète (tokens reset/verify + sessions)
+-- -----------------------------------------------------------------------------
+
+-- Enum type de token
+DO $$ BEGIN
+  CREATE TYPE public.auth_token_type AS ENUM ('password_reset', 'email_verify', 'magic_link');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- auth_tokens (single-use, TTL, hash SHA-256)
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.auth_tokens (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      uuid NOT NULL,
+    type         public.auth_token_type NOT NULL,
+    token_hash   varchar(64) NOT NULL,
+    expires_at   timestamp NOT NULL,
+    used_at      timestamp,
+    ip           varchar(45),
+    meta         jsonb,
+    created_at   timestamp NOT NULL DEFAULT NOW()
+  );
+  IF public.__vx_table_exists('users') THEN
+    BEGIN
+      ALTER TABLE public.auth_tokens
+        ADD CONSTRAINT auth_tokens_user_fk
+        FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  CREATE UNIQUE INDEX IF NOT EXISTS auth_tokens_hash_uidx ON public.auth_tokens (token_hash);
+  CREATE INDEX IF NOT EXISTS auth_tokens_expires_idx ON public.auth_tokens (expires_at);
+  CREATE INDEX IF NOT EXISTS auth_tokens_user_type_idx
+    ON public.auth_tokens (user_id, type, created_at DESC);
+END $$;
+
+-- sessions (multi-device, revoke)
+DO $$ BEGIN
+  CREATE TABLE IF NOT EXISTS public.sessions (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id       uuid NOT NULL,
+    token_hash    varchar(64) NOT NULL,
+    user_agent    varchar(500),
+    ip            varchar(45),
+    last_seen_at  timestamp NOT NULL DEFAULT NOW(),
+    revoked_at    timestamp,
+    expires_at    timestamp NOT NULL,
+    created_at    timestamp NOT NULL DEFAULT NOW()
+  );
+  IF public.__vx_table_exists('users') THEN
+    BEGIN
+      ALTER TABLE public.sessions
+        ADD CONSTRAINT sessions_user_fk
+        FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
+  CREATE UNIQUE INDEX IF NOT EXISTS sessions_hash_uidx ON public.sessions (token_hash);
+  CREATE INDEX IF NOT EXISTS sessions_user_created_idx ON public.sessions (user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS sessions_expires_idx ON public.sessions (expires_at);
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

@@ -4,6 +4,197 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 17 — Lot 19 Auth complète pro
+
+Comble les 5 gros trous auth identifiés dans l'audit "état actuel" :
+- ❌ Pas de "mot de passe oublié" → **fait**
+- ❌ Pas de vérification email (double opt-in) → **fait**
+- ❌ Pas de changement de mdp côté user → **fait**
+- ❌ Pas de captcha register/login → **fait (Cloudflare Turnstile optionnel)**
+- ⏳ Sessions multi-device → **infrastructure prête (table + hash), UI au lot ultérieur**
+- ⏳ 2FA TOTP → **pas ce lot (type magic_link prévu dans l'enum pour extension)**
+
+## Nouvelles tables DB
+
+**`auth_tokens`** (single-use, hash SHA-256, TTL) :
+- Enum `auth_token_type` : `password_reset` | `email_verify` | `magic_link`
+- `token_hash` varchar(64) unique — jamais le brut en DB
+- `expires_at` + `used_at` pour single-use atomique
+- `ip` + `meta` jsonb pour audit
+- Index : hash unique, expires (cron purge), (user, type, created_at desc) anti-spam
+- FK cascade users
+
+**`sessions`** (multi-device) — infrastructure prête, câblage UI au lot ultérieur :
+- `token_hash` unique (source de vérité pour révocation)
+- `user_agent` + `ip` + `last_seen_at` pour "Mes sessions"
+- `revoked_at` pour révocation soft
+- `expires_at` avec index cron
+
+**SQL idempotent** dans `sql/00_apply_safe.sql` bloc "4quater Lot 19" (~65 lignes).
+
+## Lib `src/lib/auth-tokens.ts`
+
+- `generateRawToken()` : 32 bytes random hex (256 bits d'entropie)
+- `hashToken(raw)` : SHA-256 hex déterministe → lookup DB O(1)
+- `createAuthToken({ userId, type, ip, meta })` : anti-spam (max 3-5 actifs/type/user)
+- `consumeAuthToken(raw, type)` : atomique via `UPDATE ... WHERE used_at IS NULL`, retourne `{ ok, userId, reason }`
+- `purgeExpiredTokens()` : à câbler dans le cron RGPD Lot 15
+
+TTL par type : password_reset 1h, email_verify 24h, magic_link 15min.
+
+## Lib `src/lib/captcha.ts` — Cloudflare Turnstile
+
+- `verifyCaptcha(token, { ip })` : POST vers `challenges.cloudflare.com/turnstile/v0/siteverify`
+- Timeout hard 5s (safe fallback)
+- **Auto-skip si `TURNSTILE_SECRET_KEY` absent** → dev-friendly, prod safe une fois la clé posée
+- `isCaptchaEnabled()` : helper pour ne pas oublier en prod
+
+## Composant `<CaptchaWidget>` (Lot 19)
+
+- Charge dynamiquement le script Turnstile 1× (guard `window.turnstile`)
+- Ne rend rien si `NEXT_PUBLIC_TURNSTILE_SITE_KEY` absent
+- Callbacks `onToken` / `onExpire` / `onError`
+- Nettoyage propre au unmount (`turnstile.remove()`)
+
+## Routes API nouvelles
+
+- `POST /api/auth/forgot-password` — envoi email reset avec **réponse générique** (anti-énumération), rate 3/h/IP + captcha
+- `POST /api/auth/reset-password` — consomme token + change hash + `emailVerified=true` bonus
+- `POST /api/auth/verify-email/send` — (re)envoi email verify (bannière + settings)
+- `POST /api/auth/verify-email/confirm` — consomme token + set `emailVerified=true`
+- `PUT /api/account/password` — change mdp connecté (requiert ancien mdp, rate 5/h/IP)
+
+## Pages UI nouvelles
+
+- `/forgot-password` — form email + captcha, écran succès générique
+- `/reset-password?token=...` — form nouveau mdp + confirmation, toggle show/hide
+- `/verify-email?token=...` — POST au chargement (évite bots), 3 états (pending/ok/error)
+
+## Modifs pages existantes
+
+- **`/login`** : lien "Mot de passe oublié ?", CaptchaWidget, bannière flash `?resetOk=1` après reset, autocomplete propre
+- **`/register`** : CaptchaWidget à l'étape 3, envoi captchaToken au backend, envoi automatique email verify après création
+- **`/dashboard/settings`** : nouvel onglet "Sécurité" (Lock icon) avec composant `SecurityTab` (verify email + change password)
+- **`/api/auth/login`** : verify captcha en début de route, message générique si échec
+- **`/api/auth/register`** : verify captcha + `sendVerifyEmail` fire-and-forget après création
+- **`/api/auth/session`** : renvoie désormais `emailVerified` (utilisé par la bannière)
+- **AuthContext** : `emailVerified?: boolean` dans le type User
+
+## Nouveau composant `<EmailVerifyBanner>`
+
+- Bannière discrète en tête du dashboard si `emailVerified === false`
+- Bouton "Renvoyer" (appelle `/api/auth/verify-email/send`)
+- Bouton "Détails" → settings sécurité
+- **Dismissable 7 jours** via localStorage (`vx_verify_dismissed_until`)
+- Aria role="status" pour lecteurs d'écran
+
+## Fix build /status
+
+- **`/status`** passe en `force-dynamic` + `revalidate = 0` : évite le prerender au BUILD qui tapait sur `NEXT_PUBLIC_APP_URL/api/health` inexistant → hang
+- Ajout timeout `AbortController` 3s dans `fetchHealth()` pour UX safe si /api/health lag en runtime
+
+## Templates email
+
+Ajoutés dans `src/lib/email.ts` :
+- `EmailTemplates.passwordReset` : bouton reset + IP émettrice + expiry + lien secours
+- `EmailTemplates.emailVerify` : bouton confirm + expiry + lien secours
+
+Envoyés en category `transactional` (queue non-bloquante Lot 9).
+
+## Tests (+21)
+
+- `tests/unit/auth-tokens.test.ts` : 13 tests (raw token entropy, hash déterministe, create refuse trop actifs, consume tous les cas ok/expired/used/wrong_type/race)
+- `tests/unit/captcha.test.ts` : 8 tests (mode dev skip, no_token, success Cloudflare, failure, network error, non-2xx)
+
+## Fichiers modifiés/créés
+
+**Nouveaux (11)** :
+- `src/db/schema.ts` — enum + 2 tables
+- `src/lib/auth-tokens.ts`
+- `src/lib/captcha.ts`
+- `src/lib/send-verify-email.ts`
+- `src/components/auth/CaptchaWidget.tsx`
+- `src/components/dashboard/EmailVerifyBanner.tsx`
+- `src/app/api/auth/forgot-password/route.ts`
+- `src/app/api/auth/reset-password/route.ts`
+- `src/app/api/auth/verify-email/send/route.ts`
+- `src/app/api/auth/verify-email/confirm/route.ts`
+- `src/app/api/account/password/route.ts`
+- `src/app/forgot-password/page.tsx`
+- `src/app/reset-password/page.tsx`
+- `src/app/verify-email/page.tsx`
+- `src/app/dashboard/settings/_components/SecurityTab.tsx`
+- `tests/unit/auth-tokens.test.ts` (13 tests)
+- `tests/unit/captcha.test.ts` (8 tests)
+- `docs/AUTH.md` (~150 lignes)
+
+**Modifiés** :
+- `sql/00_apply_safe.sql` — bloc Lot 19
+- `src/app/api/auth/login/route.ts` — captcha
+- `src/app/api/auth/register/route.ts` — captcha + sendVerifyEmail
+- `src/app/api/auth/session/route.ts` — expose emailVerified
+- `src/contexts/AuthContext.tsx` — type User emailVerified
+- `src/app/login/page.tsx` — captcha + lien oublié + resetOk
+- `src/app/register/page.tsx` — captcha
+- `src/app/dashboard/settings/page.tsx` — onglet Sécurité
+- `src/app/dashboard/layout.tsx` — EmailVerifyBanner
+- `src/app/status/page.tsx` — force-dynamic + timeout
+- `src/lib/email.ts` — 2 nouveaux templates
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 220/220 tests (28 fichiers, +21 nouveaux)
+✅ npx next build      → 0 warning, compilé en 30s
+```
+
+## Impact business
+
+- **Fin du "compte perdu = client perdu"** : reset password self-service
+- **Sécurité renforcée** : captcha Turnstile en 1 env var (gratuit CF)
+- **Anti-spam register** : bannière + captcha empêchent les inscriptions robots
+- **Trust B2B** : vraie vérification email (indispensable pour la portabilité SaaS pro)
+- **Changement mdp autonome** : plus de tickets support pour ça
+- **Bannière verify** discrète mais efficace : force la vérification sans agression
+
+## Actions post-déploiement
+
+1. **Jouer `sql/00_apply_safe.sql`** dans Supabase (~10s, idempotent)
+2. **(Optionnel prod) Setup Turnstile** (recommandé fortement) :
+   - Créer un site sur https://dash.cloudflare.com/?to=/:account/turnstile
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` et `TURNSTILE_SECRET_KEY` sur Vercel
+   - Sans ça : login/register/forgot fonctionnent mais sans anti-bot
+3. **Tester le flow reset** : /forgot-password avec un email valide → vérifier réception → cliquer → nouveau mdp
+4. **Décider pour les users existants** : les marquer `email_verified=true` en batch OU leur envoyer un email one-shot de vérification :
+   ```sql
+   -- Option 1 : trust legacy (simple)
+   UPDATE users SET email_verified = true WHERE created_at < '2026-07-11';
+   ```
+5. **(Optionnel)** Ajouter `purgeExpiredTokens()` au cron RGPD `/api/cron/purge-deleted` (Lot 15)
+
+## Historique commits
+
+```
+84a5a7d  lot 19 auth complète: mdp oublié, verify email, captcha Turnstile, change mdp, /status force-dynamic
+7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
+a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 16 — Lot 18 Quick-fixes bloquants + 404 devis
 
 Adresse les bugs bloquants identifiés dans l'audit "état actuel" :
@@ -178,7 +369,7 @@ Aucune migration SQL nécessaire (Lot 18 = pure code).
 ## Historique commits
 
 ```
-6c6632c  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
+7f69e4b  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
 a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
 725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
 2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc

@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/contexts/AuthContext";
+import { SecurityTab } from "./_components/SecurityTab";
 import {
   User, Globe, CreditCard, Trash2, Check, AlertTriangle, FileText, Lock, Download,
 } from "lucide-react";
@@ -29,7 +30,10 @@ const PLANS = [
 export default function SettingsPage() {
   const { user } = useAuth();
   const plan = user?.subscription || "free";
-  const [tab, setTab] = useState<"compte" | "langue" | "abonnement" | "domaine" | "danger">("compte");
+  // Lot 19 : nouvel onglet "sécurité" (changer mdp + email verify)
+  const [tab, setTab] = useState<
+    "compte" | "securite" | "langue" | "abonnement" | "domaine" | "danger"
+  >("compte");
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [language, setLanguage] = useState("fr");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -86,7 +90,7 @@ export default function SettingsPage() {
     // Ouvrir directement l'onglet demandé via ?tab=abonnement
     const params = new URLSearchParams(window.location.search);
     const requestedTab = params.get("tab");
-    const VALID_TABS = ["compte", "langue", "abonnement", "domaine", "danger"] as const;
+    const VALID_TABS = ["compte", "securite", "langue", "abonnement", "domaine", "danger"] as const;
     type ValidTab = (typeof VALID_TABS)[number];
     if (requestedTab && (VALID_TABS as readonly string[]).includes(requestedTab)) {
       setTab(requestedTab as ValidTab);
@@ -160,6 +164,7 @@ export default function SettingsPage() {
       <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
         {[
           { id: "compte" as const, label: "Mon compte", icon: User },
+          { id: "securite" as const, label: "Sécurité", icon: Lock },
           { id: "langue" as const, label: "Langue", icon: Globe },
           { id: "abonnement" as const, label: "Abonnement", icon: CreditCard },
           { id: "domaine" as const, label: "Nom de domaine", icon: Globe },
@@ -209,6 +214,13 @@ export default function SettingsPage() {
               <a href="/mentions-legales" target="_blank" className="flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"><FileText className="h-3.5 w-3.5" /> Mentions légales</a>
             </div>
           </div>
+        )}
+
+        {tab === "securite" && (
+          <SecurityTab
+            emailVerified={user?.emailVerified ?? false}
+            onEmailVerifiedRefresh={() => window.location.reload()}
+          />
         )}
 
         {tab === "langue" && (

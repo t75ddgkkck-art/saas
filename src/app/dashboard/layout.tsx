@@ -8,6 +8,7 @@ import { LangProvider } from "@/contexts/LangContext";
 import { LangHtmlSync } from "@/components/layout/LangHtmlSync";
 import { SupportBubble } from "@/components/layout/SupportBubble";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
+import { EmailVerifyBanner } from "@/components/dashboard/EmailVerifyBanner";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -24,7 +25,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           tabIndex={-1}
           className="lg:ml-72 min-h-screen focus:outline-none"
         >
-          <div className="mx-auto max-w-7xl px-4 py-8 pt-20 lg:px-8 lg:pt-8">{children}</div>
+          <div className="mx-auto max-w-7xl px-4 py-8 pt-20 lg:px-8 lg:pt-8">
+            {/* Lot 19 : bannière verify email — dismissable 7j */}
+            <div className="mb-4">
+              <EmailVerifyBanner />
+            </div>
+            {children}
+          </div>
         </main>
         <PWAInstallBanner />
         {/* Lot 16.5 : bouton support (Crisp/Intercom si env défini, sinon mailto) */}
