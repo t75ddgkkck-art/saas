@@ -177,7 +177,7 @@ export function PricingSection() {
             );
           })}
         </div>
-        <p className="mt-8 text-center text-sm text-slate-400">
+        <p className="mt-8 text-center text-sm text-slate-500">
           Paiement sécurisé par Stripe · Sans engagement · Résiliable à tout moment
         </p>
       </div>

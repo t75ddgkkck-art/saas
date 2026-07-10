@@ -3,6 +3,7 @@ import { blogPosts, businesses } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 
 // Rendu dynamique (dépendance DB)
@@ -90,8 +91,18 @@ export default async function BlogPostPage({ params }: Props) {
           ← Retour au blog
         </Link>
 
+        {/* Lot 18 B19 : next/image → AVIF/WebP auto, lazy loading, LCP amélioré */}
         {post.coverImage && (
-          <img src={post.coverImage} alt={post.title} className="w-full h-64 sm:h-80 object-cover rounded-2xl mb-8" />
+          <div className="relative mb-8 h-64 w-full overflow-hidden rounded-2xl sm:h-80">
+            <Image
+              src={post.coverImage}
+              alt={post.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 768px"
+              className="object-cover"
+              priority
+            />
+          </div>
         )}
 
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">{post.title}</h1>

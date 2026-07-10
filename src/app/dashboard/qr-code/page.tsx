@@ -180,7 +180,7 @@ export default function QRCodePage() {
                 </div>
               ) : (
                 <div className="flex h-64 w-64 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                  <p className="text-sm text-slate-400">Aperçu du QR code</p>
+                  <p className="text-sm text-slate-500">Aperçu du QR code</p>
                 </div>
               )}
 

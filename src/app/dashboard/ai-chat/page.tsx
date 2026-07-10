@@ -14,14 +14,18 @@ interface Message {
   timestamp: Date;
 }
 
-const initialMessages: Message[] = [
-  {
+// Lot 18 B3 : message d'accueil dynamique fonction du business.
+// Le composant construit `initialMessages` avec le vrai nom une fois le
+// business chargé — plus jamais "Dupont Plomberie" hardcodé.
+function buildInitialMessage(businessName: string | null): Message {
+  const name = businessName?.trim() || "notre équipe";
+  return {
     id: "1",
     role: "assistant",
-    content: "Bonjour ! 👋 Je suis l'assistant virtuel de Dupont Plomberie. Je peux vous aider à :\n\n• Prendre un rendez-vous\n• Obtenir des informations sur nos services\n• Vous renseigner sur nos tarifs\n• Répondre à vos questions\n\nComment puis-je vous aider ?",
+    content: `Bonjour ! 👋 Je suis l'assistant virtuel de ${name}. Je peux vous aider à :\n\n• Prendre un rendez-vous\n• Obtenir des informations sur nos services\n• Vous renseigner sur nos tarifs\n• Répondre à vos questions\n\nComment puis-je vous aider ?`,
     timestamp: new Date(),
-  },
-];
+  };
+}
 
 const quickActions = [
   { label: "Prendre RDV", prompt: "Je voudrais prendre rendez-vous" },
@@ -38,16 +42,31 @@ const aiResponses: Record<string, string> = {
 };
 
 export default function AIChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  // Lot 18 B2/B3 : on part sur un message d'accueil neutre ("notre équipe"),
+  // puis on le remplace dès que le business est chargé pour afficher son vrai nom.
+  const [messages, setMessages] = useState<Message[]>(() => [buildInitialMessage(null)]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/my-business")
       .then((r) => r.json())
-      .then((b) => { if (b?.id) setBusinessId(b.id); })
+      .then((b) => {
+        if (b?.id) setBusinessId(b.id);
+        if (b?.name) {
+          setBusinessName(b.name);
+          // Remplace le message d'accueil UNIQUEMENT s'il n'a pas encore été
+          // remplacé par un vrai échange (évite d'écraser la conversation).
+          setMessages((prev) =>
+            prev.length === 1 && prev[0].id === "1"
+              ? [buildInitialMessage(b.name)]
+              : prev
+          );
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -129,7 +148,10 @@ export default function AIChatPage() {
                   <Bot className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">Assistant Dupont Plomberie</CardTitle>
+                  {/* Lot 18 B2 : nom du business dynamique, jamais "Dupont Plomberie" en dur */}
+                  <CardTitle className="text-base">
+                    Assistant {businessName ?? "IA"}
+                  </CardTitle>
                   <CardDescription>
                     <span className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />

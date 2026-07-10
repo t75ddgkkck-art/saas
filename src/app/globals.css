@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/*
+ * Lot 18 fix B1 : dark mode CLASS-based pour Tailwind v4.
+ *
+ * En v4, `@import "tailwindcss"` active par défaut la variante `dark:` via
+ * `prefers-color-scheme` uniquement — donc `document.documentElement.classList.add("dark")`
+ * (fait par notre THEME_INIT_SCRIPT) était totalement ignoré → le toggle
+ * clair/sombre ne fonctionnait pas.
+ *
+ * Cette custom-variant re-branche `dark:` sur la présence de la classe .dark
+ * OU sur ses enfants, ce qui rend le toggle fonctionnel.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* --font-inter est injecté par next/font/google dans layout.tsx.
      Fallback système en cas de charge lente ou d'échec d'auto-hébergement. */

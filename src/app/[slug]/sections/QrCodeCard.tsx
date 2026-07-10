@@ -37,7 +37,7 @@ export function QrCodeCard({ qrCode, slug, lang = "fr", cardBorder, cardBg }: Qr
           <p className="mt-1 max-w-xs text-sm text-slate-500 dark:text-slate-400">
             {CAPTIONS[lang] || CAPTIONS.fr}
           </p>
-          <p className="mt-2 font-mono text-xs text-slate-400">vitrix.fr/{slug}</p>
+          <p className="mt-2 font-mono text-xs text-slate-500">vitrix.fr/{slug}</p>
         </div>
       </div>
     </div>

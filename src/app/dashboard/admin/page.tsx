@@ -87,7 +87,7 @@ export default async function AdminDashboardPage() {
             hint="abonnements annulés"
           />
         </div>
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-slate-500">
           Données mises en cache 60 s · dernière MAJ {new Date(metrics.computedAt).toLocaleTimeString("fr-FR")}
         </p>
       </section>

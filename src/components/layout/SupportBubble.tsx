@@ -59,12 +59,16 @@ export function SupportBubble() {
 
   if (mode !== "mailto") return null;
 
-  // Fallback mailto : bouton simple, aucune dépendance externe
+  // Fallback mailto : bouton simple, aucune dépendance externe.
+  // Lot 18 B13 : décalé à droite-bas mais AU-DESSUS de la zone occupée par
+  // CookieConsent (qui vit sur toute la largeur en bas). Sur mobile la
+  // bannière consent fait ~140px de haut → on part de bottom-40 (~10rem).
+  // Sur desktop la bannière est centrée max-w-3xl donc on peut revenir plus bas.
   return (
     <a
       href={`mailto:${SUPPORT_EMAIL}?subject=Support%20Vitrix`}
       aria-label="Contacter le support"
-      className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-slate-900 sm:h-14 sm:w-14"
+      className="fixed bottom-40 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-slate-900 sm:bottom-6 sm:h-14 sm:w-14"
       title="Contactez le support"
     >
       <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />

@@ -25,6 +25,11 @@ export const metadata: Metadata = {
 const publisherName = process.env.NEXT_PUBLIC_LEGAL_PUBLISHER || "Vitrix";
 const publisherEmail = process.env.NEXT_PUBLIC_LEGAL_EMAIL || "contact@vitrix.fr";
 
+// Lot 18 B14 : date de mise à jour figée au build (évite hydration mismatch
+// dû aux différences timezone/locale entre server et client). À bumper
+// manuellement quand on modifie vraiment le texte des CGU.
+const LAST_UPDATED = "10/07/2026";
+
 export default function CGUPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -39,7 +44,7 @@ export default function CGUPage() {
           Conditions Générales d&apos;Utilisation
         </h1>
         <p className="mt-2 text-sm text-slate-500">
-          Version 2 · Dernière mise à jour : {new Date().toLocaleDateString("fr-FR")}
+          Version 2 · Dernière mise à jour : {LAST_UPDATED}
         </p>
 
         <nav

@@ -146,7 +146,7 @@ export default async function StatusPage() {
                   {c.ok ? "opérationnel" : c.critical ? "en panne" : "dégradé"}
                 </p>
                 {c.latencyMs !== undefined && (
-                  <p className="text-xs text-slate-400">{c.latencyMs} ms</p>
+                  <p className="text-xs text-slate-500">{c.latencyMs} ms</p>
                 )}
               </div>
             </li>
@@ -154,12 +154,12 @@ export default async function StatusPage() {
         </ul>
 
         {health?.version && (
-          <p className="mt-6 text-center text-xs text-slate-400">
+          <p className="mt-6 text-center text-xs text-slate-500">
             Version {health.version} · {health.env}
           </p>
         )}
 
-        <p className="mt-4 text-center text-xs text-slate-400">
+        <p className="mt-4 text-center text-xs text-slate-500">
           Les incidents majeurs sont également annoncés sur notre email support.
         </p>
       </div>

@@ -41,11 +41,15 @@ export function NotificationBell() {
       >
         <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" aria-hidden="true" />
         {unreadCount > 0 && (
+          // Lot 18 B12 : badge repositionné À L'INTÉRIEUR du bouton (top-1.5 right-1.5)
+          // + bordure blanche/slate pour séparer de l'icône et éviter le débordement
+          // sur les bords du parent (sidebar / topbar mobile).
+          // Cap visuel à 9+ pour éviter que le badge grossisse avec des grands nombres.
           <span
-            className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+            className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-bold leading-none text-white dark:border-slate-900"
             aria-hidden="true"
           >
-            {unreadCount}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>

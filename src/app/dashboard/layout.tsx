@@ -7,6 +7,7 @@ import { PWARegister } from "@/components/layout/PWARegister";
 import { LangProvider } from "@/contexts/LangContext";
 import { LangHtmlSync } from "@/components/layout/LangHtmlSync";
 import { SupportBubble } from "@/components/layout/SupportBubble";
+import { MobileTopBar } from "@/components/layout/MobileTopBar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,6 +16,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
         <PWARegister />
         <Sidebar />
+        {/* Lot 18 B11 : topbar mobile persistante avec ThemeToggle + NotificationBell */}
+        <MobileTopBar />
         <main
           id="main-content"
           role="main"

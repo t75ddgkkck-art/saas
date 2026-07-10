@@ -162,7 +162,7 @@ export default function Home() {
                 <div className="h-3 w-3 rounded-full bg-red-500" />
                 <div className="h-3 w-3 rounded-full bg-amber-500" />
                 <div className="h-3 w-3 rounded-full bg-emerald-500" />
-                <div className="ml-4 flex-1 rounded-lg bg-slate-700 px-4 py-1.5 text-sm text-slate-400">
+                <div className="ml-4 flex-1 rounded-lg bg-slate-700 px-4 py-1.5 text-sm text-slate-500">
                   monapp.fr/dupont-plomberie
                 </div>
               </div>

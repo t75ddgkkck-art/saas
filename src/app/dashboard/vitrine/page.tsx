@@ -502,7 +502,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">URL de votre page (personnalisable)</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400 whitespace-nowrap">vitrix.fr/</span>
+                    <span className="text-sm text-slate-500 whitespace-nowrap">vitrix.fr/</span>
                     <Input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} placeholder="mon-entreprise" />
                   </div>
                   <p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Link2 className="h-3 w-3" /> {publicUrl}</p>
@@ -590,7 +590,7 @@ fetch("/api/my-faqs").then(r => r.json()).then(d => {
                             }} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
                           </>
                         )}
-                        {!workingHoursState[i]?.isOpen && <span className="text-sm text-slate-400">Fermé</span>}
+                        {!workingHoursState[i]?.isOpen && <span className="text-sm text-slate-500">Fermé</span>}
                       </div>
                     ))}
                   </div>

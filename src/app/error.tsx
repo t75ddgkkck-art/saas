@@ -46,7 +46,7 @@ export default function GlobalError({
           ou revenir à l&apos;accueil.
         </p>
         {error.digest && (
-          <p className="mt-3 font-mono text-xs text-slate-400">Code : {error.digest}</p>
+          <p className="mt-3 font-mono text-xs text-slate-500">Code : {error.digest}</p>
         )}
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3">

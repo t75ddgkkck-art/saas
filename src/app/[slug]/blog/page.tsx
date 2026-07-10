@@ -3,6 +3,7 @@ import { blogPosts, businesses } from "@/db/schema";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 
 // Rendu dynamique (dépendance DB)
@@ -71,7 +72,16 @@ export default async function PublicBlogPage({ params }: Props) {
             {posts.map((post) => (
               <article key={post.id} className="rounded-2xl border border-slate-200 overflow-hidden transition-all hover:shadow-md dark:border-slate-800">
                 {post.coverImage && (
-                  <img src={post.coverImage} alt={post.title} className="h-48 w-full object-cover" />
+                  // Lot 18 B19 : next/image
+                  <div className="relative h-48 w-full overflow-hidden">
+                    <Image
+                      src={post.coverImage}
+                      alt={post.title}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
+                    />
+                  </div>
                 )}
                 <div className="p-6">
                   <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">

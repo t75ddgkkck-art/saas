@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -16,6 +16,29 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [siretStatus, setSiretStatus] = useState<"checking" | "valid" | "invalid" | "idle">("idle");
   const [siretInfo, setSiretInfo] = useState<{ name?: string; address?: string } | null>(null);
+  // Lot 18 B9 : capture le code parrain depuis `?ref=VX-XXXXXX` dans l'URL.
+  // Lu côté effet pour éviter l'obligation de wrapper la page dans <Suspense>
+  // (contrainte de `useSearchParams` sur Next 15+). Décodé pour supporter les
+  // codes qui contiendraient des chars encodés.
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("ref");
+      if (raw) {
+        const clean = decodeURIComponent(raw).trim().toUpperCase();
+        // Format attendu VX-XXXXXX — on n'accepte que ça côté client aussi
+        // pour éviter d'envoyer du bruit au backend.
+        if (/^VX-[0-9A-Z]{6}$/.test(clean)) {
+          setReferralCode(clean);
+        }
+      }
+    } catch {
+      /* URL malformée → on ignore silencieusement */
+    }
+  }, []);
   const [formData, setFormData] = useState({
     // Étape 1 : Compte
     firstName: "",
@@ -141,7 +164,10 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        // Lot 18 B9 : on ajoute le referralCode si présent — le backend
+        // (Lot 16) accepte déjà ce champ optionnel et l'ignore s'il est
+        // invalide (résolution safe via resolveReferralCode).
+        body: JSON.stringify({ ...formData, referralCode }),
       });
 
       const data = await res.json();
@@ -171,6 +197,14 @@ export default function RegisterPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Réservé aux professionnels avec numéro SIRET
           </p>
+          {/* Lot 18 B9 : feedback visuel si un code parrain valide est détecté.
+              Rassure l'user et l'incite à finaliser (parrain averti aussi). */}
+          {referralCode && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Parrainé par <span className="font-mono">{referralCode}</span>
+            </div>
+          )}
         </div>
 
         {/* Progress */}

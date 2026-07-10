@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import NextImage from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Image, Plus, Trash2, Upload, Video } from "lucide-react";
+// Lot 18 B19 : on renomme lucide `Image` en `ImageIcon` pour laisser
+// `NextImage` clairement disponible pour les vraies images.
+import { Image as ImageIcon, Plus, Trash2, Upload, Video } from "lucide-react";
 
 const mockGallery = [
   { id: 1, url: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=400&h=400&fit=crop", type: "image", title: "Réparation plomberie" },
@@ -42,7 +45,14 @@ export default function GalleryPage() {
 
         {items.map((item) => (
           <div key={item.id} className="group relative aspect-square overflow-hidden rounded-2xl">
-            <img src={item.url} alt={item.title} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+            {/* Lot 18 B19 : next/image (AVIF/WebP auto + lazy loading) */}
+            <NextImage
+              src={item.url}
+              alt={item.title}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-transform group-hover:scale-105"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 transition-opacity group-hover:opacity-100">
               <div className="absolute bottom-0 left-0 right-0 p-3">
                 <p className="text-sm font-medium text-white">{item.title}</p>

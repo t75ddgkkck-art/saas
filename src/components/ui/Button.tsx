@@ -37,9 +37,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, Va
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, loading, leftIcon, rightIcon, children, disabled, ...props }, ref) => {
+  ({ className, variant, size, loading, leftIcon, rightIcon, children, disabled, type, ...props }, ref) => {
     return (
       <button
+        // Lot 18 B18 : `type="button"` par défaut au lieu de "submit" natif.
+        // Évite les soumissions accidentelles de formulaire quand un <Button>
+        // sans type explicite est placé dans un <form>. On garde la possibilité
+        // de passer type="submit" ou type="reset" explicitement.
+        type={type ?? "button"}
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         disabled={disabled || loading}

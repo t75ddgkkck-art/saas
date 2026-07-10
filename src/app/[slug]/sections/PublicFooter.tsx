@@ -29,7 +29,7 @@ export function PublicFooter({ hideBranding, siret, lang = "fr" }: PublicFooterP
         </p>
       )}
       {siret && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">SIRET: {siret}</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">SIRET: {siret}</p>
       )}
     </div>
   );

@@ -294,7 +294,7 @@ export default function SettingsPage() {
                 </div>
               );
             })}
-            <p className="text-center text-xs text-slate-400">Paiement sécurisé par Stripe · Sans engagement · Résiliable à tout moment</p>
+            <p className="text-center text-xs text-slate-500">Paiement sécurisé par Stripe · Sans engagement · Résiliable à tout moment</p>
 
             {/* Annulation de l'abonnement en cours */}
             {currentPlan !== "free" && (

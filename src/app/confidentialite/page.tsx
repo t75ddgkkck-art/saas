@@ -24,6 +24,9 @@ const publisherName = process.env.NEXT_PUBLIC_LEGAL_PUBLISHER || "Vitrix";
 const publisherEmail = process.env.NEXT_PUBLIC_LEGAL_EMAIL || "contact@vitrix.fr";
 const dpoEmail = process.env.NEXT_PUBLIC_LEGAL_DPO_EMAIL || publisherEmail;
 
+// Lot 18 B14 : figée au build (voir cgu/page.tsx pour l'explication).
+const LAST_UPDATED = "10/07/2026";
+
 export default function ConfidentialitePage() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -38,7 +41,7 @@ export default function ConfidentialitePage() {
           Politique de confidentialité
         </h1>
         <p className="mt-2 text-sm text-slate-500">
-          Version 2 · Dernière mise à jour : {new Date().toLocaleDateString("fr-FR")}
+          Version 2 · Dernière mise à jour : {LAST_UPDATED}
         </p>
 
         <div className="mt-8 space-y-8 text-slate-700 dark:text-slate-300">

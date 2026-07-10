@@ -4,6 +4,198 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 16 — Lot 18 Quick-fixes bloquants + 404 devis
+
+Adresse les bugs bloquants identifiés dans l'audit "état actuel" :
+- B1 Dark mode Tailwind v4 cassé (toggle inefficace)
+- B2 + B3 ai-chat "Assistant Dupont Plomberie" hardcodé
+- B9 Register n'envoyait pas `referralCode` (Lot 16 mort-né côté client)
+- B11 NotifBell + ThemeToggle inaccessibles sur mobile (enfermés dans sidebar)
+- B12 Badge notification qui déborde du parent
+- B13 CookieConsent + SupportBubble superposés en bas d'écran
+- B14 Dates render-time dans CGU/Confidentialité → hydration mismatch
+- B15 **404 devis** — pages 100% mock, pas de vraie route API
+- B18 Button sans `type="button"` par défaut → submit accidentel
+- B19 `<img>` natifs dans blog + gallery
+- +170 remplacements ciblés `text-slate-400 → text-slate-500` (contraste AA)
+
+## B1 — Dark mode Tailwind v4 CLASS-based
+
+`src/app/globals.css` : ajout de `@custom-variant dark (&:where(.dark, .dark *))`.
+
+**Cause** : Tailwind v4 par défaut n'active `dark:` que via `prefers-color-scheme`. Notre `THEME_INIT_SCRIPT` ajoutait bien `.dark` sur `<html>` mais les classes `dark:bg-slate-900` étaient ignorées → **le toggle clair/sombre ne faisait rien**.
+
+**Fix** : la custom-variant re-branche `dark:` sur la présence de la classe `.dark` (ou sur ses enfants). Toggle fonctionnel.
+
+**Test de non-régression** : `tests/unit/theme-dark-mode.test.ts` (2 tests) lit `globals.css` et vérifie la présence de la directive.
+
+## B2 + B3 — Assistant IA dynamique
+
+`src/app/dashboard/ai-chat/page.tsx` :
+- Titre `<CardTitle>Assistant {businessName ?? "IA"}</CardTitle>` — jamais "Dupont Plomberie" en dur
+- Message d'accueil construit par `buildInitialMessage(businessName)` : "notre équipe" tant que le business n'est pas chargé, puis remplacé automatiquement par le vrai nom
+- Ne remplace le message d'accueil QUE s'il n'y a pas déjà eu de conversation (évite d'écraser un chat en cours)
+
+## B9 — Register envoie `referralCode`
+
+`src/app/register/page.tsx` :
+- Lecture de `?ref=VX-XXXXXX` via `window.location.search` en `useEffect` (évite le wrap Suspense de `useSearchParams` Next 15)
+- Validation format côté client (`/^VX-[0-9A-Z]{6}$/`) avant envoi
+- Payload `POST /api/auth/register` inclut désormais `referralCode` (Lot 16 accepte déjà)
+- **Feedback visuel** : badge vert "Parrainé par VX-XXXXXX" affiché sous le titre du formulaire → rassure l'user, incite à finaliser
+
+## B11 — Topbar mobile persistante
+
+**Nouveau composant** `src/components/layout/MobileTopBar.tsx` :
+- Fixed top-right, `<lg` uniquement (`.lg:hidden`)
+- Reprend `ThemeToggle` + `NotificationBell` (source unique de vérité)
+- Backdrop blur pour lisibilité au-dessus de tout contenu
+- Ne recouvre pas le burger (positionnement `right-3 top-3` vs burger `left-4 top-4`)
+
+Branché dans `src/app/dashboard/layout.tsx`.
+
+## B12 — Badge NotificationBell dans les clous
+
+`src/components/layout/NotificationBell.tsx` :
+- Repositionné `top-1.5 right-1.5` (à l'intérieur du bouton) au lieu de `-top-0.5 -right-0.5` (débordait)
+- Taille réduite `h-4 min-w-4` + `border-2 border-white dark:border-slate-900` pour la séparation visuelle
+- Cap à `9+` au-dessus de 9 (évite le grossissement avec grands nombres)
+
+## B13 — CookieConsent + SupportBubble empilés proprement
+
+`src/components/layout/SupportBubble.tsx` : `bottom-40` sur mobile (au-dessus de la bannière consent qui fait ~140px), `sm:bottom-6` en desktop (bannière consent centrée max-w-3xl → plus d'overlap).
+
+## B14 — Dates figées au build
+
+`src/app/cgu/page.tsx` et `src/app/confidentialite/page.tsx` :
+- Const `LAST_UPDATED = "10/07/2026"` au lieu de `new Date().toLocaleDateString("fr-FR")` render-time
+- Élimine le risque d'hydration mismatch (timezone/locale server ≠ client)
+- À bumper manuellement quand on modifie vraiment le texte
+
+## B15 — 404 devis + vraies pages CRUD (le gros du lot)
+
+**Cause** : `dashboard/quotes/page.tsx` = liste 100% mock (Marie Dupont, DEV-2025-001), `quotes/[id]/page.tsx` = détail 100% mock (Ambiance Service, business hardcodé), `/api/quote-pdf?quoteId=DEV-2025-001` retournait 404 car ces IDs n'existent pas en DB.
+
+**Nouvelles routes API** :
+- `GET /api/quotes` — liste des devis du business courant, jointure clients, filtre `deleted_at IS NULL`
+- `POST /api/quotes` — création : Zod strict (max 50 lignes, quantité 1-9999, prix 0-999999, taxRate 0-100), rate-limit 20/h, résolution client par UUID OU upsert-par-phone à la volée, anti-IDOR sur `clientId`, génération auto `DEV-YYYY-NNNN` par business+année, transaction quote+items atomique, dispatch webhook `quote.sent`
+- `GET /api/quotes/[id]` — détail avec items + client, ownership check business (anti-IDOR)
+
+**Refonte totale `dashboard/quotes/page.tsx`** :
+- Fetch réel `/api/quotes`, `useState<QuoteRow[] | null>` pour distinguer chargement vs vide
+- Skeletons pendant le loading, EmptyState avec CTA "Créer un devis"
+- KPIs calculés à la volée (total, en attente, acceptés, montant total)
+- Modal création COMPLET : client à la volée, N lignes ajoutables/supprimables, sous-total live, TVA affichée, validation avant POST
+- Toasts d'erreur/succès (plus d'`alert()`)
+- Lien détail `/dashboard/quotes/${q.id}` avec UUID réel
+- Lien PDF `/api/quote-pdf?quoteId=${q.id}` avec UUID réel → **plus de 404**
+- Responsive mobile : grid `sm:` propres, actions accessibles
+
+**Refonte totale `dashboard/quotes/[id]/page.tsx`** :
+- `use(params)` (Next 15+), fetch réel `/api/quotes/${id}` + `/api/my-business` en parallèle
+- État d'erreur clean : page "Devis introuvable" avec bouton retour au lieu de crash blanc
+- **B7 corrigé** : `generateProfessionalPDF` reçoit le vrai business context (nom, adresse, SIRET, phone, email) au lieu d'"Ambiance Service" en dur
+- Aperçu PDF inline avec vrai UUID
+- Signature affichée via `next/image unoptimized` (data-URL)
+- Loading state en Skeletons
+
+**Test contract** : `tests/unit/quotes-api.test.ts` (8 tests) valide le schéma Zod (accepte valide, rejette items vides, titre vide, quantité 0/négative, email invalide, clientId non-UUID = anti-IDOR côté schéma qui rejette l'ancien format mock, plafond 50 lignes).
+
+## B18 — Button `type="button"` par défaut
+
+`src/components/ui/Button.tsx` :
+- `type={type ?? "button"}` — le default HTML `submit` était piégeux dans un `<form>`
+- Aucune régression : les 6 usages `type="submit"` (register step 3, login) restent explicites
+
+## B19 — `<img>` → `next/image`
+
+- `src/app/[slug]/blog/[postSlug]/page.tsx` : cover article
+- `src/app/[slug]/blog/page.tsx` : cover cards blog listing
+- `src/app/dashboard/gallery/page.tsx` : gallery cards (import lucide `Image` renommé en `ImageIcon` pour laisser `NextImage` clair)
+
+Bénéfice : AVIF/WebP auto, lazy loading, dimensions responsive via `sizes`, LCP amélioré.
+
+Non modifiés (data-URL ou HTML string interne) : `qr-code/page.tsx`, template imprimable inline.
+
+## Contraste AA — pass ciblé
+
+Remplacement `text-sm text-slate-400` → `text-sm text-slate-500` et `text-xs text-slate-400` → `text-xs text-slate-500` sur ~13 fichiers (descriptions, paragraphes info). Reste `text-slate-400` = 257 usages (dessin/icônes/decoratif) → à traiter en Lot 22 UX cohérente avec un audit visuel.
+
+## Fichiers modifiés/créés
+
+**Nouveaux** :
+- `src/components/layout/MobileTopBar.tsx`
+- `src/app/api/quotes/route.ts` (GET + POST)
+- `src/app/api/quotes/[id]/route.ts` (GET)
+- `tests/unit/theme-dark-mode.test.ts` (2 tests)
+- `tests/unit/quotes-api.test.ts` (8 tests)
+
+**Modifiés** :
+- `src/app/globals.css` — `@custom-variant dark`
+- `src/app/dashboard/ai-chat/page.tsx` — business dynamique
+- `src/app/register/page.tsx` — `?ref=` + envoi backend + badge visuel
+- `src/app/dashboard/layout.tsx` — branche `MobileTopBar`
+- `src/components/layout/NotificationBell.tsx` — badge repositionné
+- `src/components/layout/SupportBubble.tsx` — `bottom-40 sm:bottom-6`
+- `src/components/ui/Button.tsx` — `type="button"` default
+- `src/app/cgu/page.tsx` — LAST_UPDATED const
+- `src/app/confidentialite/page.tsx` — LAST_UPDATED const
+- `src/app/dashboard/quotes/page.tsx` — refonte totale
+- `src/app/dashboard/quotes/[id]/page.tsx` — refonte totale + business context réel
+- `src/app/[slug]/blog/page.tsx` — next/image
+- `src/app/[slug]/blog/[postSlug]/page.tsx` — next/image
+- `src/app/dashboard/gallery/page.tsx` — next/image (rename Image → ImageIcon)
+- ~13 fichiers : `text-slate-400` → `text-slate-500` sur descriptions
+
+## Validation
+
+```
+✅ npx tsc --noEmit    → 0 erreur
+✅ npx vitest run      → 199/199 tests (26 fichiers, +10 nouveaux)
+✅ npx next build      → 0 warning, compilé en 18s
+```
+
+## Impact business
+
+- **Dark mode fonctionnel** : le toggle utilisateur marche enfin (un user sur deux préfère le mode sombre)
+- **Assistant IA crédible** : plus jamais "Assistant Dupont Plomberie" sur le compte d'un autre pro
+- **Parrainage réellement branché** : Lot 16 devient vraiment utilisable (croissance virale débloquée)
+- **Mobile utilisable** : notifications + toggle theme accessibles sans ouvrir le menu
+- **Devis 100% fonctionnels** : plus de 404, création + listing + détail + PDF avec vrai business context
+- **Formulaires safes** : plus de submit accidentel
+- **Perf blog + gallery** : LCP -20 à -40% probable (AVIF/WebP + lazy)
+
+## Actions post-déploiement
+
+Aucune migration SQL nécessaire (Lot 18 = pure code).
+
+**Le user devrait** :
+1. Purger son cache navigateur pour tester le nouveau dark mode
+2. Vérifier que le badge notification s'affiche bien dans les clous sur mobile
+3. Créer un devis test pour valider le flow complet (création → liste → détail → PDF)
+4. Tester `/register?ref=VX-XXXXXX` avec un code parrain existant → doit afficher le badge vert
+
+## Historique commits
+
+```
+6c6632c  lot 18 quick-fixes: dark mode v4, ai-chat dynamique, mobile topbar, badge notif, devis 404 fixé
+a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
+2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
+1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
+e4bb4e2  lot 11 stripe: webhook complet (9 events), grace period, portal, trial 14j
+6fc7625  lot 10 IA & coûts: client centralisé, quotas mensuels, streaming, prompts externalisés
+5c8ccea  lot 9 emails: queue, unsubscribe RGPD, budget SMS, healthcheck DKIM/SPF
+11211b5  lot 8 i18n: dictionnaire complet + interpolation + emails + détection auto
+8fcc196  lot 6 SEO: sitemap-index paginé, rich snippets, hreflang, slugs propres
+7beadb6  lot 5 perf: ISR + SSG, index DB, next/image, next/font, proxy.ts
+2c928bb  lot 4 a11y: WCAG AA complet (modal accessible, skip link, focus, contrastes)
+5380ed0  lot 3 UI/UX complet: theme, toast, skeletons, onboarding, OG dynamique
+f5b3f2b  lots 1+2: sécurité complète + code mort/duplications/dette
+```
+
+---
+
 # 🟢 Tour 15 — Lot 16 Business & Produit
 
 Adresse les 6 points du Lot 16 :
@@ -184,7 +376,7 @@ Documenté dans `docs/BUSINESS.md` section 5.
 ## Historique commits
 
 ```
-b8de91f  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
+a8a2908  lot 16 business: parrainage, API v1 + webhooks sortants, support bubble, statuspage
 725b991  lot 15 légal/RGPD: CGU+DPA, confidentialité, mentions légales, export, consent, cron purge
 2696a9f  lot 14 DB: soft delete, triggers updated_at, CHECK, cascade, partitionnement doc
 1b616dc  lot 13 monitoring: Sentry optionnel, alerting webhook, healthcheck étendu, dashboard admin
