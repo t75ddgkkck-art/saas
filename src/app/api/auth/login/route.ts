@@ -83,6 +83,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Lot 36 : pose lastLoginAt (utilisé par cron réactivation + analytics)
+    // Fire-and-forget : ne doit pas ralentir la réponse login
+    void db
+      .update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, user.id))
+      .catch(() => {
+        /* non bloquant */
+      });
+
     const token = createSessionToken(user.id);
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_SEC * 1000);
     const secure =

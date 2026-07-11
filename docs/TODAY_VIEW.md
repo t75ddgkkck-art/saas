@@ -3,6 +3,7 @@
 ## Objectif business
 
 Killer feature terrain quotidienne. Un artisan qui ouvre son téléphone entre 2 chantiers doit voir **en 1 tap** :
+
 - Ses RDV du jour en chrono
 - Le prochain (countdown)
 - Météo (interventions extérieures)
@@ -28,6 +29,7 @@ Nouvelle lib `src/lib/appointment-status.ts` :
 3 nouveaux timestamps sur `appointments` : `checked_in_at`, `started_at`, `finished_at`.
 
 `resolveTimelineFields(newStatus, current)` pose les timestamps automatiquement :
+
 - `en_route` → `checkedInAt` (départ vers le client)
 - `in_progress` → `checkedInAt` + `startedAt`
 - `completed` → les 3 timestamps
@@ -38,11 +40,11 @@ Helpers KPI : `computeDurationMinutes()` + `computeTravelMinutes()` — prêts p
 
 ## Nouvelles routes API (3)
 
-| Route | Méthode | Auth | Rate | Description |
-|---|---|---|---|---|
-| `/api/appointments/[id]/status` | POST | `appointments.edit_any` | 60/min/IP | Transition state machine avec validation |
-| `/api/appointments/[id]/quick-payment` | POST | `payments.create` | 30/h/IP | Encaissement 1-clic + auto-complete |
-| `/api/weather?lat=&lon=` | GET | Publique (session) | 60/min/IP | Proxy Open-Meteo (cache 1h) |
+| Route                                  | Méthode | Auth                    | Rate      | Description                              |
+| -------------------------------------- | ------- | ----------------------- | --------- | ---------------------------------------- |
+| `/api/appointments/[id]/status`        | POST    | `appointments.edit_any` | 60/min/IP | Transition state machine avec validation |
+| `/api/appointments/[id]/quick-payment` | POST    | `payments.create`       | 30/h/IP   | Encaissement 1-clic + auto-complete      |
+| `/api/weather?lat=&lon=`               | GET     | Publique (session)      | 60/min/IP | Proxy Open-Meteo (cache 1h)              |
 
 ## Composants livrés (5)
 
@@ -62,12 +64,14 @@ Helpers KPI : `computeDurationMinutes()` + `computeTravelMinutes()` — prêts p
 ## Encaissement 1-clic
 
 Depuis la carte RDV → bouton "💰 Encaisser" ouvre modal :
+
 1. Input `type="text"` `inputMode="decimal"` grand format (mobile → clavier numérique)
 2. 4 méthodes : Espèces / CB terminal / Chèque / Virement
 3. Toggle "Marquer aussi terminé" (par défaut ON)
 4. Note optionnelle (repliée)
 
 Backend `POST /api/appointments/[id]/quick-payment` :
+
 - Crée `payments` avec `type=full` + `status=completed`
 - Metadata liée au RDV (`appointmentId`, `method`, `source: quick_payment`)
 - Si `alsoComplete=true` : passe le RDV en `completed` avec timeline auto
@@ -82,6 +86,7 @@ Backend `POST /api/appointments/[id]/quick-payment` :
 - Fallback UI clean si non supporté (Firefox)
 
 Support :
+
 - ✅ Chrome / Edge / Safari 14.5+
 - ✅ Chrome Android
 - ✅ iOS Safari 14.5+
@@ -105,6 +110,7 @@ Support :
 ## Tests (20 nouveaux)
 
 `tests/unit/appointment-status.test.ts` :
+
 - Matrice transitions : chaque état source × cible testé
 - **Canary B23** : états finaux ne transitionnent JAMAIS (sauf idempotence)
 - Timeline : pose auto + non-écrasement + reset checkedInAt en cas de skip
@@ -113,6 +119,7 @@ Support :
 ## SQL
 
 Bloc **4undecies** dans `sql/00_apply_safe.sql` :
+
 - `ALTER TYPE appointment_status ADD VALUE IF NOT EXISTS 'en_route'` + `'in_progress'`
 - 3 colonnes timestamp sur `appointments` (nullable, idempotent)
 

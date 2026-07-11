@@ -4,6 +4,98 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 32 — Lot 36 Analytics avancés + réactivation users inactifs
+
+Refonte complète de `/dashboard/analytics` (avant : 100% mock) + tracker de visites RGPD-friendly + cron réactivation churners 30-90j.
+
+## Analytics — vraies données DB
+
+### Tracker `POST /api/track/visit`
+- Appelé depuis `PublicPage.tsx` (client, `keepalive`, respect `navigator.doNotTrack`)
+- Rate 60/min/IP
+- Insert `page_visits` avec visitorHash SHA-256 salted par jour (RGPD : aucune PII stockée, cross-day tracking bloqué par design)
+- Détection auto : source (google/bing/duckduckgo/facebook/instagram/linkedin/twitter/whatsapp/youtube/tiktok/qr/email/direct) + device (mobile/tablet/desktop)
+
+### Route `GET /api/analytics?period=7d|30d|90d`
+- **Summary** : totalVisits, uniqueVisitors, deltaVisitsPct (vs période précédente)
+- **Timeline** : point/jour avec visites + uniques
+- **Funnel** : visites → RDV créés → RDV terminés → paiements → CA
+- **Advanced (Pro+ via entitlement `analytics.advanced`)** : sources top 10, devices, top paths
+- Free reçoit `upgradeRequired: true` avec les données de base
+
+### Refonte page dashboard/analytics
+- **Avant** : 100% mock hardcodé (visitorData, sourceData, deviceData)
+- **Après** : fetch réel + sélecteur période 7d/30d/90d
+- Charts recharts **lazy-loadés** via `dynamic(() => import(...), {ssr: false})` — ~150 KB économisés sur bundle initial
+- `<UpgradeGate feature="analytics.advanced">` sur sources/devices pour Free
+- 4 charts dans fichier séparé : `<TimelineChart>` (AreaChart gradient), `<SourcesChart>` (BarChart horizontal coloré par source), `<DevicesChart>` (PieChart donut), `<FunnelChart>` (maison, drop % entre étapes)
+
+## Réactivation users inactifs
+
+### Colonnes users ajoutées
+- `last_login_at` — posé par login (fire-and-forget, non bloquant)
+- `reactivation_email_at` — anti-spam mensuel
+- Index partiel `users_last_login_idx WHERE last_login_at IS NOT NULL`
+
+### Cron `/api/cron/reactivation` (mardi 11h)
+Logique `shouldSendReactivation(user, now)` **pure, testable** :
+- Email vérifié requis, pas banni/deleted
+- Login entre **30j et 90j** (fenêtre récupérable ; > 90j = churn définitif)
+- Email de réactivation il y a > 30j (anti-spam)
+
+Template email : liste des nouveautés récentes (Today view, espace client, deposit, calendrier Google), 1 CTA "Reprendre mon activité", cap 500 users/run.
+
+Fréquence mardi 11h (jour + heure les plus efficaces B2B FR).
+
+## Fichiers créés / modifiés
+
+**Créés** (7) :
+- `src/lib/visitor-hash.ts` — hash RGPD + detect device + detect source
+- `src/app/api/track/visit/route.ts`
+- `src/app/api/analytics/route.ts`
+- `src/app/api/cron/reactivation/route.ts`
+- `src/app/dashboard/analytics/_components/AnalyticsCharts.tsx` — recharts lazy
+- `docs/ANALYTICS.md`
+- `tests/unit/visitor-hash.test.ts` (16 tests)
+- `tests/unit/reactivation.test.ts` (11 tests)
+
+**Modifiés** :
+- `src/db/schema.ts` — users.lastLoginAt/reactivationEmailAt + pageVisits.visitorHash
+- `sql/00_apply_safe.sql` — bloc 4duodecies
+- `src/app/api/auth/login/route.ts` — pose `lastLoginAt` fire-and-forget
+- `src/app/[slug]/PublicPage.tsx` — track visit avec `keepalive` + respect DNT
+- `src/app/dashboard/analytics/page.tsx` — refonte fetch réel (0 mock, sélecteur période, gates)
+- `vercel.json` — cron réactivation `0 11 * * 2`
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 252 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **565 tests / 53 fichiers** (+27 vs Lot 35)
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **Analytics justifie Premium** : source + device + top paths gates sur `analytics.advanced` = argument commercial fort
+- **RGPD-friendly par design** : pas de bandeau cookies nécessaire pour ce tracking (finalité anonyme)
+- **Réactivation churners** : industrie SaaS = 15-25% des inactifs 30-60j reviennent avec un bon email → ARR récupéré direct
+- **Bundle allégé** : recharts lazy → users qui ne visitent pas analytics ne le téléchargent pas
+- **Data-driven roadmap** : le pro voit enfin ce qui marche (sources qui convertissent, funnel qui fuit)
+
+## Actions post-déploiement
+
+1. `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4duodecies (colonnes lastLoginAt/reactivationEmailAt sur users + visitorHash sur page_visits)
+2. **Test tracking** : ouvrir une vitrine `/[slug]` en incognito → vérifier ligne dans `page_visits`
+3. **Test analytics** : ouvrir `/dashboard/analytics` → sélecteur période → charts affichés
+4. **Test cron réactivation** manuel : `curl -H "Authorization: Bearer $CRON_SECRET" https://.../api/cron/reactivation` → JSON
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 31 — Lot 35 F6 Today view mobile-first (killer feature terrain)
 
 Livre la page `/dashboard/today` qui transforme Vitrix en outil de travail QUOTIDIEN pour l'artisan. Exploite tout ce qui a été livré (safe-area L34, push L34, calendrier F4, équipe F5, deposit F2, entitlements F1).

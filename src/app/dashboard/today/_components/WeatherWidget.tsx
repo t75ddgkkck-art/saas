@@ -32,9 +32,7 @@ export function WeatherWidget({ lat, lon, locationLabel }: WeatherWidgetProps) {
 
   useEffect(() => {
     let coords =
-      lat !== undefined && lat !== null && lon !== undefined && lon !== null
-        ? { lat, lon }
-        : null;
+      lat !== undefined && lat !== null && lon !== undefined && lon !== null ? { lat, lon } : null;
     async function load(latVal: number, lonVal: number) {
       try {
         const res = await fetch(`/api/weather?lat=${latVal}&lon=${lonVal}`);

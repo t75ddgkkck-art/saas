@@ -226,6 +226,28 @@ export function PublicPage({
     : { background: tpl.style.coverGradient };
 
   useEffect(() => {
+    // Lot 36 : track la visite (fire-and-forget, respect Do Not Track)
+    if (
+      typeof window !== "undefined" &&
+      navigator.doNotTrack !== "1" &&
+      // @ts-expect-error legacy IE/Safari fallback
+      window.doNotTrack !== "1"
+    ) {
+      const src = new URL(window.location.href).searchParams.get("src");
+      fetch("/api/track/visit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          path: window.location.pathname,
+          src: src ?? undefined,
+        }),
+        keepalive: true, // survit à la navigation vers un autre lien
+      }).catch(() => {
+        /* silent, non essentiel */
+      });
+    }
+
     // Générer le QR code de partage de la vitrine
     if (typeof window !== "undefined") {
       fetch("/api/qr-code", {

@@ -951,6 +951,36 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4duodecies. Lot 36 — Analytics & réactivation users inactifs
+-- -----------------------------------------------------------------------------
+
+-- Colonnes lastLoginAt + reactivationEmailAt sur users
+DO $$ BEGIN
+  IF public.__vx_table_exists('users') THEN
+    ALTER TABLE public.users
+      ADD COLUMN IF NOT EXISTS last_login_at          timestamp,
+      ADD COLUMN IF NOT EXISTS reactivation_email_at  timestamp;
+    -- Index partiel : scan uniquement les users qui se sont connectés au moins 1 fois
+    -- (le cron réactivation ignore ceux qui n'ont jamais loggé)
+    CREATE INDEX IF NOT EXISTS users_last_login_idx
+      ON public.users (last_login_at)
+      WHERE last_login_at IS NOT NULL;
+  END IF;
+END $$;
+
+-- Colonne visitor_hash sur page_visits pour dédup unique visitor par jour
+-- (SHA-256 tronqué de user-agent + IP + salt journalier — pas de PII stockée)
+DO $$ BEGIN
+  IF public.__vx_table_exists('page_visits') THEN
+    ALTER TABLE public.page_visits
+      ADD COLUMN IF NOT EXISTS visitor_hash varchar(32);
+    -- Index pour la dedup côté requête analytics (COUNT DISTINCT visitor_hash)
+    CREATE INDEX IF NOT EXISTS page_visits_business_date_visitor_idx
+      ON public.page_visits (business_id, date, visitor_hash);
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (

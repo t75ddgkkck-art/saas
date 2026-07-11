@@ -111,6 +111,13 @@ export const users = pgTable(
     // Nombre de mois de crédit accumulés (non encore appliqués sur la souscription).
     // Le webhook Stripe checkout.completed du filleul incrémente +1 sur le parrain.
     referralCreditMonths: integer("referral_credit_months").default(0).notNull(),
+    // Lot 36 : dernier login effectif (posé par POST /api/auth/login).
+    // Utilisé par le cron `reactivation` pour cibler les users inactifs 30j+
+    // + par la page admin pour trier "utilisateurs à réengager".
+    lastLoginAt: timestamp("last_login_at"),
+    // Lot 36 : dernier email de réactivation envoyé (évite le spam si l'user
+    // reste inactif — on ne retente qu'après 30j supplémentaires).
+    reactivationEmailAt: timestamp("reactivation_email_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -417,11 +424,21 @@ export const pageVisits = pgTable(
     source: varchar("source", { length: 100 }).default("direct"),
     device: varchar("device", { length: 20 }).default("desktop"),
     path: varchar("path", { length: 200 }),
+    // Lot 36 : hash SHA-256 tronqué de (userAgent + IP + salt journalier).
+    // Permet de compter les visiteurs UNIQUES par jour sans stocker de PII.
+    // Le salt journalier empêche le cross-day tracking (RGPD-friendly).
+    visitorHash: varchar("visitor_hash", { length: 32 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
     // Dashboard analytics : "visites des 14/30 derniers jours"
     businessDateIdx: index("page_visits_business_date_idx").on(t.businessId, t.date),
+    // Dedup unique visitor (COUNT DISTINCT visitorHash)
+    businessDateVisitorIdx: index("page_visits_business_date_visitor_idx").on(
+      t.businessId,
+      t.date,
+      t.visitorHash
+    ),
   })
 );
 
