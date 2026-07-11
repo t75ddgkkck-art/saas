@@ -109,30 +109,145 @@ function checkOpenAI(): Check {
   };
 }
 
-export async function GET() {
-  // On lance les checks en parallèle, seule la DB est vraiment I/O
-  const [dbCheck, stripeCheck, resendCheck, openaiCheck, monitoringCheck, alertsCheck] =
-    await Promise.all([
-      checkDb(),
-      Promise.resolve(checkStripe()),
-      Promise.resolve(checkResend()),
-      Promise.resolve(checkOpenAI()),
-      Promise.resolve(checkMonitoring()),
-      Promise.resolve(checkAlerts()),
-    ]);
+// Lot 39 : checks additionnels pour toutes les intégrations optionnelles.
+// Chacune renvoie ok=true si CONFIGURÉE, ok=false sinon (jamais critical).
+// Le but est de fournir à un uptime-checker externe (Better Stack, Uptime Kuma)
+// un JSON exhaustif du statut de chaque intégration.
 
-  const checks = [dbCheck, stripeCheck, resendCheck, openaiCheck, monitoringCheck, alertsCheck];
+function checkTurnstile(): Check {
+  const hasKey = Boolean(process.env.TURNSTILE_SECRET_KEY);
+  const hasSite = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  return {
+    name: "turnstile",
+    ok: hasKey && hasSite,
+    critical: false,
+    detail: hasKey && hasSite ? "captcha actif" : "captcha désactivé (login sans protection)",
+  };
+}
+
+function checkVapid(): Check {
+  const has =
+    Boolean(process.env.VAPID_PUBLIC_KEY) &&
+    Boolean(process.env.VAPID_PRIVATE_KEY) &&
+    Boolean(process.env.VAPID_SUBJECT);
+  return {
+    name: "vapid_push",
+    ok: has,
+    critical: false,
+    detail: has ? "push OS actives" : "VAPID keys manquantes (push OS silencieusement désactivées)",
+  };
+}
+
+function checkGoogle(): Check {
+  const has = Boolean(process.env.GOOGLE_CLIENT_ID) && Boolean(process.env.GOOGLE_CLIENT_SECRET);
+  return {
+    name: "google_oauth",
+    ok: has,
+    critical: false,
+    detail: has
+      ? "Google Calendar + Business Profile disponibles"
+      : "GOOGLE_CLIENT_ID/SECRET manquants (sync Google désactivée)",
+  };
+}
+
+function checkSupabaseStorage(): Check {
+  const has =
+    Boolean(process.env.SUPABASE_URL) &&
+    Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) &&
+    Boolean(process.env.SUPABASE_STORAGE_BUCKET);
+  return {
+    name: "supabase_storage",
+    ok: has,
+    critical: false,
+    detail: has ? "uploads OK" : "Supabase Storage non configuré (uploads en erreur)",
+  };
+}
+
+function checkTwilio(): Check {
+  const has =
+    Boolean(process.env.TWILIO_ACCOUNT_SID) &&
+    Boolean(process.env.TWILIO_AUTH_TOKEN) &&
+    Boolean(process.env.TWILIO_PHONE_NUMBER);
+  return {
+    name: "twilio_sms",
+    ok: has,
+    critical: false,
+    detail: has ? "SMS + WhatsApp actifs" : "Twilio non configuré (rappels SMS/WA désactivés)",
+  };
+}
+
+function checkCronSecret(): Check {
+  const secret = process.env.CRON_SECRET;
+  const ok = Boolean(secret) && secret!.length >= 16;
+  return {
+    name: "cron_secret",
+    ok,
+    critical: true, // les crons échouent tous en 401 sinon
+    detail: ok
+      ? undefined
+      : "CRON_SECRET manquant ou trop court (< 16 chars) → tous les crons Vercel retournent 401",
+  };
+}
+
+function checkAppUrl(): Check {
+  const url = process.env.NEXT_PUBLIC_APP_URL;
+  const ok = Boolean(url) && /^https?:\/\/[^\s/]+$/.test(url ?? "");
+  return {
+    name: "app_url",
+    ok,
+    critical: true,
+    detail: ok ? undefined : "NEXT_PUBLIC_APP_URL manquant ou invalide (emails et OAuth cassés)",
+  };
+}
+
+export async function GET() {
+  // Lot 39 : 12 checks exhaustifs. Seul la DB est vraiment I/O.
+  // Le reste = simple présence env var (pas d'API call → pas de coût ni rate limit).
+  const dbCheck = await checkDb();
+  const checks: Check[] = [
+    dbCheck,
+    checkAppUrl(),
+    checkCronSecret(),
+    checkStripe(),
+    checkResend(),
+    checkOpenAI(),
+    checkVapid(),
+    checkTurnstile(),
+    checkGoogle(),
+    checkSupabaseStorage(),
+    checkTwilio(),
+    checkMonitoring(),
+    checkAlerts(),
+  ];
+
   const criticalDown = checks.filter((c) => c.critical && !c.ok);
   const ok = criticalDown.length === 0;
+
+  // Compteurs synthétiques (utile pour dashboards uptime : "N intégrations actives")
+  const activeCount = checks.filter((c) => c.ok).length;
+  const totalCount = checks.length;
+  const criticalCount = checks.filter((c) => c.critical).length;
 
   return NextResponse.json(
     {
       ok,
+      summary: {
+        active: activeCount,
+        total: totalCount,
+        critical_ok: checks.filter((c) => c.critical && c.ok).length,
+        critical_total: criticalCount,
+      },
       checks,
       version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || "dev",
       env: process.env.VERCEL_ENV || process.env.NODE_ENV || "unknown",
       timestamp: new Date().toISOString(),
     },
-    { status: ok ? 200 : 503 }
+    {
+      status: ok ? 200 : 503,
+      headers: {
+        // Cache très court côté CDN (uptime-checkers polling toutes les 30-60s)
+        "Cache-Control": "public, max-age=10, s-maxage=10",
+      },
+    }
   );
 }

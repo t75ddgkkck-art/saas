@@ -1,210 +1,217 @@
 # Vitrix — Plateforme SaaS pour artisans & indépendants
 
-<!-- Lot 27 — badges CI. Remplacer OWNER/REPO par le vrai chemin GitHub. -->
+<!-- Badges CI -->
 
 [![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%3E%3D20.18-brightgreen)
 ![Next](https://img.shields.io/badge/next-16.2-black)
-![Tests](https://img.shields.io/badge/tests-324%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-618%20passing-brightgreen)
+![Lots](https://img.shields.io/badge/lots-38%20delivered-blue)
 ![License](https://img.shields.io/badge/license-proprietary-lightgrey)
 
-Plateforme SaaS permettant aux artisans et indépendants de créer leur page professionnelle unique et de gérer toute leur activité depuis un seul endroit.
+Plateforme SaaS 360° pour artisans, indépendants et TPE : vitrine publique SEO, prise de RDV, devis, paiements, CRM, calendrier avec sync Google, espace client, équipe multi-rôles, IA, analytics, PWA mobile.
+
+---
+
+## 🎯 Fonctionnalités clés
+
+### Côté visiteur (client final)
+
+- **Vitrine publique** `/[slug]` — page SEO complète, mobile-first, 16 presets couleurs par métier + 10 fonts
+- **Prise de rendez-vous** 24/7 avec créneaux dynamiques
+- **Demande de devis** avec pièces jointes
+- **Signature électronique** de devis en ligne (magic-link, hash SHA-256, valeur légale FR)
+- **Acompte à la réservation** (Stripe Connect, anti no-show)
+- **Espace client `/mon-compte`** — magic-link auth, historique RDV/devis, annulation self-service avec refund automatique
+- **Avis clients** publics avec réponses IA (Premium)
+
+### Côté professionnel
+
+- **Dashboard `/dashboard`** avec KPIs temps réel
+- **Page "Aujourd'hui"** mobile-first : timeline chrono du jour, deep links tel/GPS/WhatsApp, encaissement 1-tap, notes vocales
+- **Calendrier** jour/semaine/mois avec drag&drop, sync Google Calendar bidirectionnelle, export ICS abonnable
+- **CRM clients** : import/export CSV, doublons, no-show tracking, cron relance impayés
+- **Équipe multi-rôles** : owner/admin/employee/viewer avec matrice permissions 30 capabilities, invitations magic-link
+- **Analytics** RGPD-friendly : sources, funnel, comparatif période précédente, cron réactivation users inactifs
+- **Devis IA** : décrire "Rénovation SDB 6m² carrelage" → IA génère 5-10 lignes avec prix médians (Premium)
+- **Blog** avec génération IA (Pro+), SEO optimisé
+- **QR Code** imprimable trackable
+- **PWA mobile** : safe-area, push notifs OS, offline
+
+### Sécurité & conformité
+
+- **RGPD complet** : consent cookies, export données, droit à l'oubli, DPA templates, purge automatique
+- **Rate-limits** sur toutes les routes publiques (login, register, book, quote, ai-chat, magic-links)
+- **Brute-force detector** avec cooldown IP
+- **CSP dynamique** avec headers de sécurité complets (COOP, CORP, Permissions-Policy)
+- **Uploads sécurisés** (magic bytes MIME detection, sanitize SVG anti-XSS)
+- **Idempotence webhooks Stripe** (dédup par event.id)
+
+### Monétisation (Stripe)
+
+- Plans **Free / Pro / Premium** avec matrice entitlements figée
+- Trial 14 jours + grace period 3-7 jours
+- Portal Stripe intégré (facturation self-service)
+- Parrainage pro→pro : 1 mois offert par filleul converti
+
+---
 
 ## ⚙️ Développement
 
+### Setup
+
 ```bash
-npm install         # installe deps + hooks husky
-npm run dev         # dev server (Turbopack)
-npm run typecheck   # tsc --noEmit
-npm run lint        # eslint
-npm run format      # prettier --write
-npm run test        # vitest (unit)
-npm run test:coverage  # vitest + coverage v8
-npm run build       # next build
-npm run ci          # typecheck + lint + format:check + tests (= ce que la CI valide)
+git clone https://github.com/OWNER/REPO.git vitrix
+cd vitrix
+nvm use               # active Node 20.18+ (fichier .nvmrc)
+npm install           # installe deps + hooks husky (auto)
+cp .env.example .env.local  # configure les vars — voir docs/LAUNCH_CHECKLIST.md
+npm run env:check     # vérifie que les REQUISES sont OK
+npm run dev           # http://localhost:3000
 ```
 
-## 🤖 Intégration continue
+### Scripts npm
 
-La CI GitHub Actions (`.github/workflows/ci.yml`) exécute en parallèle à chaque push / PR :
+```bash
+npm run dev              # Next dev server (Turbopack)
+npm run build            # Build production
+npm run start            # Serve le build
+npm run lint             # ESLint (0 erreur en cible)
+npm run format           # Prettier --write
+npm run format:check     # Prettier --check (CI)
+npm run typecheck        # tsc --noEmit
+npm run test             # Vitest (618 tests, ~13s)
+npm run test:coverage    # + coverage v8 HTML
+npm run test:e2e         # Playwright
+npm run env:check        # Vérif env vars (fail-fast)
+npm run check            # typecheck + lint + format:check
+npm run ci               # check + test (= ce que la CI valide)
+npm run db:push          # Drizzle push schema (dev)
+npm run db:studio        # Drizzle Studio (UI DB)
+```
 
-- **typecheck** — `tsc --noEmit`
-- **lint** — `eslint .` (0 erreur, warnings tolérés)
-- **format** — `prettier --check .`
-- **test** — `vitest run --coverage` (seuils dans `vitest.config.ts`)
-- **audit** — `npm audit --audit-level=moderate --production` (non bloquant)
-- **build** — `next build` (dépend des 4 premiers)
-
-Le job `ci-success` (final) agrège les résultats et sert de _required check_ à configurer dans les settings de branche GitHub.
-
-Coverage HTML disponible dans les artifacts du run (retention 14j).
-
-Dependabot regroupe les mises à jour hebdo (`.github/dependabot.yml`) — voir aussi `CONTRIBUTING.md`.
-
-## 🚀 Fonctionnalités
-
-### Page Publique (`/p/[slug]`)
-
-- Logo, photo de couverture et photo de profil
-- Description de l'entreprise
-- Boutons Appeler, WhatsApp, SMS, Email
-- Prise de rendez-vous en ligne avec créneaux
-- Demande de devis
-- Galerie photos/vidéos
-- Avis clients avec note moyenne
-- FAQ interactive
-- Zone d'intervention + Google Maps
-- Réseaux sociaux
-- Bouton Urgence
-- QR Code imprimable
-- SEO optimisé
-
-### Dashboard Professionnel
-
-- **Tableau de bord** : statistiques, CA, rendez-vous, clients
-- **Rendez-vous** : calendrier, disponibilités, gestion des créneaux
-- **Devis** : création multi-lignes, suivi, statuts
-- **CRM** : gestion clients, historique, notes
-- **Paiements** : suivi des transactions (Stripe)
-- **Avis** : gestion et modération
-- **Galerie** : photos et vidéos
-- **Assistant IA** : chatbot intelligent 24/7
-- **QR Code** : génération et personnalisation
-- **Mon entreprise** : gestion du profil public
-- **Paramètres** : compte, horaires, design, notifications
-- **Statistiques** : visiteurs, provenance, appareils
-
-## 🔒 Inscription Professionnelle
-
-L'inscription est **réservée aux professionnels avec numéro SIRET** :
-
-1. Vérification du SIRET via l'API INSEE (ou algorithme de Luhn)
-2. Création automatique du compte ET de la page publique
-3. Horaires par défaut et FAQ pré-remplis
-4. QR code généré automatiquement
-
-## 🛠 Architecture
+### Structure
 
 ```
 src/
-├── app/
-│   ├── page.tsx                    # Landing page
-│   ├── login/page.tsx              # Connexion
-│   ├── register/page.tsx           # Inscription SIRET (3 étapes)
-│   ├── p/[slug]/                   # Pages publiques des artisans
-│   ├── dashboard/                  # Espace professionnel
-│   │   ├── page.tsx                # Tableau de bord
-│   │   ├── appointments/           # Rendez-vous
-│   │   ├── quotes/                 # Devis
-│   │   ├── clients/                # CRM
-│   │   ├── payments/               # Paiements
-│   │   ├── reviews/                # Avis
-│   │   ├── gallery/                # Galerie
-│   │   ├── ai-chat/                # Assistant IA
-│   │   ├── qr-code/                # QR Code
-│   │   ├── analytics/              # Statistiques
-│   │   ├── my-business/            # Profil entreprise
-│   │   └── settings/               # Paramètres
-│   └── api/                        # API endpoints
-│       ├── auth/                   # Auth (login, register)
-│       ├── verify-siret/           # Vérification SIRET
-│       ├── qr-code/                # Génération QR code
-│       ├── dashboard/              # Données dashboard
-│       └── my-business/            # Gestion entreprise
-├── components/
-│   ├── ui/                         # Composants de base
-│   └── layout/                     # Layout (Sidebar)
-├── contexts/
-│   └── AuthContext.tsx             # Context d'authentification
-├── db/
-│   ├── schema.ts                   # Schéma Drizzle (18 tables)
-│   └── index.ts                    # Client DB
-└── lib/
-    ├── auth.ts                     # Authentification
-    ├── siret.ts                    # Vérification SIRET + QR code
-    ├── seed.ts                     # Données démo
-    └── utils.ts                    # Utilitaires
+├── app/              — Next.js App Router
+│   ├── [slug]/       — Vitrine publique (ISR 5 min)
+│   ├── api/          — 80+ routes API (RESTful)
+│   ├── dashboard/    — Interface pro (client-side)
+│   ├── mon-compte/   — Espace client final
+│   ├── devis/[token] — Signature publique magic-link
+│   └── team/accept   — Acceptation invitation équipe
+├── components/       — React composants (UI, layout, features)
+├── contexts/         — Auth, Theme, Lang, Toast
+├── db/               — Drizzle schema (35+ tables)
+├── hooks/            — useEntitlement, useConfirm, useToast
+├── lib/              — Logique métier (notify, push, ical, quote-signature…)
+tests/unit/           — Vitest (618 tests)
+tests/e2e/            — Playwright
+docs/                 — Documentation par lot (14 docs)
+sql/                  — Migrations idempotentes (00_apply_safe.sql)
 ```
 
-## 📦 Variables d'environnement
+---
 
-Voir `.env.example` pour la liste complète.
+## 🚀 Déploiement
 
-### Minimum requis pour démarrer :
+**Voir [docs/LAUNCH_CHECKLIST.md](./docs/LAUNCH_CHECKLIST.md)** pour la checklist complète (2-3h pour un premier déploiement).
 
-```bash
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app_db
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
+Résumé :
 
-### Pour la production :
+1. **Supabase** — créer projet + coller la connection string dans `DATABASE_URL`
+2. **Stripe** — 4 price IDs (Pro/Premium × monthly/yearly) + webhook endpoint
+3. **Resend** — vérifier votre domaine (DKIM/SPF/DMARC)
+4. **Vercel** — Import GitHub repo + coller toutes les env vars + Deploy
+5. **DNS** — pointer votre domaine sur Vercel
+6. **Migration DB** : `psql "$DATABASE_URL" -f sql/00_apply_safe.sql`
+7. **Vérifier** : `GET https://votre-domaine/api/health` → `ok: true`
 
-```bash
-# Auth
-NEXTAUTH_SECRET=<générer avec openssl rand -base64 32>
+### Environnements
 
-# SIRET (optionnel, fallback Luhn)
-INSEE_API_KEY=<clé API INSEE>
+| Env         | Description              | Build           |
+| ----------- | ------------------------ | --------------- |
+| Development | Local dev avec HMR       | `npm run dev`   |
+| Preview     | Vercel deploy par PR     | Auto via GitHub |
+| Production  | Vercel deploy sur `main` | Auto via GitHub |
 
-# Stripe (paiements)
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+---
 
-# OpenAI (assistant IA)
-OPENAI_API_KEY=sk-proj-...
+## 🤖 Intégration continue
 
-# Resend (emails)
-RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=noreply@votre-domaine.com
+La CI GitHub Actions (`.github/workflows/ci.yml`) exécute à chaque push/PR :
 
-# Twilio (SMS)
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_PHONE_NUMBER=+33...
-```
+- **typecheck** — `tsc --noEmit`
+- **lint** — `eslint .` (0 erreur tolérée)
+- **format** — `prettier --check .`
+- **test** — `vitest run --coverage` + upload HTML artifact
+- **audit** — `npm audit --production` (non bloquant)
+- **build** — `next build` (dépend des 4 précédents)
 
-## 💳 Abonnements
+Le job `ci-success` agrège tous les résultats — à configurer comme **required check** dans les branch protection rules.
 
-| Fonctionnalité        | Gratuit | Pro (29€) | Premium (79€) |
-| --------------------- | ------- | --------- | ------------- |
-| Page publique         | ✅      | ✅        | ✅            |
-| Contact               | ✅      | ✅        | ✅            |
-| Galerie               | ✅      | ✅        | ✅            |
-| Rendez-vous           | ❌      | ✅        | ✅            |
-| Paiement              | ❌      | ✅        | ✅            |
-| Devis                 | ❌      | ✅        | ✅            |
-| CRM                   | ❌      | ✅        | ✅            |
-| Assistant IA          | ❌      | ❌        | ✅            |
-| SMS/WhatsApp          | ❌      | ❌        | ✅            |
-| Statistiques avancées | ❌      | ❌        | ✅            |
+Dependabot regroupe les mises à jour hebdo (`.github/dependabot.yml`).
 
-## 🏗 Stack Technique
+**Coverage actuel** : lines 45%, functions 62%, branches 82%. Objectif v2 : 60% lines.
 
-- **Frontend** : Next.js 16, React 19, TypeScript
-- **Styling** : Tailwind CSS 4, class-variance-authority
-- **Base de données** : PostgreSQL + Drizzle ORM
-- **Charts** : Recharts
-- **QR Code** : qrcode
-- **Icônes** : Lucide React
+---
 
-## 🚀 Démarrage
+## 📚 Documentation détaillée
 
-```bash
-# Installation
-npm install
+Chaque grand lot a sa doc dédiée dans `docs/` :
 
-# Développement
-npm run dev
+| Doc                                                   | Contenu                                                |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| [CALENDAR.md](./docs/CALENDAR.md)                     | Vues jour/semaine/mois + drag&drop + sync Google + ICS |
+| [ENTITLEMENTS.md](./docs/ENTITLEMENTS.md)             | Matrice features × plans + `<UpgradeGate>`             |
+| [TEAM.md](./docs/TEAM.md)                             | 4 rôles + invitations magic-link                       |
+| [DEPOSIT.md](./docs/DEPOSIT.md)                       | Acompte Stripe (anti no-show)                          |
+| [CLIENT_AREA.md](./docs/CLIENT_AREA.md)               | Espace client final /mon-compte                        |
+| [TODAY_VIEW.md](./docs/TODAY_VIEW.md)                 | Page mobile-first terrain                              |
+| [NOTIFICATIONS.md](./docs/NOTIFICATIONS.md)           | Push OS + safe-area + helper notify()                  |
+| [ANALYTICS.md](./docs/ANALYTICS.md)                   | Tracker RGPD + réactivation                            |
+| [VITRINE_V2.md](./docs/VITRINE_V2.md)                 | Personnalisation étendue                               |
+| [QUOTE_AI_SIGNATURE.md](./docs/QUOTE_AI_SIGNATURE.md) | Devis IA + signature électronique                      |
+| [CRM.md](./docs/CRM.md)                               | Gestion clients avancée                                |
+| [STRIPE.md](./docs/STRIPE.md)                         | Configuration paiements                                |
+| [AUTH.md](./docs/AUTH.md)                             | Auth pro (login/register/reset/verify)                 |
+| [SECURITY.md](./docs/SECURITY.md)                     | Rotation secrets + checklist post-incident             |
+| [MONITORING.md](./docs/MONITORING.md)                 | Sentry + alertes + healthcheck                         |
+| [RGPD.md](./docs/RGPD.md)                             | Conformité + export + purge                            |
+| [BUSINESS.md](./docs/BUSINESS.md)                     | Parrainage + API v1 + webhooks sortants                |
+| [DB.md](./docs/DB.md)                                 | Convention Drizzle + migrations                        |
+| [LAUNCH_CHECKLIST.md](./docs/LAUNCH_CHECKLIST.md)     | **Checklist déploiement (à lire en 1er)**              |
 
-# Build production
-npm run build
+Historique complet des changements : [CHANGELOG_AUDIT.md](./CHANGELOG_AUDIT.md) (34 tours documentés).
 
-# Lancer en production
-npm start
-```
+Propositions produit : [PROPOSITIONS_V3.md](./PROPOSITIONS_V3.md) + [AUDIT_UX_MOBILE_V4.md](./AUDIT_UX_MOBILE_V4.md).
 
-## 📄 Licence
+Contribution : [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-Propriétaire - ArtisanPro © 2025
-"# saas"
+---
+
+## 🛠️ Stack technique
+
+- **Next.js 16** (App Router, Turbopack, RSC)
+- **React 19**
+- **TypeScript 5.9** (strict)
+- **Tailwind CSS v4** (avec `@custom-variant dark`, safe-area utilities)
+- **Drizzle ORM 0.45** + PostgreSQL (Supabase)
+- **Stripe 22** (Connect + Subscriptions + Webhooks)
+- **Resend 6** (email transactionnel)
+- **OpenAI** via fetch direct (0 SDK)
+- **Zod 3** (validation runtime)
+- **Vitest 2** + Playwright (tests)
+- **ESLint 9** + Prettier 3 + Husky + lint-staged
+
+**Aucune dep bloat** : recharts lazy-loadé, web-push/sentry optionnels via `Function("return require")()`, HTML5 drag&drop natif (pas de FullCalendar/react-beautiful-dnd), iCalendar RFC 5545 maison.
+
+---
+
+## 📄 License
+
+Propriétaire — © 2025 Vitrix. Tous droits réservés.
+
+Pour toute question commerciale : contact@vitrix.fr
+Pour toute vulnérabilité de sécurité : security@vitrix.fr (jamais dans une issue publique).

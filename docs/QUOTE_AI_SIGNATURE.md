@@ -12,6 +12,7 @@
 ### Prompt système `quoteGeneratorSystemPrompt`
 
 Sortie JSON stricte (parseable côté serveur) :
+
 ```json
 {
   "items": [
@@ -25,6 +26,7 @@ Sortie JSON stricte (parseable côté serveur) :
 ```
 
 Règles injectées :
+
 - Prix TTC (TVA 20% incluse) sauf mention explicite HT
 - Unit type : `u`, `h`, `m²`, `ml`, `jour`, `forfait`
 - Séparation main-d'œuvre / matériaux
@@ -34,15 +36,17 @@ Règles injectées :
 ### Route `POST /api/quotes/ai-generate`
 
 **Gates cumulatifs** :
+
 1. `quotes.enable` (Pro+) — le pro doit avoir la feature devis
 2. `quotes.ai_generation` (Premium) — IA est Premium only
 3. `checkAiQuota()` — quota mensuel de tokens partagé avec les autres IA
 
 **Rate-limit** : 20/heure/IP (coût OpenAI direct)
 
-**Parser tolérant** `safeParseAiJson()` : nettoie les markdown fences ```json…```, filtre les items malformés, cap description à 500 chars.
+**Parser tolérant** `safeParseAiJson()` : nettoie les markdown fences `json…`, filtre les items malformés, cap description à 500 chars.
 
 **Réponse** :
+
 ```json
 {
   "title": "…",
@@ -62,6 +66,7 @@ Le pro reçoit une SUGGESTION, il valide/édite avant sauvegarde. L'IA n'écrit 
 ### Modèle "légère" vs eIDAS
 
 **v1 (livré)** : signature légère MAIS complète pour la plupart des devis artisans (< 10 K€) :
+
 - Hash SHA-256 de preuve d'intégrité
 - Audit trail (IP, user-agent, timestamp)
 - Nom tapé du signataire (valeur légale en droit FR)
@@ -101,13 +106,14 @@ computeSignatureHash({
   signedByEmail: "user@example.com",
   signedAt: "2026-08-15T10:00:00.000Z",
   signedIp: "1.2.3.4",
-  signedUserAgent: "Mozilla/5.0..."
-})
+  signedUserAgent: "Mozilla/5.0...",
+});
 ```
 
 Le hash est **déterministe** : recomputer les mêmes inputs donne le même résultat. Un devis modifié APRÈS signature aura un fingerprint différent → hash ne match plus → fraude détectable.
 
 **`computeItemsFingerprint()`** :
+
 - Trié par description (ordre stable indépendant de l'insertion)
 - Format `description|quantity|unitPrice` par ligne, concat par `||`
 
@@ -116,6 +122,7 @@ Le hash est **déterministe** : recomputer les mêmes inputs donne le même rés
 ### Cron `/api/cron/quote-signature-reminders` (quotidien 10h)
 
 Politique 3 échelons (pattern payment-reminders Lot 24) :
+
 - **J+3** après envoi : rappel amical
 - **J+7** : relance ferme (délai 4j depuis J+3)
 - **J+15** : dernier avant expiration (délai 8j depuis J+7)
@@ -130,6 +137,7 @@ Cap safety : 200 devis / run (au-delà, batch sur plusieurs jours).
 ## Modèle DB (`quotes` étendue)
 
 8 nouvelles colonnes (bloc SQL **4quaterdecies**) :
+
 - `signature_hash varchar(64)` — SHA-256 de preuve d'intégrité
 - `signed_by_email varchar(255)` — email du signataire
 - `signed_ip varchar(45)`, `signed_user_agent varchar(500)` — audit trail
@@ -145,11 +153,13 @@ Index unique partial `quotes_signature_token_uidx WHERE signature_token_hash IS 
 **`/devis/[token]/page.tsx`** — page publique noindex, mobile-first.
 
 **`<QuoteSignFlow>`** — 3 états :
+
 1. **loading** — spinner pendant peek
 2. **preview** — 2 InfoCards (business/client), table items, totaux, CGV repliable, formulaire signature
 3. **signed** — confirmation "Merci !" + timestamp
 
 **Formulaire signature** :
+
 - Input nom + email (pré-remplis depuis clients.email/firstName/lastName)
 - Bouton "Dessiner ma signature" (optionnel) → `<SignaturePad>` existant
 - Checkbox CGV obligatoire
@@ -159,6 +169,7 @@ Index unique partial `quotes_signature_token_uidx WHERE signature_token_hash IS 
 ## Fichiers créés / modifiés
 
 **Créés** (11) :
+
 - `src/lib/quote-signature.ts` — token + hash + fingerprint
 - `src/app/api/quotes/ai-generate/route.ts`
 - `src/app/api/quotes/[id]/send-signature/route.ts`
@@ -171,6 +182,7 @@ Index unique partial `quotes_signature_token_uidx WHERE signature_token_hash IS 
 - `tests/unit/quote-signature-reminders.test.ts` (10 tests)
 
 **Modifiés** :
+
 - `src/db/schema.ts` — 8 colonnes sur `quotes` + index unique partial
 - `sql/00_apply_safe.sql` — bloc 4quaterdecies
 - `src/lib/entitlements.ts` — feature `quotes.ai_generation` (Premium only)

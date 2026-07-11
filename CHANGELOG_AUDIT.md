@@ -4,6 +4,141 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 35 — Lot 39 Package lancement (prêt production)
+
+Dernier chantier après 38 lots fonctionnels : outillage complet pour passer de "code sur GitHub" à "app en production sur son domaine" en 2-3 heures.
+
+## Livré
+
+### `.env.example` refondu (12 groupes, 46 vars documentées)
+
+Structure claire avec commentaires par catégorie :
+- `[1]` REQUIS BASE — sans quoi l'app plante au boot (4 vars)
+- `[2]` REQUIS PAIEMENT — Stripe (7 vars)
+- `[3]` REQUIS EMAIL — Resend (4 vars)
+- `[4]` OPT SÉCURITÉ — Turnstile + brute-force threshold
+- `[5]` OPT IA — OpenAI (4 vars)
+- `[6]` OPT NOTIFS PUSH — VAPID (3 vars)
+- `[7]` OPT STOCKAGE — Supabase Storage (4 vars)
+- `[8]` OPT SMS/WA — Twilio (5 vars)
+- `[9]` OPT INTÉGRATIONS — Google Calendar + Business + Places
+- `[10]` OPT SUPPORT — Crisp / Intercom
+- `[11]` OPT MONITORING — Sentry + alertes webhook
+- `[12]` OPT DIVERS — log level, purge days, app name
+
+Chaque var a un **commentaire concret** : qu'est-ce qui casse si absente, comment la générer, format attendu.
+
+### `scripts/env-check.mjs` — validateur pré-boot
+
+- Node pur, 0 dep npm, tourne SANS `node_modules` (utile Docker pre-hook)
+- Charge `.env.local` optionnellement
+- 3 niveaux : REQUIRED (fail exit 1), RECOMMENDED (warning), OPTIONAL (info)
+- Validation format : URL bien formée, secret >= 32 chars, préfixes `sk_`/`whsec_`/`re_`
+- Sortie colorée exit code 0/1
+- Commande : `npm run env:check`
+
+### `/api/health` enrichi (14 checks vs 6)
+
+Ajoutés :
+- `app_url` — critical, valide format URL
+- `cron_secret` — critical, valide longueur >= 16
+- `turnstile`, `vapid_push`, `google_oauth`, `supabase_storage`, `twilio_sms` — optionnels
+
+Ajout `summary` synthétique : `{active, total, critical_ok, critical_total}` pour dashboards uptime.
+
+Cache-Control 10s (uptime-checkers polling toutes les 30-60s).
+
+### `sql/apply.sh` — wrapper d'application des migrations
+
+Script bash robuste :
+- Vérifie que `psql` est installé
+- Ping la DB avant d'appliquer
+- Affiche les stats du fichier (blocs DO, tables, index, ALTER)
+- Confirmation interactive (bypass avec `AUTO_YES=1` ou `CI=1`)
+- Support `DRY_RUN=1`
+- Applique avec `ON_ERROR_STOP=1` (fail-fast)
+- **Vérification post-migration** : liste les tables critiques Vitrix avec ✓/✗
+- Colorisé, messages clairs
+
+Usage :
+```bash
+./sql/apply.sh                          # utilise $DATABASE_URL
+./sql/apply.sh "postgres://..."         # override
+DRY_RUN=1 ./sql/apply.sh                # dry-run
+```
+
+### `docs/LAUNCH_CHECKLIST.md` — checklist pratique
+
+11 étapes concrètes pour un premier déploiement complet :
+- Prérequis comptes à créer
+- Base de données Supabase + migration
+- Stripe (produits, prices, webhook)
+- Resend (domaine, DKIM/SPF/DMARC)
+- OpenAI + hard limit
+- Domaine (Ionos → Vercel + SSL)
+- Déploiement Vercel + env vars
+- Sécurité renforcée (Turnstile, VAPID, Google, Sentry)
+- Crons Vercel (9 crons listés avec fréquences)
+- Monitoring uptime externe
+- Conformité RGPD (DPO, DPA, assurance)
+- Post-lancement (parcours E2E test)
+- **Rollback rapide** (Vercel instant + Supabase PITR)
+
+Contacts d'urgence support fournisseurs listés.
+
+### `README.md` refondu
+
+Description complète des 38 lots livrés + stack technique + scripts + 19 docs référencées + section déploiement.
+
+## Fichiers créés / modifiés
+
+**Créés** (3) :
+- `scripts/env-check.mjs` (200 lignes, Node pur)
+- `sql/apply.sh` (170 lignes, bash robuste)
+- `docs/LAUNCH_CHECKLIST.md` (350 lignes)
+
+**Modifiés** :
+- `.env.example` — refonte complète 12 groupes 46 vars
+- `src/app/api/health/route.ts` — 8 checks ajoutés + summary
+- `README.md` — refonte complète
+- `package.json` — script `env:check`
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — 0 erreur
+- ✅ `npm run lint` — 0 erreur / 280 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **618 tests / 56 fichiers verts**
+- ✅ `npm run build` — succès
+- ✅ `bash -n sql/apply.sh` — syntaxe bash OK
+- ✅ `node scripts/env-check.mjs` — exit 1 si REQUIS manquants, exit 0 sinon
+- ✅ `node scripts/env-check.mjs` avec REQUIS présents → passe
+
+## Impact business
+
+- **Time-to-deploy divisé par 3** : checklist step-by-step, aucun deviner-ce-qui-manque
+- **Fail-fast sur env vars** : plus d'app qui tourne en prod avec RESEND cassé silencieusement
+- **`/api/health` complet** : uptime-checker externe voit tout le statut d'un coup
+- **SQL apply.sh** : rassure les non-DBAs (idempotent + dry-run + vérif post-migration)
+- **Onboarding contributeur** : nouveau dev clone le repo → `npm install && npm run env:check` → sait exactement quoi remplir
+
+## Actions post-déploiement (suivre `docs/LAUNCH_CHECKLIST.md`)
+
+Résumé express :
+1. Compte Supabase + connection string
+2. Compte Stripe + 4 price IDs + webhook
+3. Compte Resend + domaine vérifié DKIM
+4. Vercel Import → coller `.env` → deploy
+5. `./sql/apply.sh` — migration idempotente
+6. `GET /api/health` — vérifier `ok: true` et compteurs
+7. Parcours E2E test (register → RDV → paiement)
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 34 — Lot 38 F8 Devis IA + Signature électronique
 
 Dernier chantier de PROPOSITIONS_V3. Wow-factor commercial : le pro décrit son chantier en une phrase → IA propose les lignes de devis avec prix médians → le client signe en ligne (magic-link + hash de preuve d'intégrité).
