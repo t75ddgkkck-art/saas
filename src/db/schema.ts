@@ -185,6 +185,14 @@ export const businesses = pgTable(
     siret: varchar("siret", { length: 20 }),
     // Personnalisation vitrine
     primaryColor: varchar("primary_color", { length: 20 }).default("#0f172a"),
+    // Lot 37 : couleurs étendues + police + ordre des sections + CSS custom (Premium)
+    secondaryColor: varchar("secondary_color", { length: 20 }),
+    accentColor: varchar("accent_color", { length: 20 }),
+    fontFamily: varchar("font_family", { length: 50 }).default("inter"),
+    /** Ordre des sections vitrine — array de string ids. NULL = ordre par défaut. */
+    sectionOrder: jsonb("section_order").$type<string[]>(),
+    /** CSS custom (Premium uniquement) — sanitizer côté SSR bloque les url()/import externes. */
+    customCss: text("custom_css"),
     hideBranding: boolean("hide_branding").default(false),
     language: varchar("language", { length: 5 }).default("fr"),
     // Fuseau horaire IANA (ex: "Europe/Paris"). Défaut : Paris pour les nouveaux comptes.

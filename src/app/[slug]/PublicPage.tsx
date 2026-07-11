@@ -28,6 +28,24 @@ import { useToast } from "@/components/ui/Toast";
 import { formatPrice } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { getTemplate } from "@/lib/vitrine-templates";
+// Lot 37 : font stack utilisée si le pro a choisi une font custom.
+// Helper léger inline pour éviter d'importer tout le lib côté public
+// (garde le bundle vitrine minimal).
+function getVitrineFontStack(fontId: string): string {
+  const STACKS: Record<string, string> = {
+    "system-sans":
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    georgia: 'Georgia, "Times New Roman", Times, serif',
+    playfair: '"Playfair Display", Georgia, serif',
+    poppins: '"Poppins", -apple-system, sans-serif',
+    montserrat: '"Montserrat", -apple-system, sans-serif',
+    raleway: '"Raleway", -apple-system, sans-serif',
+    merriweather: '"Merriweather", Georgia, serif',
+    lora: '"Lora", Georgia, serif',
+    "roboto-mono": '"Roboto Mono", "SF Mono", Menlo, monospace',
+  };
+  return STACKS[fontId] ?? "";
+}
 import { QuoteForm } from "@/components/public/QuoteForm";
 import { BusinessStructuredData } from "@/components/public/StructuredData";
 import { PublicChat } from "@/components/public/PublicChat";
@@ -320,11 +338,43 @@ export function PublicPage({
   const category = business.category || "autre";
   const emoji = categoryEmojis[category] || "⭐";
 
+  // Lot 37 : personnalisation étendue — la font choisie par le pro override
+  // le template si présente. Les couleurs secondary/accent sont exposées
+  // comme CSS custom vars pour usage futur (composants sections). Le custom
+  // CSS Premium est injecté dans un <style> scoped au container `.vx-vitrine`.
+  const customFontStack =
+    business.fontFamily && business.fontFamily !== "inter"
+      ? getVitrineFontStack(business.fontFamily)
+      : null;
+  const inlineVars: React.CSSProperties = {
+    fontFamily: customFontStack ?? tpl.style.fontFamily,
+    // CSS variables pour les composants children
+    ...(business.primaryColor
+      ? ({ "--vx-primary": business.primaryColor } as React.CSSProperties)
+      : {}),
+    ...(business.secondaryColor
+      ? ({ "--vx-secondary": business.secondaryColor } as React.CSSProperties)
+      : {}),
+    ...(business.accentColor
+      ? ({ "--vx-accent": business.accentColor } as React.CSSProperties)
+      : {}),
+  };
+
   return (
-    <div
-      className={`min-h-screen ${tpl.style.pageBg}`}
-      style={{ fontFamily: tpl.style.fontFamily }}
-    >
+    <div className={`min-h-screen vx-vitrine ${tpl.style.pageBg}`} style={inlineVars}>
+      {/* Lot 37 : CSS custom scoped au container vitrine (Premium uniquement,
+          déjà sanitizé côté serveur : pas de @import / url() ext / expression()) */}
+      {business.customCss && business.customCss.trim().length > 0 && (
+        <style
+          // Le CSS custom est OWNER-CONTROLLED (le pro le pose sur SA propre
+          // vitrine), mais on scope quand même au `.vx-vitrine` pour éviter
+          // qu'il ne bleed sur d'autres pages Vitrix embarquant PublicPage.
+          dangerouslySetInnerHTML={{
+            __html: `.vx-vitrine { ${business.customCss} }`,
+          }}
+        />
+      )}
+
       {/* JSON-LD Structured Data for SEO */}
       <BusinessStructuredData
         business={{

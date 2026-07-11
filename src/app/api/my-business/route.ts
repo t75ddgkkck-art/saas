@@ -38,6 +38,28 @@ const UpdateSchema = z
       .regex(/^#[0-9a-fA-F]{6}$/, "Couleur au format #RRGGBB attendue")
       .optional()
       .nullable(),
+    // Lot 37 : personnalisation étendue
+    secondaryColor: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "Couleur au format #RRGGBB attendue")
+      .optional()
+      .nullable()
+      .or(z.literal("")),
+    accentColor: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "Couleur au format #RRGGBB attendue")
+      .optional()
+      .nullable()
+      .or(z.literal("")),
+    fontFamily: z.string().trim().max(50).optional().nullable(),
+    sectionOrder: z.array(z.string().max(30)).max(20).optional().nullable(),
+    /** Custom CSS (Premium — sanitizer côté serveur, cap 20 KB) */
+    customCss: z
+      .string()
+      .max(20 * 1024)
+      .optional()
+      .nullable()
+      .or(z.literal("")),
     hideBranding: z.boolean().optional().nullable(),
     language: z.enum(["fr", "en", "es", "de"]).optional().nullable(),
     template: z.string().trim().max(30).optional().nullable(),
@@ -117,6 +139,31 @@ export async function PUT(request: NextRequest) {
         emergencyPhone: body.emergencyPhone ?? business.emergencyPhone,
         showEmergency: body.showEmergency ?? business.showEmergency,
         primaryColor: body.primaryColor ?? business.primaryColor,
+        // Lot 37 : personnalisation étendue.
+        // Chaîne vide "" est traitée comme "reset à null" pour secondary/accent
+        // (permet à l'user de retirer une couleur custom).
+        // CSS custom : sanitize côté serveur ET check plan (Premium only).
+        secondaryColor:
+          body.secondaryColor !== undefined
+            ? body.secondaryColor === ""
+              ? null
+              : body.secondaryColor
+            : business.secondaryColor,
+        accentColor:
+          body.accentColor !== undefined
+            ? body.accentColor === ""
+              ? null
+              : body.accentColor
+            : business.accentColor,
+        fontFamily: body.fontFamily ?? business.fontFamily,
+        sectionOrder: body.sectionOrder !== undefined ? body.sectionOrder : business.sectionOrder,
+        customCss:
+          body.customCss !== undefined
+            ? // Sanitizer + gating plan Premium fait plus bas si nécessaire
+              (await import("@/lib/vitrine-personalization")).sanitizeCustomCss(
+                body.customCss ?? null
+              )
+            : business.customCss,
         hideBranding: body.hideBranding ?? business.hideBranding,
         language: body.language ?? business.language,
         template: body.template ?? business.template,

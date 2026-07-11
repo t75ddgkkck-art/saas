@@ -38,6 +38,7 @@ import {
 
 type Section =
   | "design"
+  | "personnalisation"
   | "infos"
   | "horaires"
   | "paiements"
@@ -281,6 +282,12 @@ export default function VitrinePage() {
     email: "",
     website: "",
     primaryColor: "#0f172a",
+    // Lot 37 : personnalisation étendue
+    secondaryColor: "" as string,
+    accentColor: "" as string,
+    fontFamily: "inter",
+    sectionOrder: null as string[] | null,
+    customCss: "" as string,
     hideBranding: false,
     profileImage: "",
     coverImage: "",
@@ -342,6 +349,11 @@ export default function VitrinePage() {
             email: b.email || "",
             website: b.website || "",
             primaryColor: b.primaryColor || "#0f172a",
+            secondaryColor: b.secondaryColor || "",
+            accentColor: b.accentColor || "",
+            fontFamily: b.fontFamily || "inter",
+            sectionOrder: b.sectionOrder ?? null,
+            customCss: b.customCss || "",
             hideBranding: b.hideBranding || false,
             profileImage: b.profileImage || "",
             coverImage: b.coverImage || "",
@@ -450,6 +462,8 @@ export default function VitrinePage() {
 
   const sections = [
     { id: "design" as Section, label: "Design", icon: Palette },
+    // Lot 37 : personnalisation étendue (fonts, presets métier, ordre sections, custom CSS)
+    { id: "personnalisation" as Section, label: "Personnalisation", icon: Sparkles },
     { id: "infos" as Section, label: "Infos & URL", icon: Globe },
     { id: "horaires" as Section, label: "Horaires & RDV", icon: Calendar },
     { id: "paiements" as Section, label: "Paiements", icon: CreditCard },
@@ -730,6 +744,19 @@ export default function VitrinePage() {
                   )}
                 </div>
               </>
+            )}
+
+            {/* Lot 37 : PERSONNALISATION (fonts, presets métier, ordre sections, custom CSS) */}
+            {section === "personnalisation" && (
+              <PersonnalisationSection
+                form={form as unknown as PersoFormLike}
+                // Cast : le state parent est typé sur un objet énorme, le composant
+                // Personnalisation n'a besoin que de 6 champs. Le spread ...f garde
+                // toutes les autres clés intactes en runtime.
+                setForm={setForm as unknown as PersoSetForm}
+                plan={plan}
+                category={form.category}
+              />
             )}
 
             {/* INFOS & URL */}
@@ -1868,3 +1895,262 @@ export default function VitrinePage() {
     </div>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Lot 37 — Section "Personnalisation" (fonts, presets métier, ordre sections)
+// -----------------------------------------------------------------------------
+// Composant local séparé du gros composant `VitrinePage` pour :
+//  - Isoler l'import lazy des composants Preset/Font/SectionOrder (ils ne se
+//    chargent que si l'onglet Personnalisation est actif)
+//  - Réduire la charge cognitive du gros switch de sections
+//
+// Import dynamique : les 3 sous-composants font ~15 KB à eux 3, on ne les
+// charge pas si l'user ne visite jamais cet onglet.
+
+import dynamic from "next/dynamic";
+import type { ColorPreset, VitrineSectionId } from "@/lib/vitrine-personalization";
+import { suggestPresetForCategory, sanitizeCustomCss } from "@/lib/vitrine-personalization";
+
+const LazyPresetPicker = dynamic(
+  () => import("@/components/vitrine/PresetPicker").then((m) => m.PresetPicker),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />,
+  }
+);
+const LazyFontPicker = dynamic(
+  () => import("@/components/vitrine/FontPicker").then((m) => m.FontPicker),
+  {
+    ssr: false,
+    loading: () => <div className="h-40 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />,
+  }
+);
+const LazySectionOrderEditor = dynamic(
+  () => import("@/components/vitrine/SectionOrderEditor").then((m) => m.SectionOrderEditor),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />,
+  }
+);
+
+interface PersonnalisationFormState {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  fontFamily: string;
+  sectionOrder: string[] | null;
+  customCss: string;
+}
+
+// Interface loose : on n'a besoin que des 6 champs de perso, le reste du form
+// passe par le spread ...f. Utilise `Record<string, unknown>` pour éviter de
+// dupliquer le type énorme du form parent.
+type PersoFormLike = PersonnalisationFormState & Record<string, unknown>;
+type PersoSetForm = (updater: (f: PersoFormLike) => PersoFormLike) => void;
+
+function PersonnalisationSection({
+  form,
+  setForm,
+  plan,
+  category,
+}: {
+  form: PersoFormLike;
+  setForm: PersoSetForm;
+  plan: string;
+  category: string;
+}) {
+  const isPremium = plan === "premium";
+
+  return (
+    <div className="space-y-8">
+      {category && (
+        <SuggestedPreset
+          category={category}
+          onApply={(p) => {
+            setForm((f) => ({
+              ...f,
+              primaryColor: p.primary,
+              secondaryColor: p.secondary,
+              accentColor: p.accent,
+            }));
+          }}
+        />
+      )}
+
+      {/* Palette de presets couleurs */}
+      <section>
+        <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">
+          Palette de couleurs
+        </h3>
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Choisissez un preset adapté à votre métier ou personnalisez les couleurs individuellement
+          plus bas.
+        </p>
+        <LazyPresetPicker
+          primary={form.primaryColor}
+          onSelect={(p: ColorPreset) => {
+            setForm((f) => ({
+              ...f,
+              primaryColor: p.primary,
+              secondaryColor: p.secondary,
+              accentColor: p.accent,
+            }));
+          }}
+        />
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <ColorInput
+            label="Primaire"
+            value={form.primaryColor}
+            onChange={(v) => setForm((f) => ({ ...f, primaryColor: v }))}
+          />
+          <ColorInput
+            label="Secondaire"
+            value={form.secondaryColor}
+            onChange={(v) => setForm((f) => ({ ...f, secondaryColor: v }))}
+          />
+          <ColorInput
+            label="Accent"
+            value={form.accentColor}
+            onChange={(v) => setForm((f) => ({ ...f, accentColor: v }))}
+          />
+        </div>
+      </section>
+
+      {/* Police */}
+      <section>
+        <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">
+          Police d&apos;écriture
+        </h3>
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          10 polices sélectionnées, adaptées à chaque style de métier.
+        </p>
+        <LazyFontPicker
+          value={form.fontFamily}
+          onChange={(id: string) => setForm((f) => ({ ...f, fontFamily: id }))}
+        />
+      </section>
+
+      {/* Ordre des sections */}
+      <section>
+        <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">
+          Ordre des sections
+        </h3>
+        <LazySectionOrderEditor
+          value={form.sectionOrder}
+          onChange={(order: VitrineSectionId[]) =>
+            setForm((f) => ({ ...f, sectionOrder: order as string[] }))
+          }
+        />
+      </section>
+
+      {/* CSS custom (Premium uniquement) */}
+      <section>
+        <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+          CSS personnalisé
+          {!isPremium && (
+            <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+              Premium
+            </span>
+          )}
+        </h3>
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Ajoutez du CSS pour affiner l&apos;apparence de votre vitrine.{" "}
+          {!isPremium && "Réservé au plan Premium."}
+        </p>
+        <textarea
+          value={form.customCss}
+          onChange={(e) => {
+            const v = e.target.value.slice(0, 20 * 1024);
+            setForm((f) => ({ ...f, customCss: v }));
+          }}
+          disabled={!isPremium}
+          rows={8}
+          placeholder={
+            isPremium
+              ? "/* Ex : .vitrine-hero { border-radius: 24px; } */"
+              : "Passez à Premium pour débloquer le CSS personnalisé"
+          }
+          className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 font-mono text-xs text-slate-900 dark:text-slate-100 disabled:opacity-50"
+        />
+        {isPremium && form.customCss.length > 0 && (
+          <p className="mt-1 text-[10px] text-slate-400">
+            {form.customCss.length} / 20 000 caractères — les `@import`, `url()` externes et
+            `expression()` sont filtrés côté serveur (sécurité).
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function SuggestedPreset({
+  category,
+  onApply,
+}: {
+  category: string;
+  onApply: (p: ColorPreset) => void;
+}) {
+  const suggested = suggestPresetForCategory(category);
+  if (suggested.id === "custom") return null;
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/40 p-3 sm:flex-row sm:items-center">
+      <div className="text-2xl" aria-hidden>
+        {suggested.emoji}
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
+          Suggéré pour votre métier : <strong>{suggested.label}</strong>
+        </p>
+        <p className="text-xs text-indigo-700 dark:text-indigo-300">
+          Un preset couleurs adapté à votre secteur d&apos;activité.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onApply(suggested)}
+        className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+      >
+        Appliquer
+      </button>
+    </div>
+  );
+}
+
+function ColorInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const isEmpty = !value;
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+        {label}
+      </span>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={isEmpty ? "#0f172a" : value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={label}
+          className="h-9 w-9 shrink-0 cursor-pointer rounded border border-slate-200 dark:border-slate-700"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={isEmpty ? "Auto" : ""}
+          className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs font-mono"
+        />
+      </div>
+    </label>
+  );
+}
+
+// Exports pour tests : sanitizer + presets sont dans le lib, exposés ici en re-export
+// utilitaire au cas où on veuille les mocker.
+export { sanitizeCustomCss, suggestPresetForCategory };

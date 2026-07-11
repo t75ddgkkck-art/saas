@@ -11,6 +11,7 @@
 ### Tracker de visites
 
 **Route `POST /api/track/visit`** :
+
 - Appelée depuis `PublicPage.tsx` (client side, fire-and-forget avec `keepalive`)
 - Respect `navigator.doNotTrack === "1"` → skip
 - Rate-limit 60/min/IP
@@ -22,6 +23,7 @@
   - `visitorHash` (32 chars SHA-256 salted par jour)
 
 **RGPD** : `visitorHash = SHA-256(ip + userAgent + dayKey + NEXTAUTH_SECRET).slice(0, 32)`
+
 - ✅ Salt journalier → impossible de tracker un visiteur cross-day (opt-out par design)
 - ✅ IP/UA jamais écrits en DB
 - ✅ Pas de cookie ni localStorage requis
@@ -30,6 +32,7 @@
 ### Route agrégations `GET /api/analytics?period=7d|30d|90d`
 
 Retourne :
+
 - **Summary** : totalVisits, uniqueVisitors, deltaVisitsPct (vs période précédente)
 - **Timeline** : point par jour {date, visits, uniques}
 - **Funnel** : visites → RDV créés → RDV terminés → paiements → CA
@@ -38,6 +41,7 @@ Retourne :
 - **Top paths** (Advanced) : pages les plus vues
 
 **Gating** :
+
 - Auth : `requireTeamPermission("analytics.view")` (tous les rôles sauf viewer sans plan)
 - Plan Free : reçoit `upgradeRequired: true` + summary + timeline + funnel (basiques)
 - Plan Pro+ : `analytics.advanced` entitlement → sources + devices + topPaths en plus
@@ -45,6 +49,7 @@ Retourne :
 ### Page dashboard/analytics
 
 Refonte complète :
+
 - **Avant** : 100% mock hardcodé (visitorData, sourceData, deviceData)
 - **Après** : fetch réel avec sélecteur période 7d/30d/90d
 - Charts recharts **lazy-loadés** via `dynamic(() => import(...), {ssr: false})` — ~150 KB économisés sur bundle initial pour les users qui ne visitent pas la page
@@ -54,11 +59,13 @@ Refonte complète :
 ### Charts séparés (`_components/AnalyticsCharts.tsx`)
 
 Recharts encapsulé dans un fichier dédié pour :
+
 - Lazy-loading facile
 - Réutilisation potentielle (widget dashboard futur)
 - Isolation du bundle recharts
 
 3 composants recharts + 1 maison :
+
 - `<TimelineChart>` — AreaChart empilé visites/uniques avec gradient
 - `<SourcesChart>` — BarChart vertical avec couleurs par source (Google bleu, Facebook, etc.)
 - `<DevicesChart>` — PieChart donut
@@ -69,6 +76,7 @@ Recharts encapsulé dans un fichier dédié pour :
 ### Colonnes DB ajoutées
 
 Sur `users` :
+
 - `last_login_at TIMESTAMP` — posé par `POST /api/auth/login` (fire-and-forget)
 - `reactivation_email_at TIMESTAMP` — anti-spam (max 1 email/mois)
 
@@ -79,6 +87,7 @@ Index partiel `users_last_login_idx WHERE last_login_at IS NOT NULL` — le cron
 Auth : `Authorization: Bearer ${CRON_SECRET}` (pattern Vercel cron).
 
 Logique `shouldSendReactivation(user, now)` — **pure, testable** :
+
 - ✅ Email verifié requis
 - ✅ Pas banni, pas soft-deleted
 - ✅ Login entre 30j et 90j (fenêtre "récupérable")
@@ -91,6 +100,7 @@ Cap safety : 500 users max par run (au-delà, batch sur plusieurs jours).
 ### Template email
 
 Sobre, 1 CTA clair, liste des nouveautés récentes :
+
 - Page Aujourd'hui
 - Espace client
 - Acompte à la réservation
@@ -103,6 +113,7 @@ Fréquence : **mardi 11h** (jour + heure les plus efficaces en B2B FR selon étu
 ## Tests
 
 **`tests/unit/visitor-hash.test.ts` (16 tests)** :
+
 - Hash déterministe même jour, différent entre 2 jours (cross-day blocked)
 - Hash différent entre IPs / UAs
 - `detectDevice` : desktop / mobile / tablet via UA patterns
@@ -114,6 +125,7 @@ Fréquence : **mardi 11h** (jour + heure les plus efficaces en B2B FR selon étu
   - autres → domain sans www
 
 **`tests/unit/reactivation.test.ts` (11 tests)** :
+
 - Conditions idéales (45j inactif) → true
 - Banni / soft-deleted / non vérifié / jamais loggé → false
 - Bord 30j inclusif, bord 90j inclusif
@@ -122,6 +134,7 @@ Fréquence : **mardi 11h** (jour + heure les plus efficaces en B2B FR selon étu
 ## Fichiers créés / modifiés
 
 **Créés** (7) :
+
 - `src/lib/visitor-hash.ts`
 - `src/app/api/track/visit/route.ts`
 - `src/app/api/analytics/route.ts`
@@ -131,6 +144,7 @@ Fréquence : **mardi 11h** (jour + heure les plus efficaces en B2B FR selon étu
 - `tests/unit/reactivation.test.ts` (11 tests)
 
 **Modifiés** :
+
 - `src/db/schema.ts` — colonnes users.lastLoginAt/reactivationEmailAt + pageVisits.visitorHash
 - `sql/00_apply_safe.sql` — bloc 4duodecies
 - `src/app/api/auth/login/route.ts` — pose `lastLoginAt` fire-and-forget

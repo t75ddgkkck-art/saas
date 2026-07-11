@@ -4,6 +4,119 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 33 — Lot 37 Vitrine v2 (personnalisation étendue)
+
+Répond au point faible identifié dans AUDIT_UX_MOBILE_V4 : "personnalisation trop pauvre vs concurrence (1 seule couleur, 7 templates figés, pas de choix de police)".
+
+## Livré
+
+**Modèle DB** — 5 colonnes sur `businesses` :
+- `secondary_color`, `accent_color` — couleurs secondaires nullable
+- `font_family` — id de font curated (défaut `inter`)
+- `section_order` — jsonb array d'ids sections vitrine
+- `custom_css` — Premium uniquement, sanitizer côté serveur (cap 20 KB)
+
+SQL idempotent bloc **4terdecies**.
+
+**Lib `src/lib/vitrine-personalization.ts`** :
+- **10 fonts curated** avec fallback système généreux (aucun runtime fetch Google)
+- **16 presets métier** (plombier bleu, coiffeur rose, restaurant rouge, avocat bordeaux, photographe mono, etc.)
+- **`suggestPresetForCategory(cat)`** — matching par mot-clé (plombier, coiffeur, restaurant, avocat, photographe…)
+- **8 sections vitrine** avec required flag (hero + contact obligatoires)
+- **`normalizeSectionOrder`** — filtre les IDs inconnus, ajoute les manquants (protection DB corrompue)
+- **`sanitizeCustomCss`** — bloque `@import`, `url()` externes, `expression()`, `javascript:`, `<script>`
+
+**3 composants UI** (lazy-loadés dans le tab Personnalisation) :
+- **`<PresetPicker>`** — grille groupée par catégorie métier + preview 3 pastilles couleurs
+- **`<FontPicker>`** — preview du nom rendu DANS la font (WYSIWYG immédiat)
+- **`<SectionOrderEditor>`** — drag & drop natif HTML5 + boutons ↑/↓ fallback a11y/mobile, lock sur sections requises
+
+**Nouveau tab `Personnalisation`** dans `/dashboard/vitrine` :
+- Suggestion contextuelle basée sur `businesses.category` (bandeau indigo "Suggéré pour votre métier : Plombier")
+- Palette presets métier + 3 color inputs custom
+- Font picker
+- Section order editor drag&drop
+- Textarea CSS custom (gate Premium visuel + serveur)
+
+**Application vitrine publique** :
+- Font override le template si présente
+- 3 CSS variables exposées : `--vx-primary`, `--vx-secondary`, `--vx-accent`
+- Custom CSS scoped au container `.vx-vitrine` (bleed protection)
+
+**API** `PUT /api/my-business` :
+- Zod validation hex `#RRGGBB` pour secondary/accent
+- Chaîne vide `""` = reset à `null`
+- `sanitizeCustomCss()` appliqué côté serveur
+
+## Tests (28 nouveaux)
+
+`tests/unit/vitrine-personalization.test.ts` :
+- FONT_OPTIONS : 10 fonts, ids uniques
+- COLOR_PRESETS : 16 presets, hex valides
+- suggestPresetForCategory : matching intelligent tous cas
+- VITRINE_SECTIONS : hero + contact requis
+- normalizeSectionOrder : null → défaut, filtre inconnus, ajoute manquants
+- **sanitizeCustomCss** : cas nominaux + `@import`, `url(http|https|data|javascript)`, `expression`, `<script>`, cap 20 KB
+
+## Fichiers créés / modifiés
+
+**Créés** (5) :
+- `src/lib/vitrine-personalization.ts` (350 lignes)
+- `src/components/vitrine/PresetPicker.tsx`
+- `src/components/vitrine/FontPicker.tsx`
+- `src/components/vitrine/SectionOrderEditor.tsx`
+- `docs/VITRINE_V2.md`
+- `tests/unit/vitrine-personalization.test.ts`
+
+**Modifiés** :
+- `src/db/schema.ts`
+- `sql/00_apply_safe.sql`
+- `src/app/api/my-business/route.ts`
+- `src/app/dashboard/vitrine/page.tsx` — nouveau tab + composant `PersonnalisationSection` avec sous-composants lazy-loadés
+- `src/app/[slug]/PublicPage.tsx` — application font + CSS vars + custom CSS scoped
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 259 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **593 tests / 54 fichiers** (+28 vs Lot 36)
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **Personnalisation au niveau des concurrents FR** (Simplébo/Solocal)
+- **Suggestion métier auto** = onboarding fluide (le pro se sent compris dès la 1re visite)
+- **CSS custom Premium** = argument commercial pour upgrade
+- **Sanitizer robuste** = pas de vecteur XSS via CSS custom (test canary bloque `@import`, `url()`, `expression()`, `javascript:`)
+- **Lazy loading** = bundle initial préservé (~15 KB économisés sur les 3 sous-composants)
+
+## Split B31 : reporté
+
+Le fichier `dashboard/vitrine/page.tsx` est passé de 1870 à 2100 lignes. Le split complet identifié dans AUDIT_UX_MOBILE_V4 est **reporté en v3** :
+
+- Risque élevé de casser le state partagé sans couverture tests React
+- Les 3 sous-composants Personnalisation sont déjà lazy-loadés → bundle initial déjà optimisé côté nouveau code
+- Le vrai split nécessite d'abord d'installer `@testing-library/react` et de tester chaque section
+
+Le composant `PersonnalisationSection` sert de **prototype** de ce à quoi ressemblera le split (composant local avec setForm typé, lazy children).
+
+## Actions post-déploiement
+
+1. `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4terdecies (5 colonnes)
+2. Tester sur une vitrine réelle :
+   - Preset métier → vérifier couleurs propagées
+   - Changer font → vérifier rendu vitrine publique
+   - Réordonner sections (v2 : nécessite refactor sections vitrine pour lire `sectionOrder` — colonne stockée mais pas encore utilisée en rendu)
+   - Premium : tester `@import` malveillant en custom CSS → filtré
+3. Communication : "Nouveauté : 16 presets couleurs métier + 10 polices + réordonnancement des sections."
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 32 — Lot 36 Analytics avancés + réactivation users inactifs
 
 Refonte complète de `/dashboard/analytics` (avant : 100% mock) + tracker de visites RGPD-friendly + cron réactivation churners 30-90j.

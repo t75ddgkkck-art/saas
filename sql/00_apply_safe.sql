@@ -981,6 +981,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4terdecies. Lot 37 — Vitrine v2 (personnalisation étendue)
+-- -----------------------------------------------------------------------------
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    ALTER TABLE public.businesses
+      ADD COLUMN IF NOT EXISTS secondary_color  varchar(20),
+      ADD COLUMN IF NOT EXISTS accent_color     varchar(20),
+      ADD COLUMN IF NOT EXISTS font_family      varchar(50) DEFAULT 'inter',
+      ADD COLUMN IF NOT EXISTS section_order    jsonb,
+      ADD COLUMN IF NOT EXISTS custom_css       text;
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (
