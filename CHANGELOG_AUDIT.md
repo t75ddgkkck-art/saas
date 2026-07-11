@@ -1,6 +1,164 @@
 # 🛠️ Améliorations issues de l'audit
 
-Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUDIT_REPORT.md`](./AUDIT_REPORT.md), [`AUDIT_FULL_V2.md`](./AUDIT_FULL_V2.md) et [`PROPOSITIONS_V3.md`](./PROPOSITIONS_V3.md).
+Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUDIT_REPORT.md`](./AUDIT_REPORT.md), [`AUDIT_FULL_V2.md`](./AUDIT_FULL_V2.md), [`PROPOSITIONS_V3.md`](./PROPOSITIONS_V3.md) et [`AUDIT_UX_MOBILE_V4.md`](./AUDIT_UX_MOBILE_V4.md).
+
+---
+
+# 🟢 Tour 30 — Lot 34 Mobile & notifications v2 (safe-area + push + notify unifié)
+
+Suite de l'audit UX/mobile V4. Corrige les 3 bugs mobile critiques identifiés :
+
+- **B29** — Encoche iPhone masquait burger + notifications
+- **B30** — Push OS jamais envoyées (route subscribe existait mais 0 émission)
+- **B25** — Notifications in-app générées dans 2 cas / 15 seulement
+
+## Safe-area (B29)
+
+- **`viewportFit: "cover"`** dans `layout.tsx` — active `env(safe-area-inset-*)` sur iOS
+- **7 utilities Tailwind v4** dans `globals.css` : `pt-safe`, `pb-safe`, `pl-safe`, `pr-safe`, `top-safe`, `bottom-safe`, `mt-safe`, `mb-safe`
+- **Composants fixed migrés** :
+  - `MobileTopBar` → `top-safe pr-safe`
+  - Burger sidebar → `top-safe pl-safe`
+  - `CookieConsent` → `bottom-safe`
+  - `SupportBubble` → `sm:bottom-safe`
+- Meta `apple-mobile-web-app-title = "Vitrix"` (titre home screen)
+- Meta `format-detection: telephone=no` (empêche iOS de linker les numéros dans du texte)
+- CSS auto : inputs mobile → font-size min 16px (empêche zoom iOS)
+- Manifest `orientation: "any"` (débloque le calendrier en landscape)
+
+## Push OS réelles (B30)
+
+**Client `src/lib/push.ts`** — dépendance `web-push` OPTIONNELLE (pattern Sentry) :
+- Chargée via `Function("return require")()` → non-bundlée si absente
+- No-op silencieux sans VAPID keys — jamais bloquant
+- Cleanup auto des subs expirées (404/410 Gone → delete)
+
+**Activation** :
+```bash
+npm install web-push
+npx web-push generate-vapid-keys
+# → env VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+```
+
+**Route `/api/push/vapid-key`** : expose la clé publique + statut configuré.
+
+**Service Worker enrichi** :
+- Support `tag`, `renotify`, `actions`, `vibrate`, `icon`, `badge`
+- Au clic → focus une fenêtre déjà ouverte sur la même URL (évite empilement onglets)
+
+## Helper `notify()` unifié (B25)
+
+Un seul point d'entrée qui gère :
+- Insert `notifications` (in-app, NotificationBell)
+- `sendPushToUser()` (best-effort, respect DND)
+- Vérif `notification_preferences` (opt-out par type + par canal)
+- DND (Do Not Disturb) : push suppressed dans fenêtre horaire, bypass si `priority: "high"`
+- **NON-THROWING strict** : ne bloque jamais le flow métier
+
+**26 types d'events figés** dans `NotifType` (enum). Groupés par domaine (rendez-vous, paiements, devis, avis, équipe, quotas, abonnement, sync).
+
+## Nouvelle table `notification_preferences`
+
+Modèle opt-out (par défaut tout activé) :
+- `disabled_types jsonb` — types désactivés par user
+- `disabled_channels jsonb` — canaux mutés (`push`, `db`)
+- `dnd_start / dnd_end varchar(5)` — fenêtre DND (support wrap-around minuit)
+
+SQL idempotent bloc **4decies**.
+
+## Câblages réalisés (6 hotspots critiques)
+
+| Route / Handler | Type notifié | Priority |
+|---|---|---|
+| `POST /api/book-appointment` | `appointment.created` | normal |
+| `POST /api/quote-request` | `quote.received` | normal |
+| `POST /api/reviews/public` | `review.received` | **high si ≤2 étoiles** |
+| `handleBookingDepositCompleted` (Stripe) | `deposit.paid` | normal |
+| `POST /api/team/accept` (F5) | `team.invitation_accepted` (à l'inviteur) | normal |
+| `handleTrialWillEnd` (Stripe) | `subscription.trial_ending` | **high** |
+
+## UI onglet Notifications
+
+Nouvel onglet `settings/notifications` avec 3 sections :
+1. **Push OS** — bouton subscribe/unsubscribe intelligent (détection support + guide iOS PWA + statut permission)
+2. **Do Not Disturb** — 2 `<input type="time">` + désactivation
+3. **Événements** — checkboxes groupées par domaine (opt-out)
+
+**`<PushSubscribeButton>`** dédié :
+- Détection Notification API + PushManager + SW
+- Détection iOS Safari non-standalone → guide "Ajouter à l'écran d'accueil"
+- Gestion permission `denied` → guide vers paramètres nav
+- Détection VAPID non configuré → message explicite
+
+## Quick wins mobile
+
+- `type="tel"` + `inputMode="tel"` sur register phone
+- `autoComplete` explicite : email, given-name, family-name, tel, street-address, new-password
+- `type="email"` + `inputMode="email"` sur register email
+- Meta `format-detection: telephone=no`
+
+## Fichiers créés / modifiés
+
+**Créés** (7) :
+- `src/lib/push.ts` (170 lignes)
+- `src/lib/notify.ts` (200 lignes)
+- `src/app/api/push/vapid-key/route.ts`
+- `src/app/api/account/notification-preferences/route.ts`
+- `src/components/notifications/PushSubscribeButton.tsx` (245 lignes)
+- `src/app/dashboard/settings/_components/NotificationsTab.tsx` (200 lignes)
+- `docs/NOTIFICATIONS.md`
+- `tests/unit/notify.test.ts` (16 tests)
+
+**Modifiés** :
+- `src/app/layout.tsx` — viewport-fit cover + apple-mobile-web-app-title + format-detection
+- `src/app/globals.css` — 8 utilities safe-area + CSS auto font-size mobile
+- `src/db/schema.ts` — table `notificationPreferences`
+- `sql/00_apply_safe.sql` — bloc 4decies
+- `src/app/manifest.webmanifest/route.ts` — orientation `any`
+- `public/sw.js` — payload push enrichi + focus fenêtre existante
+- `src/components/layout/MobileTopBar.tsx` — safe-area
+- `src/components/layout/Sidebar.tsx` — safe-area burger
+- `src/components/layout/CookieConsent.tsx` — safe-area
+- `src/components/layout/SupportBubble.tsx` — safe-area
+- `src/lib/stripe-events.ts` — notify deposit.paid + trial_ending
+- `src/app/api/book-appointment/route.ts` — passe notif via `notify()`
+- `src/app/api/quote-request/route.ts` — idem
+- `src/app/api/reviews/public/route.ts` — notify review.received
+- `src/app/api/team/accept/route.ts` — notify invitation_accepted
+- `src/app/dashboard/settings/page.tsx` — onglet notifications + Bell icon
+- `src/app/register/page.tsx` — autoComplete + inputMode
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 243 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **518 tests / 50 fichiers** (+16 vs Lot 33)
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **PWA iOS enfin utilisable** — burger et notifications ne sont plus masqués par l'encoche
+- **Push OS actives** = valeur PWA réalisée (les artisans installent la PWA pour être notifiés, avant ils ne recevaient rien)
+- **12 events critiques câblés** avec le nouveau helper (avant : 2 seulement)
+- **Contrôle user** : chaque pro peut désactiver ce qui l'agace + DND nocturne
+- **Non-throwing garanti** : une notif qui foire ne casse jamais un flow métier
+
+## Actions post-déploiement
+
+1. `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4decies (table `notification_preferences`)
+2. **VAPID (recommandé pour activer les push réelles)** :
+   ```bash
+   npm install web-push
+   npx web-push generate-vapid-keys
+   ```
+   Ajouter `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (format `mailto:contact@vitrix.fr`) dans Vercel
+3. **Test iPhone en PWA installée** : vérifier que burger + notifications sont accessibles (pas sous l'encoche)
+4. **Test E2E push** : onglet Notifications → "Activer" → créer un RDV factice → vérifier réception push OS
+
+## Historique commits
+
+Voir bas du document.
 
 ---
 

@@ -19,10 +19,11 @@ import { ThemeToggle } from "./ThemeToggle";
 export function MobileTopBar() {
   return (
     <div
-      // top-3 pour s'aligner avec le bouton burger (top-4), z-40 pour rester
-      // sous les modals (z-50) mais au-dessus du contenu (z auto).
-      // right-3 pour laisser un peu d'air.
-      className="fixed right-3 top-3 z-40 flex items-center gap-1.5 rounded-2xl bg-white/95 px-1.5 py-1 shadow-lg backdrop-blur dark:bg-slate-900/95 lg:hidden"
+      // F6 (Lot 34, B29) : `top-safe` = max(0.75rem, env(safe-area-inset-top))
+      // → compense l'encoche iPhone en PWA installée. `pr-safe` pour l'encoche
+      // en landscape. Sans ça, la barre passait sous le status bar iOS.
+      // z-40 : sous les modals (z-50), au-dessus du contenu.
+      className="fixed right-3 top-safe pr-safe z-40 flex items-center gap-1.5 rounded-2xl bg-white/95 px-1.5 py-1 shadow-lg backdrop-blur dark:bg-slate-900/95 lg:hidden"
       role="toolbar"
       aria-label="Actions rapides"
     >

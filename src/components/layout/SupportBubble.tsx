@@ -68,7 +68,7 @@ export function SupportBubble() {
     <a
       href={`mailto:${SUPPORT_EMAIL}?subject=Support%20Vitrix`}
       aria-label="Contacter le support"
-      className="fixed bottom-40 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-slate-900 sm:bottom-6 sm:h-14 sm:w-14"
+      className="fixed bottom-40 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-slate-900 sm:bottom-safe sm:h-14 sm:w-14"
       title="Contactez le support"
     >
       <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />

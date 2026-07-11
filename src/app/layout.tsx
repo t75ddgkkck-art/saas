@@ -93,6 +93,9 @@ export const metadata: Metadata = {
 
 // theme-color adaptatif : slate-50 en clair, slate-950 en sombre
 // (utilisé par les navigateurs pour colorer la barre système)
+// F6 (Lot 34, B29) : `viewportFit: cover` est OBLIGATOIRE sur iOS pour que
+// `env(safe-area-inset-*)` retourne des valeurs non-nulles. Sans ça, la
+// PWA en standalone laisse l'encoche masquer les composants fixed en haut/bas.
 export const viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
@@ -101,6 +104,7 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -112,6 +116,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* F6 (Lot 34) : titre PWA sur home screen iOS */}
+        <meta name="apple-mobile-web-app-title" content="Vitrix" />
+        {/* Format-detection : évite qu'iOS transforme "01 23..." en lien tel automatique
+            (on les rend explicitement avec <a href="tel:"> quand pertinent) */}
+        <meta name="format-detection" content="telephone=no" />
       </head>
       <body className="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 min-h-screen">
         <SkipToContent />

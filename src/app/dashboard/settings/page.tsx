@@ -11,10 +11,13 @@ import { useToast } from "@/components/ui/Toast";
 import { SecurityTab } from "./_components/SecurityTab";
 // F1 (Lot 29) : vue détaillée entitlements dans l'onglet Abonnement.
 import { EntitlementsList } from "@/components/entitlements/EntitlementsList";
+// F6 (Lot 34) : onglet Notifications (push + DND + événements)
+import { NotificationsTab } from "./_components/NotificationsTab";
 import {
   User,
   Globe,
   CreditCard,
+  Bell,
   Trash2,
   Check,
   AlertTriangle,
@@ -85,7 +88,7 @@ export default function SettingsPage() {
   const plan = user?.subscription || "free";
   // Lot 19 : nouvel onglet "sécurité" (changer mdp + email verify)
   const [tab, setTab] = useState<
-    "compte" | "securite" | "langue" | "abonnement" | "domaine" | "danger"
+    "compte" | "securite" | "notifications" | "langue" | "abonnement" | "domaine" | "danger"
   >("compte");
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [language, setLanguage] = useState("fr");
@@ -143,7 +146,15 @@ export default function SettingsPage() {
     // Ouvrir directement l'onglet demandé via ?tab=abonnement
     const params = new URLSearchParams(window.location.search);
     const requestedTab = params.get("tab");
-    const VALID_TABS = ["compte", "securite", "langue", "abonnement", "domaine", "danger"] as const;
+    const VALID_TABS = [
+      "compte",
+      "securite",
+      "notifications",
+      "langue",
+      "abonnement",
+      "domaine",
+      "danger",
+    ] as const;
     type ValidTab = (typeof VALID_TABS)[number];
     if (requestedTab && (VALID_TABS as readonly string[]).includes(requestedTab)) {
       setTab(requestedTab as ValidTab);
@@ -223,6 +234,7 @@ export default function SettingsPage() {
         {[
           { id: "compte" as const, label: "Mon compte", icon: User },
           { id: "securite" as const, label: "Sécurité", icon: Lock },
+          { id: "notifications" as const, label: "Notifications", icon: Bell },
           { id: "langue" as const, label: "Langue", icon: Globe },
           { id: "abonnement" as const, label: "Abonnement", icon: CreditCard },
           { id: "domaine" as const, label: "Nom de domaine", icon: Globe },
@@ -320,6 +332,8 @@ export default function SettingsPage() {
             onEmailVerifiedRefresh={() => window.location.reload()}
           />
         )}
+
+        {tab === "notifications" && <NotificationsTab />}
 
         {tab === "langue" && (
           <div className="space-y-4">

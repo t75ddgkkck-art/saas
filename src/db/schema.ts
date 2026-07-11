@@ -1127,6 +1127,29 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 
 // ============== PUSH SUBSCRIPTIONS ==============
 
+// F6 (Lot 34) — Préférences de notification par user + type d'event.
+//
+// Modèle : au lieu de N booléens sur users, on stocke un jsonb libre
+// `disabled_types: string[]` (les types désactivés — défaut : tout activé).
+// Une entrée par user, upsert au save.
+//
+// Simple, extensible (ajouter un event → aucun schema change), et rétro-compat
+// (un user sans ligne = tout activé, opt-out plutôt qu'opt-in pour ne pas
+// perdre les users qui n'ont jamais visité leurs préférences).
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** Types d'events désactivés (arrays de string, ex: ["quota.reached", "review.received"]) */
+  disabledTypes: jsonb("disabled_types").$type<string[]>().default([]).notNull(),
+  /** Canaux désactivés globalement (push, email). in-app toujours OK sauf coupure explicite. */
+  disabledChannels: jsonb("disabled_channels").$type<string[]>().default([]).notNull(),
+  /** Fenêtre "Do Not Disturb" (2 champs HH:MM). Push suppressed dans ce créneau, digest à la fin. */
+  dndStart: varchar("dnd_start", { length: 5 }),
+  dndEnd: varchar("dnd_end", { length: 5 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")

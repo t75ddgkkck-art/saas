@@ -75,6 +75,8 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+// F6 (Lot 34) : payload enrichi (url, tag, actions, vibrate, icon, badge).
+// Compatible avec le format émis par `sendPushToUser()` côté serveur.
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   try {
@@ -82,18 +84,44 @@ self.addEventListener("push", (event) => {
     event.waitUntil(
       self.registration.showNotification(data.title || "Vitrix", {
         body: data.body || "",
-        icon: "/icons/icon-192.png",
-        badge: "/icons/icon-192.png",
-        data: data.data || {},
+        icon: data.icon || "/icons/icon-192.png",
+        badge: data.badge || "/icons/icon-192.png",
+        // `tag` : 2 notifs même tag → la 2e remplace la 1re (dedup natif)
+        tag: data.tag || undefined,
+        // `renotify` : force re-buzz si même tag mais nouveau contenu
+        renotify: Boolean(data.tag),
+        // `actions` : boutons inline (Chrome/Android, ignoré iOS)
+        actions: Array.isArray(data.actions) ? data.actions.slice(0, 2) : undefined,
+        // `vibrate` : pattern d'oscillation Android
+        vibrate: Array.isArray(data.vibrate) ? data.vibrate : undefined,
+        // `data.url` : lu au clic pour ouvrir la bonne page
+        data: { url: data.url || "/dashboard", ...(data.data || {}) },
       })
     );
   } catch {
-    // payload non-JSON : ignore
+    // payload non-JSON : ignore silencieux
   }
 });
 
+// F6 (Lot 34) : au clic, tente de FOCUS une fenêtre déjà ouverte sur la même
+// URL avant d'en ouvrir une nouvelle (évite d'accumuler des onglets).
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/dashboard";
-  event.waitUntil(self.clients.openWindow(url));
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        try {
+          const clientUrl = new URL(client.url);
+          const targetUrl = new URL(url, self.location.origin);
+          if (clientUrl.pathname === targetUrl.pathname && "focus" in client) {
+            return client.focus();
+          }
+        } catch {
+          /* ignore parse errors */
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
 });

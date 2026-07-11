@@ -8,11 +8,13 @@
 
 import type Stripe from "stripe";
 import { db } from "@/db";
-import { users, appointments, payments, availabilitySlots } from "@/db/schema";
+import { users, appointments, payments, availabilitySlots, businesses } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 import { sendEmail } from "@/lib/email";
 import { GRACE_PERIOD_DAYS, type PlanId } from "@/lib/plans";
+// F6 (Lot 34, B25) : notif au pro quand deposit payé / paiement reçu
+import { notifyAsync } from "@/lib/notify";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
 
@@ -302,6 +304,17 @@ export async function handleTrialWillEnd(event: Stripe.Event): Promise<void> {
   );
 
   logger.info("stripe.trial.will_end.notified", { userId });
+
+  // F6 (Lot 34, B25) : notif in-app + push OS pour être sûr que le user voit
+  notifyAsync({
+    userId,
+    type: "subscription.trial_ending",
+    title: "Votre essai se termine bientôt",
+    message:
+      "Votre essai gratuit expire dans 3 jours. Aucune action nécessaire — l'abonnement se poursuivra automatiquement.",
+    priority: "high", // bypass DND — info importante
+    url: "/dashboard/settings?tab=abonnement",
+  });
 }
 
 /**
@@ -483,6 +496,30 @@ export async function handleBookingDepositCompleted(event: Stripe.Event): Promis
     amount: session.amount_total,
     sessionId: session.id,
   });
+
+  // F6 (Lot 34, B25) : notifier le pro (owner du business) que l'acompte est encaissé
+  // → il sait que le RDV est CONFIRMÉ (auto). Fire-and-forget.
+  try {
+    const [biz] = await db
+      .select({ ownerId: businesses.ownerId, name: businesses.name })
+      .from(businesses)
+      .where(eq(businesses.id, businessId))
+      .limit(1);
+    if (biz?.ownerId) {
+      const eur = ((session.amount_total ?? 0) / 100).toFixed(2);
+      notifyAsync({
+        userId: biz.ownerId,
+        businessId,
+        type: "deposit.paid",
+        title: "Acompte reçu",
+        message: `Un acompte de ${eur} € a été payé. Le rendez-vous est confirmé.`,
+        data: { appointmentId, amount: session.amount_total },
+        url: "/dashboard/appointments",
+      });
+    }
+  } catch {
+    /* notify est déjà non-throwing, ce catch est ceinture-bretelles */
+  }
 }
 
 /**

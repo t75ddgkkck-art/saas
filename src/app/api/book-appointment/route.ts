@@ -7,9 +7,10 @@ import {
   availabilitySlots,
   businesses,
   users,
-  notifications,
   teamMembers,
 } from "@/db/schema";
+// F6 (Lot 34, B25) : notifs unifiées (in-app + push OS + prefs user)
+import { notify } from "@/lib/notify";
 import { eq, and } from "drizzle-orm";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { formatLocaleDate, type Lang } from "@/lib/i18n";
@@ -197,14 +198,18 @@ export async function POST(request: NextRequest) {
       jobs.push(
         sendEmail({ to: owner.email, subject: proTemplate.subject, html: proTemplate.html })
       );
+      // F6 (Lot 34, B25) : passe par le helper unifié `notify()` — insert DB
+      // + push OS + respect des préférences user + DND.
       jobs.push(
-        db.insert(notifications).values({
+        notify({
           userId: business.ownerId,
           businessId: business.id,
-          type: "new_appointment",
+          type: "appointment.created",
           title: "Nouveau rendez-vous 📅",
           message: `${data.firstName} ${data.lastName} a réservé le ${dateLocalized} à ${data.startTime}${data.service ? ` — ${data.service}` : ""}`,
           data: { appointmentId: appointment.id },
+          url: "/dashboard/appointments",
+          tag: `appointment-${appointment.id}`,
         })
       );
     }

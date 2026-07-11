@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import {
-  clients,
-  quotes,
-  quoteAttachments,
-  businesses,
-  users,
-  notifications,
-  teamMembers,
-} from "@/db/schema";
+import { clients, quotes, quoteAttachments, businesses, users, teamMembers } from "@/db/schema";
+// F6 (Lot 34, B25) : notifs unifiées
+import { notify } from "@/lib/notify";
 import { eq, and } from "drizzle-orm";
 import { generateQuoteNumber } from "@/lib/utils";
 import { sendEmail, EmailTemplates } from "@/lib/email";
@@ -198,14 +192,17 @@ export async function POST(request: NextRequest) {
         sendEmail({ to: owner.email, subject: proTemplate.subject, html: proTemplate.html })
       );
 
+      // F6 (Lot 34, B25) : notify unifié (in-app + push OS + respect prefs)
       jobs.push(
-        db.insert(notifications).values({
+        notify({
           userId: business.ownerId,
           businessId: data.businessId,
-          type: "new_quote_request",
+          type: "quote.received",
           title: "Nouvelle demande de devis 📋",
           message: `${data.firstName} ${data.lastName} — ${quoteNumber}${data.category ? ` (${data.category})` : ""}`,
           data: { quoteId: quote.id },
+          url: `/dashboard/quotes/${quote.id}`,
+          tag: `quote-${quote.id}`,
         })
       );
     }

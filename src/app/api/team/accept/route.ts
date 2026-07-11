@@ -19,6 +19,9 @@ import { handleApiError, unauthorized, badRequest, forbidden, notFound } from "@
 import { validateBody } from "@/lib/api-helpers";
 import { consumeTeamInvitation } from "@/lib/team-invitations";
 import { logger } from "@/lib/logger";
+// F6 (Lot 34, B25) : notif à l'inviteur quand un membre accepte
+import { notifyAsync } from "@/lib/notify";
+import { teamInvitations, businesses as businessesTable } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +101,34 @@ export async function POST(request: NextRequest) {
       businessId: result.businessId,
       role: result.memberRole,
     });
+
+    // F6 (Lot 34, B25) : notifie l'inviteur (le user qui a envoyé l'invitation)
+    // du fait que le membre a accepté. Silencieux si l'invitation n'a pas
+    // `invitedByUserId` (edge case).
+    try {
+      const [inv] = await db
+        .select({ invitedByUserId: teamInvitations.invitedByUserId })
+        .from(teamInvitations)
+        .where(eq(teamInvitations.id, result.invitationId))
+        .limit(1);
+      const [biz] = await db
+        .select({ name: businessesTable.name })
+        .from(businessesTable)
+        .where(eq(businessesTable.id, result.businessId))
+        .limit(1);
+      if (inv?.invitedByUserId) {
+        notifyAsync({
+          userId: inv.invitedByUserId,
+          businessId: result.businessId,
+          type: "team.invitation_accepted",
+          title: "Invitation acceptée",
+          message: `${user.firstName} a rejoint l'équipe de ${biz?.name ?? "votre business"} en tant que ${result.memberRole}.`,
+          url: "/dashboard/team",
+        });
+      }
+    } catch {
+      /* non bloquant */
+    }
 
     return NextResponse.json({
       success: true,

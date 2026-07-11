@@ -281,6 +281,7 @@ export default function RegisterPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="Prénom"
+                  autoComplete="given-name"
                   placeholder="Jean"
                   value={formData.firstName}
                   onChange={(e) => updateField("firstName", e.target.value)}
@@ -288,6 +289,7 @@ export default function RegisterPage() {
                 />
                 <Input
                   label="Nom"
+                  autoComplete="family-name"
                   placeholder="Dupont"
                   value={formData.lastName}
                   onChange={(e) => updateField("lastName", e.target.value)}
@@ -297,6 +299,8 @@ export default function RegisterPage() {
               <Input
                 label="Email professionnel"
                 type="email"
+                autoComplete="email"
+                inputMode="email"
                 placeholder="contact@entreprise.fr"
                 value={formData.email}
                 onChange={(e) => updateField("email", e.target.value)}
@@ -305,6 +309,7 @@ export default function RegisterPage() {
               <Input
                 label="Mot de passe"
                 type="password"
+                autoComplete="new-password"
                 placeholder="8 caractères minimum"
                 value={formData.password}
                 onChange={(e) => updateField("password", e.target.value)}
@@ -313,6 +318,7 @@ export default function RegisterPage() {
               <Input
                 label="Confirmer le mot de passe"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={formData.confirmPassword}
                 onChange={(e) => updateField("confirmPassword", e.target.value)}
@@ -434,12 +440,16 @@ export default function RegisterPage() {
             <div className="space-y-4">
               <Input
                 label="Téléphone"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="+336 12 34 56 78"
                 value={formData.phone}
                 onChange={(e) => updateField("phone", e.target.value)}
               />
               <Input
                 label="Adresse"
+                autoComplete="street-address"
                 placeholder="12 Rue de la Paix"
                 value={formData.address}
                 onChange={(e) => updateField("address", e.target.value)}

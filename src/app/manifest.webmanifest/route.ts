@@ -15,7 +15,9 @@ export function GET() {
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#0f172a",
-    orientation: "portrait-primary",
+    // F6 (Lot 34) : `any` au lieu de `portrait-primary` — la vue calendrier
+    // semaine est bien plus lisible en landscape sur tablette et grand smartphone.
+    orientation: "any",
     lang: "fr",
     categories: ["business", "productivity"],
 

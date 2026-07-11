@@ -11,6 +11,7 @@ Critère **bloquant marché** pour tout pro avec agenda chargé (kinésithérape
 - **Mois** : grille 7×6 cases (6 semaines), max 3 events par case + "+N autres"
 
 Toutes les vues supportent :
+
 - Navigation `◀ Aujourd'hui ▶`
 - **Drag & drop** pour reprogrammer un RDV (snap 15 min en jour/semaine)
 - **Clic sur slot vide** = pré-remplir le modal "nouveau RDV" avec la date/heure
@@ -67,6 +68,7 @@ Secret opaque hex 32 chars (UNIQUE partial index WHERE NOT NULL). Sert d'URL abo
 Client dans `src/lib/google-calendar.ts` — fetch direct API v3, 0 dep.
 
 **Flow OAuth** (`/api/google/calendar/connect` + `.../callback`) :
+
 1. Le pro clique "Connecter Google Calendar" → redirect vers Google avec scope `calendar.events`
 2. Google → callback avec `code` + `state` signé HMAC
 3. Vérif state → échange code → stocke `refresh_token` + `access_token`
@@ -94,28 +96,30 @@ Route publique **`GET /api/calendar/{secret}.ics`** :
 - Sécurité : URL EST le secret. Route renvoie **toujours 404** si secret invalide (jamais 401 → pas de leak d'existence)
 
 **Gestion du secret** (`/api/calendar/ics-secret`) :
+
 - `GET` → renvoie l'URL courante ou null
 - `POST` → génère/rotate (32 bytes hex)
 - `DELETE` → révoque (invalide toutes les abonnements)
 
 **Lib `src/lib/ical.ts`** : 100% maison, RFC 5545 conforme.
+
 - `buildIcsCalendar(events, opts)` — wrapper VCALENDAR
 - `buildIcsEvent(event)` — VEVENT unique
 - `escapeIcsText`, `foldIcsLine`, `formatIcsUtc` — helpers testés
 
 ## Routes API
 
-| Route | Méthode | Auth | Description |
-|---|---|---|---|
-| `/api/unavailabilities` | GET | `appointments.view` | Liste blocs (?from&to) |
-| `/api/unavailabilities` | POST | `appointments.create` | Crée bloc |
-| `/api/unavailabilities/[id]` | DELETE | `appointments.delete` | Supprime bloc |
-| `/api/google/calendar` | GET | `business.edit` | Statut connexion |
-| `/api/google/calendar` | DELETE | `business.edit` | Déconnexion |
-| `/api/google/calendar/connect` | GET | `business.edit` | Redirect OAuth |
-| `/api/google/calendar/callback` | GET | Publique (state signé) | Callback OAuth |
-| `/api/calendar/[secret]` | GET | Publique (secret) | Export ICS (CalDAV) |
-| `/api/calendar/ics-secret` | GET/POST/DELETE | `business.edit` | Gestion secret ICS |
+| Route                           | Méthode         | Auth                   | Description            |
+| ------------------------------- | --------------- | ---------------------- | ---------------------- |
+| `/api/unavailabilities`         | GET             | `appointments.view`    | Liste blocs (?from&to) |
+| `/api/unavailabilities`         | POST            | `appointments.create`  | Crée bloc              |
+| `/api/unavailabilities/[id]`    | DELETE          | `appointments.delete`  | Supprime bloc          |
+| `/api/google/calendar`          | GET             | `business.edit`        | Statut connexion       |
+| `/api/google/calendar`          | DELETE          | `business.edit`        | Déconnexion            |
+| `/api/google/calendar/connect`  | GET             | `business.edit`        | Redirect OAuth         |
+| `/api/google/calendar/callback` | GET             | Publique (state signé) | Callback OAuth         |
+| `/api/calendar/[secret]`        | GET             | Publique (secret)      | Export ICS (CalDAV)    |
+| `/api/calendar/ics-secret`      | GET/POST/DELETE | `business.edit`        | Gestion secret ICS     |
 
 ## Extensions routes existantes
 

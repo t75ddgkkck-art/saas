@@ -911,6 +911,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4decies. Lot 34 — Préférences notifications par user
+-- -----------------------------------------------------------------------------
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('users') THEN
+    CREATE TABLE IF NOT EXISTS public.notification_preferences (
+      user_id            uuid       PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+      disabled_types     jsonb      NOT NULL DEFAULT '[]'::jsonb,
+      disabled_channels  jsonb      NOT NULL DEFAULT '[]'::jsonb,
+      dnd_start          varchar(5),
+      dnd_end            varchar(5),
+      updated_at         timestamp  NOT NULL DEFAULT now()
+    );
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (

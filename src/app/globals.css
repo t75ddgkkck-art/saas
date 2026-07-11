@@ -173,3 +173,51 @@ body {
   background-color: #93c5fd;
   color: #0f172a;
 }
+
+/* -----------------------------------------------------------------------------
+ * F6 (Lot 34, B29) — Utilities safe-area pour compenser encoche iPhone
+ * + home indicator + status bar Android.
+ *
+ * Nécessite `viewport-fit: cover` dans layout.tsx (déjà fait).
+ * Sans cet ajout, les composants fixed en haut/bas passent sous l'encoche
+ * en mode PWA installée iOS.
+ *
+ * Utility Tailwind v4 : `@utility name { ... }` génère la classe `.name`.
+ * On utilise `max()` pour garder au moins une marge minimale même sur les
+ * devices sans encoche (Safari desktop, Android sans notch).
+ * ---------------------------------------------------------------------------*/
+
+@utility pt-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+@utility pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+@utility top-safe {
+  top: max(0.75rem, env(safe-area-inset-top));
+}
+@utility bottom-safe {
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+@utility mt-safe {
+  margin-top: env(safe-area-inset-top);
+}
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+/* Empêche iOS de zoomer les inputs quand la font-size < 16px.
+   Applique automatiquement 16px min sur mobile aux inputs/textarea/select. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
+  }
+}

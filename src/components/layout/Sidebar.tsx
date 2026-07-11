@@ -82,7 +82,7 @@ export function Sidebar() {
         aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
         aria-expanded={isOpen}
         aria-controls="dashboard-sidebar"
-        className="fixed left-4 top-4 z-50 rounded-xl bg-white p-2 shadow-lg lg:hidden dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        className="fixed left-4 top-safe pl-safe z-50 rounded-xl bg-white p-2 shadow-lg lg:hidden dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
       >
         {isOpen ? (
           <X className="h-5 w-5" aria-hidden="true" />
