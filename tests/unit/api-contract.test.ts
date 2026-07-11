@@ -52,7 +52,16 @@ const appointmentSchema = z.object({
   serviceId: uuid.nullable(),
   startTime: isoDate,
   endTime: isoDate,
-  status: z.enum(["pending", "confirmed", "completed", "no_show", "cancelled"]),
+  // F6 (Lot 35) : ajout `en_route` et `in_progress` — 7 valeurs au total
+  status: z.enum([
+    "pending",
+    "confirmed",
+    "en_route",
+    "in_progress",
+    "completed",
+    "no_show",
+    "cancelled",
+  ]),
   notes: z.string().nullable(),
   createdAt: isoDate,
   updatedAt: isoDate.optional(),
@@ -223,7 +232,16 @@ const clientAppointmentSchema = z.object({
   date: z.string(), // YYYY-MM-DD, format DB legacy
   startTime: z.string(),
   endTime: z.string(),
-  status: z.enum(["pending", "confirmed", "cancelled", "completed", "no_show"]),
+  // F6 (Lot 35) : 7 valeurs (ajout en_route, in_progress)
+  status: z.enum([
+    "pending",
+    "confirmed",
+    "en_route",
+    "in_progress",
+    "cancelled",
+    "completed",
+    "no_show",
+  ]),
   depositRequired: z.boolean(),
   depositAmountCents: z.number().int().nullable(),
   depositStatus: z.enum(["pending", "paid", "refunded", "forfeited"]).nullable(),
@@ -294,9 +312,17 @@ describe("API contract — response shapes", () => {
 describe("API contract — enum stability", () => {
   // Les enums sont particulièrement fragiles : ajouter/renommer une valeur
   // casse tous les clients. On les fige explicitement ici.
-  it("appointment.status contient exactement 5 valeurs (aligné DB enum appointment_status)", () => {
+  it("appointment.status contient exactement 7 valeurs (aligné DB enum appointment_status, F6)", () => {
     const values = appointmentSchema.shape.status.options;
-    expect(values).toEqual(["pending", "confirmed", "completed", "no_show", "cancelled"]);
+    expect(values).toEqual([
+      "pending",
+      "confirmed",
+      "en_route",
+      "in_progress",
+      "completed",
+      "no_show",
+      "cancelled",
+    ]);
   });
 
   it("payment.status contient exactement 5 valeurs", () => {

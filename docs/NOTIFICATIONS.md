@@ -30,8 +30,12 @@ public/sw.js                  — SW enrichi (tag/actions/vibrate + focus fenêt
 1. **`viewport.viewportFit: "cover"`** dans `src/app/layout.tsx` — active `env(safe-area-inset-*)` sur iOS
 2. **Utilities Tailwind v4** dans `globals.css` :
    ```css
-   @utility pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
-   @utility bottom-safe { bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+   @utility pt-safe {
+     padding-top: max(0.75rem, env(safe-area-inset-top));
+   }
+   @utility bottom-safe {
+     bottom: max(0.75rem, env(safe-area-inset-bottom));
+   }
    /* + pb-safe, pl-safe, pr-safe, top-safe, mt-safe, mb-safe */
    ```
 3. **Composants fixed migrés** vers safe-area :
@@ -41,6 +45,7 @@ public/sw.js                  — SW enrichi (tag/actions/vibrate + focus fenêt
    - `SupportBubble` : `sm:bottom-6` → `sm:bottom-safe`
 
 **Bonus mobile** :
+
 - Meta `apple-mobile-web-app-title = "Vitrix"`
 - Meta `format-detection: telephone=no` (empêche iOS de linker les numéros dans le texte)
 - CSS auto : `input/textarea/select` → font-size min 16px sur mobile (empêche zoom iOS)
@@ -63,6 +68,7 @@ npx web-push generate-vapid-keys
 ```
 
 **API** :
+
 - `sendPushToUser(userId, payload)` — envoie à tous les devices actifs
 - `isPushConfigured()` — true si dep + VAPID prêts
 - `getVapidPublicKey()` — pour exposition frontend
@@ -70,6 +76,7 @@ npx web-push generate-vapid-keys
 **Route `/api/push/vapid-key`** : renvoie la clé publique + `configured: bool`.
 
 **Service Worker enrichi** :
+
 - Support tag / renotify / actions / vibrate
 - Au clic notification → cherche une fenêtre déjà ouverte sur la même URL et la focus (évite d'empiler des onglets)
 
@@ -95,6 +102,7 @@ await notify({
 ```
 
 **Gère automatiquement** :
+
 - Insert `notifications` (in-app, visible dans le NotificationBell)
 - `sendPushToUser()` (best-effort, respect DND)
 - Vérif `notification_preferences` de l'user :
@@ -108,6 +116,7 @@ await notify({
 ### Types d'events supportés (26 types dans NotifType)
 
 Groupés dans `NotificationsTab` :
+
 - **Rendez-vous** : created / cancelled_by_client / no_show_detected / reminder_sent
 - **Paiements** : payment.received / deposit.paid / deposit.refunded / invoice.overdue
 - **Devis** : received / accepted / declined / expired
@@ -145,6 +154,7 @@ updated_at         timestamp
 ## Route settings API
 
 `GET/PUT /api/account/notification-preferences` :
+
 - GET → lit les prefs (défaut tout activé si aucune ligne)
 - PUT → upsert avec cohérence DND (partiel → nulls les 2)
 

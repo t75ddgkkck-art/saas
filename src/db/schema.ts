@@ -22,9 +22,14 @@ export const subscriptionEnum = pgEnum("subscription", ["free", "pro", "premium"
 // Lot 24 : ajout de `no_show` (client absent au RDV). Utilisé par le CRM
 // pour incrémenter `clients.no_shows_count` et proposer une politique
 // (rappel obligatoire, acompte à l'avance…) pour les clients à risque.
+// F6 (Lot 35) : ajout `en_route` et `in_progress` pour la state machine terrain.
+// Séquence typique : pending → confirmed → en_route → in_progress → completed.
+// no_show et cancelled restent des états finaux hors-flux.
 export const appointmentStatusEnum = pgEnum("appointment_status", [
   "pending",
   "confirmed",
+  "en_route",
+  "in_progress",
   "cancelled",
   "completed",
   "no_show",
@@ -591,6 +596,13 @@ export const appointments = pgTable(
     startTime: varchar("start_time", { length: 5 }).notNull(),
     endTime: varchar("end_time", { length: 5 }).notNull(),
     status: appointmentStatusEnum("status").default("pending").notNull(),
+    // F6 (Lot 35) : timeline terrain — 3 timestamps posés par les actions
+    // rapides "En route", "Arrivé", "Terminé" dans la Today view.
+    // Utile pour compute des KPIs (temps trajet moyen, durée intervention moyenne).
+    // Tous nullable : un RDV historique n'a pas ces infos.
+    checkedInAt: timestamp("checked_in_at"),
+    startedAt: timestamp("started_at"),
+    finishedAt: timestamp("finished_at"),
     googleCalendarId: varchar("google_calendar_id", { length: 500 }),
     outlookCalendarId: varchar("outlook_calendar_id", { length: 500 }),
     reminderSent: boolean("reminder_sent").default(false),

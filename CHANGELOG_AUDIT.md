@@ -4,6 +4,137 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 31 — Lot 35 F6 Today view mobile-first (killer feature terrain)
+
+Livre la page `/dashboard/today` qui transforme Vitrix en outil de travail QUOTIDIEN pour l'artisan. Exploite tout ce qui a été livré (safe-area L34, push L34, calendrier F4, équipe F5, deposit F2, entitlements F1).
+
+Bonus : ferme **B23** (state machine RDV inexistante) qui permettait de rouvrir un `cancelled` en `confirmed`.
+
+## State machine RDV renforcée
+
+Nouveau lib `src/lib/appointment-status.ts` :
+- Enum étendu de 5 → **7 statuts** : `pending / confirmed / en_route / in_progress / completed / no_show / cancelled`
+- Matrice `TRANSITIONS` déclarative
+- `canTransition(from, to)` bloque les transitions invalides
+- **États finaux figés** (completed / no_show / cancelled → aucune transition sortante) = ferme B23
+- Idempotence : `canTransition(x, x) === true`
+
+## Timeline automatique
+
+3 nouvelles colonnes sur `appointments` : `checked_in_at`, `started_at`, `finished_at`.
+
+`resolveTimelineFields(newStatus, current)` pose les timestamps automatiquement :
+- `en_route` → `checkedInAt`
+- `in_progress` → `checkedInAt + startedAt`
+- `completed` → les 3
+
+**Non-écrasement** : un timestamp déjà posé n'est jamais écrasé.
+
+Helpers KPI : `computeDurationMinutes()` + `computeTravelMinutes()`.
+
+## 3 nouvelles routes API
+
+| Route | Auth | Rôle |
+|---|---|---|
+| `POST /api/appointments/[id]/status` | `appointments.edit_any` | Transition avec state machine |
+| `POST /api/appointments/[id]/quick-payment` | `payments.create` | Encaissement 1-clic + auto-complete + notify |
+| `GET /api/weather?lat=&lon=` | Publique | Proxy Open-Meteo (cache 1h) |
+
+## 5 composants livrés
+
+- **`<TodayView>`** — client, refetch auto, KPIs (à venir/en cours/terminés), bandeau "prochain RDV dans Xh Xm" (countdown 30s), EmptyState
+- **`<TodayAppointmentCard>`** — carte terrain mobile-first (touch targets 44×44 HIG), contact tel/WhatsApp/GPS deep links natifs, boutons state machine, encaissement, note vocale, no-show
+- **`<QuickPaymentModal>`** — grand input `inputMode="decimal"` + 4 méthodes visuelles + toggle "marquer terminé"
+- **`<VoiceNote>`** — Web Speech API fr-FR, transcription live, ajout à description avec timestamp
+- **`<WeatherWidget>`** — géoloc auto (fallback Paris), traduction WMO codes → emoji + label FR, masqué si down
+
+## Deep links mobile natifs
+
+- `tel:` → app téléphone iOS/Android
+- `https://wa.me/{phone}` → WhatsApp pré-rempli
+- `maps://?daddr=` sur iOS/macOS (Apple Maps)
+- `https://www.google.com/maps/dir/?api=1&destination=` ailleurs
+
+## UI Sidebar
+
+- **"Aujourd'hui" en TÊTE** du menu (avant Dashboard) — usage terrain > analytics
+- **Refactor sidebar** : helper `insertBeforeSettings(item)` robuste aux ajouts futurs (avant : `slice(0, 5)` codé en dur cassé dès l'ajout d'un item)
+- Icon `Sun`
+- i18n `todayNav` en 4 langues
+
+## Météo (Open-Meteo)
+
+- API **gratuite, sans clé** (open-meteo.com)
+- Route `/api/weather` proxy avec cache Next 1h
+- Timeout 5s → widget masqué si down (non essentiel)
+- Traduction 20+ codes WMO → emoji + label FR
+
+## Note vocale (Web Speech API)
+
+- `webkitSpeechRecognition` / `SpeechRecognition` selon nav
+- Continuous + interimResults, langue `fr-FR`
+- Ajout à `description` avec timestamp `[Note vocale 14h35]\n...`
+- Fallback UI clean si non supporté (Firefox)
+- Support : Chrome / Edge / Safari 14.5+ / Chrome Android / iOS Safari 14.5+
+
+## Fichiers créés / modifiés
+
+**Créés** (9) :
+- `src/lib/appointment-status.ts` (180 lignes)
+- `src/app/api/appointments/[id]/status/route.ts`
+- `src/app/api/appointments/[id]/quick-payment/route.ts`
+- `src/app/api/weather/route.ts`
+- `src/app/dashboard/today/page.tsx`
+- `src/app/dashboard/today/_components/TodayView.tsx` (180 lignes)
+- `src/app/dashboard/today/_components/TodayAppointmentCard.tsx` (350 lignes)
+- `src/app/dashboard/today/_components/QuickPaymentModal.tsx` (170 lignes)
+- `src/app/dashboard/today/_components/VoiceNote.tsx` (185 lignes)
+- `src/app/dashboard/today/_components/WeatherWidget.tsx` (110 lignes)
+- `docs/TODAY_VIEW.md`
+- `tests/unit/appointment-status.test.ts` (20 tests)
+
+**Modifiés** :
+- `src/db/schema.ts` — enum étendu + 3 colonnes timeline
+- `sql/00_apply_safe.sql` — bloc 4undecies (ADD VALUE enum + colonnes)
+- `src/components/layout/Sidebar.tsx` — item Today + refactor `insertBeforeSettings`
+- `src/lib/i18n.ts` — `todayNav` × 4 langues
+- `tests/unit/api-contract.test.ts` — enums appointment.status × 2 mis à jour (7 valeurs)
+
+## Validations
+
+- ✅ `npx tsc --noEmit` — **0 erreur**
+- ✅ `npm run lint` — 0 erreur / 249 warnings
+- ✅ `npm run format:check` — OK
+- ✅ `npm run test` — **538 tests / 51 fichiers** (+20 vs Lot 34)
+- ✅ `npm run build` — succès
+
+## Impact business
+
+- **Usage quotidien mobile terrain** = habitude = rétention forte
+- **Justifie l'installation PWA** (déjà fixée B29 L34 + push L34)
+- **Encaissement en 1 tap** = plus jamais d'oubli de facturation
+- **State machine B23** fermée = plus de risque de fraude "rouvrir un annulé pour re-facturer"
+- **Deep links natifs** = intégration OS parfaite (téléphone, WhatsApp, GPS)
+- **Différenciateur marché** : aucun concurrent FR ne propose une "Today view" aussi complète (Simplébo/Solocal restent en vue liste desktop)
+
+## Actions post-déploiement
+
+1. `psql $DATABASE_URL -f sql/00_apply_safe.sql` — bloc 4undecies (nouveaux enum values + colonnes timeline)
+2. **Test mobile** en PWA installée :
+   - Ouvrir `/dashboard/today`
+   - Vérifier les 3 boutons statut (En route / Arrivé / Terminé)
+   - Tester encaissement 1-clic (voir le paiement dans /dashboard/payments)
+   - Tester deep links (tel / WhatsApp / GPS)
+   - Tester note vocale (autoriser micro)
+3. Communication users : "Nouveauté : votre page **Aujourd'hui** — tout ce qu'il faut sur le terrain en 1 tap."
+4. (v2) Ajouter le rappel push J-1 quand VAPID configuré (L34)
+
+## Historique commits
+
+Voir bas du document.
+
+---
+
 # 🟢 Tour 30 — Lot 34 Mobile & notifications v2 (safe-area + push + notify unifié)
 
 Suite de l'audit UX/mobile V4. Corrige les 3 bugs mobile critiques identifiés :

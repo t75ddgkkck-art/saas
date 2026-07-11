@@ -928,6 +928,29 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4undecies. Lot 35 (F6) — Today view (state machine terrain + timeline)
+-- -----------------------------------------------------------------------------
+
+-- Ajout des valeurs `en_route` et `in_progress` à appointment_status.
+-- IF NOT EXISTS = idempotent (Postgres 12+).
+DO $$ BEGIN
+  ALTER TYPE public.appointment_status ADD VALUE IF NOT EXISTS 'en_route';
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TYPE public.appointment_status ADD VALUE IF NOT EXISTS 'in_progress';
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+
+-- Timeline terrain sur appointments (3 timestamps nullable)
+DO $$ BEGIN
+  IF public.__vx_table_exists('appointments') THEN
+    ALTER TABLE public.appointments
+      ADD COLUMN IF NOT EXISTS checked_in_at timestamp,
+      ADD COLUMN IF NOT EXISTS started_at    timestamp,
+      ADD COLUMN IF NOT EXISTS finished_at   timestamp;
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (

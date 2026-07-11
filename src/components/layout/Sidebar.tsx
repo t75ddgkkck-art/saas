@@ -18,6 +18,7 @@ import {
   Wrench,
   Shield,
   Users,
+  Sun,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
@@ -27,7 +28,9 @@ import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
 // Menu simplifié
+// F6 (Lot 35) : "Aujourd'hui" en tête (usage terrain quotidien).
 const baseNavItems = [
+  { href: "/dashboard/today", labelKey: "todayNav", icon: Sun },
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/dashboard/vitrine", labelKey: "myVitrine", icon: Palette },
   { href: "/dashboard/blog", labelKey: "blogNav", icon: FileText },
@@ -51,15 +54,14 @@ export function Sidebar() {
   // F5 (Lot 32) : équipe visible pour Pro et Premium (matrice entitlements)
   const showTeam = plan === "pro" || plan === "premium";
   let navItems = [...baseNavItems];
-  if (plan === "premium") {
-    // Insère AI avant Settings
-    navItems = [...navItems.slice(0, 5), aiNavItem, ...navItems.slice(5)];
+  // Helper : insère un item juste avant Settings (référence stable, robuste
+  // aux ajouts futurs dans baseNavItems — indépendant des indices).
+  function insertBeforeSettings(item: (typeof baseNavItems)[number]) {
+    const idx = navItems.findIndex((i) => i.href === "/dashboard/settings");
+    navItems = [...navItems.slice(0, idx), item, ...navItems.slice(idx)];
   }
-  if (showTeam) {
-    // Insère Team avant Settings
-    const settingsIdx = navItems.findIndex((i) => i.href === "/dashboard/settings");
-    navItems = [...navItems.slice(0, settingsIdx), teamNavItem, ...navItems.slice(settingsIdx)];
-  }
+  if (plan === "premium") insertBeforeSettings(aiNavItem);
+  if (showTeam) insertBeforeSettings(teamNavItem);
 
   // Lot 13 : entrée admin uniquement pour les users role=admin
   if (user?.role === "admin") {
