@@ -52,6 +52,7 @@ export type FeatureKey =
   | "payments.stripe" // encaisser via Stripe
   | "payments.apple_pay" // Apple Pay
   | "quotes.enable" // création devis
+  | "quotes.ai_generation" // F8 (Lot 38) : génération IA des lignes de devis
   // --- Automatisations ---
   | "reminders.email" // rappels par email
   | "reminders.sms" // rappels SMS
@@ -163,6 +164,13 @@ export const FEATURES: Readonly<Record<FeatureKey, FeatureDefinition>> = {
     label: "Devis",
     description: "Créez, envoyez et suivez vos devis. Signature électronique incluse.",
     minPlan: "pro",
+  },
+  "quotes.ai_generation": {
+    plans: ["premium"],
+    label: "Génération de devis par IA",
+    description:
+      "Décrivez le chantier en une phrase, l'IA propose les lignes détaillées avec prix médians du marché.",
+    minPlan: "premium",
   },
 
   // --- Automatisations ---

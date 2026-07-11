@@ -758,6 +758,20 @@ export const quotes = pgTable(
     signedAt: timestamp("signed_at"),
     signature: text("signature"),
     signatureUrl: text("signature_url"),
+    // F8 (Lot 38) — Preuve d'intégrité + audit trail de la signature.
+    // Hash SHA-256 du payload complet (contenu devis + IP + timestamp + UA)
+    // → si le devis est modifié APRÈS signature, le hash ne matche plus.
+    // Suffit pour la plupart des devis artisans (< 10 K€) sans passer par
+    // eIDAS/Yousign. Pour eIDAS qualifié : intégration Yousign en v2.
+    signatureHash: varchar("signature_hash", { length: 64 }),
+    signedByEmail: varchar("signed_by_email", { length: 255 }),
+    signedIp: varchar("signed_ip", { length: 45 }),
+    signedUserAgent: varchar("signed_user_agent", { length: 500 }),
+    /** Token magic-link envoyé au client pour signer (hash SHA-256 en DB) */
+    signatureTokenHash: varchar("signature_token_hash", { length: 64 }),
+    signatureTokenExpiresAt: timestamp("signature_token_expires_at"),
+    signatureReminderSentAt: timestamp("signature_reminder_sent_at"),
+    signatureReminderCount: integer("signature_reminder_count").default(0).notNull(),
     termsAndConditions: text("terms_and_conditions"),
     reminderSentAt: timestamp("reminder_sent_at"),
     // Lot 14.3 soft delete
@@ -776,6 +790,10 @@ export const quotes = pgTable(
     sentUpdatedIdx: index("quotes_sent_updated_idx")
       .on(t.status, t.updatedAt)
       .where(sql`${t.status} = 'sent'`),
+    // F8 (Lot 38) : lookup rapide du devis par token de signature magic-link
+    signatureTokenIdx: uniqueIndex("quotes_signature_token_uidx")
+      .on(t.signatureTokenHash)
+      .where(sql`${t.signatureTokenHash} is not null`),
   })
 );
 

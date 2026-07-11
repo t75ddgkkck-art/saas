@@ -996,6 +996,27 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- -----------------------------------------------------------------------------
+-- 4quaterdecies. Lot 38 (F8) — Devis IA + signature électronique
+-- -----------------------------------------------------------------------------
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('quotes') THEN
+    ALTER TABLE public.quotes
+      ADD COLUMN IF NOT EXISTS signature_hash              varchar(64),
+      ADD COLUMN IF NOT EXISTS signed_by_email             varchar(255),
+      ADD COLUMN IF NOT EXISTS signed_ip                   varchar(45),
+      ADD COLUMN IF NOT EXISTS signed_user_agent           varchar(500),
+      ADD COLUMN IF NOT EXISTS signature_token_hash        varchar(64),
+      ADD COLUMN IF NOT EXISTS signature_token_expires_at  timestamp,
+      ADD COLUMN IF NOT EXISTS signature_reminder_sent_at  timestamp,
+      ADD COLUMN IF NOT EXISTS signature_reminder_count    integer DEFAULT 0 NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS quotes_signature_token_uidx
+      ON public.quotes (signature_token_hash)
+      WHERE signature_token_hash IS NOT NULL;
+  END IF;
+END $$;
+
 -- Idempotence webhooks Stripe (bonus B27 lié F2)
 DO $$ BEGIN
   CREATE TABLE IF NOT EXISTS public.stripe_webhook_events (

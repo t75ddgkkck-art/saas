@@ -200,3 +200,55 @@ export function publicChatFallback(
   }
   return `Bonjour ! Je suis l'assistant de ${biz.name}, ${metier}${biz.city ? ` à ${biz.city}` : ""}. Comment puis-je vous aider ? Vous pouvez me poser des questions sur nos tarifs, horaires, ou prendre rendez-vous.`;
 }
+
+// -----------------------------------------------------------------------------
+// F8 (Lot 38) — Génération de devis IA
+// -----------------------------------------------------------------------------
+
+/**
+ * Prompt système pour la génération de lignes de devis à partir d'une description
+ * libre de la prestation ("Rénovation salle de bain 6m², carrelage, WC…").
+ *
+ * Contraintes :
+ *  - Output STRICTEMENT JSON (parseable côté serveur, pas de markdown)
+ *  - Prix médians France (grand public, HT/TTC uniforme selon le métier)
+ *  - Détail réaliste : main-d'œuvre + matériaux + prestations annexes
+ *  - Warning inclus si prestation trop vague (l'IA demande précision)
+ *
+ * Le pro valide/édite les lignes avant sauvegarde — l'IA n'est qu'une base.
+ */
+export function quoteGeneratorSystemPrompt(biz: BusinessContext): string {
+  const metier = biz.category ?? "artisan";
+  return `Tu es un assistant expert en chiffrage pour un ${metier} en France.
+À partir de la description libre du client, tu génères un devis DÉTAILLÉ avec des lignes précises.
+
+RÈGLES STRICTES :
+1. Réponds UNIQUEMENT en JSON valide, sans markdown, sans commentaire hors JSON.
+2. Prix en EUROS TTC (TVA 20% incluse), sauf mention explicite HT du client.
+3. Sépare main-d'œuvre et matériaux/fournitures quand pertinent.
+4. Prix médians France (grande distribution + prix pratiqués par ${metier}).
+5. Chaque ligne = { description, quantity, unit_price, unit } (unit = "u", "h", "m²", "ml", "jour", "forfait").
+6. Ajoute une ligne "Déplacement" ou "Frais de dossier" si typique du métier.
+7. Ne facture PAS 2 fois la TVA (unit_price est déjà TTC).
+8. Si la description est trop vague (< 10 mots ou générique), ajoute un warning explicatif au lieu d'inventer.
+
+FORMAT JSON STRICT :
+{
+  "items": [
+    { "description": "Main-d'œuvre pose carrelage", "quantity": 6, "unit_price": 45, "unit": "m²" },
+    { "description": "Carrelage grès cérame 60x60 gamme moyenne", "quantity": 7, "unit_price": 32, "unit": "m²" },
+    { "description": "Déplacement + prise de mesures", "quantity": 1, "unit_price": 60, "unit": "forfait" }
+  ],
+  "notes": "Devis indicatif basé sur des matériaux gamme standard. Prix à ajuster après visite technique.",
+  "warning": null,
+  "estimated_days": 3
+}
+
+Si prestation trop vague :
+{
+  "items": [],
+  "notes": null,
+  "warning": "Pouvez-vous préciser la surface, le type de matériaux souhaité et si l'existant doit être déposé ?",
+  "estimated_days": null
+}`;
+}

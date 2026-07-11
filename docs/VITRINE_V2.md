@@ -41,6 +41,7 @@ Source unique de vérité :
 ### Onglet `Personnalisation` dans `/dashboard/vitrine`
 
 Nouveau tab dédié avec :
+
 - Suggestion contextuelle basée sur `businesses.category` (bandeau indigo)
 - Palette de presets métier
 - 3 color inputs custom (primary/secondary/accent)
@@ -53,6 +54,7 @@ Nouveau tab dédié avec :
 ### API
 
 `PUT /api/my-business` accepte les 5 nouveaux champs :
+
 - Validation Zod hex `#RRGGBB` pour secondary/accent
 - Chaîne vide `""` = reset à `null` (permet à l'user de retirer une couleur custom)
 - `sanitizeCustomCss()` appliqué côté serveur (import dynamique pour rester léger)
@@ -60,6 +62,7 @@ Nouveau tab dédié avec :
 ### Application côté vitrine publique
 
 Dans `src/app/[slug]/PublicPage.tsx` :
+
 - Font custom override le template si présente
 - 3 CSS variables exposées : `--vx-primary`, `--vx-secondary`, `--vx-accent` (pour usage futur dans les sections)
 - Custom CSS scoped au container `.vx-vitrine` (bleed protection)
@@ -68,6 +71,7 @@ Dans `src/app/[slug]/PublicPage.tsx` :
 ## Tests (28 nouveaux)
 
 `tests/unit/vitrine-personalization.test.ts` :
+
 - **FONT_OPTIONS** : 10 fonts, ids uniques, stacks non vides
 - **getFontById** : match + fallback inter
 - **COLOR_PRESETS** : 16 presets, hex valides, "custom" en dernier
@@ -82,6 +86,7 @@ Dans `src/app/[slug]/PublicPage.tsx` :
 ## Fichiers créés / modifiés
 
 **Créés** (5) :
+
 - `src/lib/vitrine-personalization.ts` (350 lignes)
 - `src/components/vitrine/PresetPicker.tsx`
 - `src/components/vitrine/FontPicker.tsx`
@@ -90,6 +95,7 @@ Dans `src/app/[slug]/PublicPage.tsx` :
 - `tests/unit/vitrine-personalization.test.ts` (28 tests)
 
 **Modifiés** :
+
 - `src/db/schema.ts` — 5 colonnes sur businesses
 - `sql/00_apply_safe.sql` — bloc 4terdecies
 - `src/app/api/my-business/route.ts` — schéma Zod étendu + sanitizer serveur
