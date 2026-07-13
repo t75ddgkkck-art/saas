@@ -68,9 +68,9 @@
     "src/app/api/pdf/**/*.ts": { "maxDuration": 30 },
     "src/app/api/quote-pdf/**/*.ts": { "maxDuration": 30 },
     "src/app/api/ai/**/*.ts": { "maxDuration": 60 },
-    "src/app/api/ai-chat/route.ts": { "maxDuration": 30 },
-    "src/app/api/ai-blog/route.ts": { "maxDuration": 60 },
-    "src/app/api/stripe/webhook/route.ts": { "maxDuration": 30 },
+    "src/app/api/ai-chat/**/*.ts": { "maxDuration": 30 },
+    "src/app/api/ai-blog/**/*.ts": { "maxDuration": 60 },
+    "src/app/api/stripe/**/*.ts": { "maxDuration": 30 },
     "src/app/api/cron/**/*.ts": { "maxDuration": 300 }
   }
 }

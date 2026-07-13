@@ -24,6 +24,11 @@
 html,
 body {
   font-family: var(--font-sans);
+  /* Lot 41 : filet de sécurité anti scroll horizontal parasite (blur/gradient
+     hero, animations translate-x, etc.). On coupe le débordement au niveau
+     racine — les éléments qui NEED horizontal scroll (tableaux, carousels)
+     doivent le faire dans leur propre wrapper avec overflow-x:auto. */
+  overflow-x: clip;
 }
 
 /* -----------------------------------------------------------------------------
