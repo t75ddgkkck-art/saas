@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { PricingSection } from "@/components/public/PricingSection";
+// Lot 40 : nav landing avec burger mobile fonctionnel (avant : nav cassée <md)
+import { LandingNav } from "@/components/landing/LandingNav";
 import {
   Store,
   CalendarDays,
@@ -12,8 +14,6 @@ import {
   Zap,
   ArrowRight,
   Check,
-  Menu,
-  X,
   Phone,
   Globe,
   Shield,
@@ -65,49 +65,8 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Navigation */}
-      <nav className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/80">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">
-              <Store className="h-5 w-5" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">Vitrix</span>
-          </div>
-
-          <div className="hidden items-center gap-8 md:flex">
-            <a
-              href="#features"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            >
-              Fonctionnalités
-            </a>
-            <a
-              href="#pricing"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            >
-              Tarifs
-            </a>
-            <Link
-              href="/a-propos"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            >
-              À propos
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">
-                Se connecter
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm">Essayer gratuitement</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      {/* Navigation (Lot 40 : burger mobile fonctionnel) */}
+      <LandingNav />
 
       {/* Main content — cible du skip link */}
       <main id="main-content" tabIndex={-1} className="focus:outline-none">

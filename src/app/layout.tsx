@@ -121,6 +121,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* Format-detection : évite qu'iOS transforme "01 23..." en lien tel automatique
             (on les rend explicitement avec <a href="tel:"> quand pertinent) */}
         <meta name="format-detection" content="telephone=no" />
+        {/* Lot 40 : balises favicon EXPLICITES en dur (belt-and-suspenders vs Next
+            metadata qui peut être ignoré par Googlebot dans certains cas).
+            Google Search Central 2024 : recommande fortement le link rel="icon" avec
+            un .ico multi-résolution (16/32/48) OU un SVG carré avec fond opaque. */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
+        <link rel="mask-icon" href="/favicon.svg" color="#0f172a" />
       </head>
       <body className="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 min-h-screen">
         <SkipToContent />
