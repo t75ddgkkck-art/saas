@@ -25,6 +25,9 @@ import {
 } from "@/lib/quote-signature";
 import { notifyAsync } from "@/lib/notify";
 import { logger } from "@/lib/logger";
+// Lot 42 (F9) : facture auto post-signature. Fire-and-forget → n'attend pas
+// la génération PDF/email pour répondre au client (< 3 s garantis pour l'UX signature).
+import { generateInvoiceForSignedQuote } from "@/lib/invoice-generator";
 
 export const dynamic = "force-dynamic";
 
@@ -226,6 +229,14 @@ export async function POST(req: NextRequest) {
       priority: "high",
       tag: `quote-signed-${row.quote.id}`,
     });
+
+    // Lot 42 (F9) : génération facture PDF auto FIRE-AND-FORGET.
+    // On ne fait PAS `await` : la signature est déjà persistée en DB, l'UX
+    // du client doit renvoyer OK immédiatement. La facture arrive < 5 s
+    // dans la boîte mail (email async) + apparait dans /dashboard/invoices.
+    // Si le plan n'a pas l'entitlement, la fonction est un no-op silencieux.
+    // Toutes les exceptions sont catchées côté generateInvoiceForSignedQuote.
+    void generateInvoiceForSignedQuote(row.quote.id);
 
     return NextResponse.json({
       ok: true,

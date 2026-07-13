@@ -43,6 +43,8 @@ const baseNavItems = [
 const aiNavItem = { href: "/dashboard/ai-chat", labelKey: "aiAssistant", icon: Zap };
 // F5 (Lot 32) : équipe réservée aux plans Pro / Premium (via entitlement `team.enable`)
 const teamNavItem = { href: "/dashboard/team", labelKey: "teamNav", icon: Users };
+// F9 (Lot 42) : factures auto post-signature — Pro / Premium via `invoices.auto_generation`
+const invoicesNavItem = { href: "/dashboard/invoices", labelKey: "invoicesNav", icon: FileText };
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -62,6 +64,8 @@ export function Sidebar() {
   }
   if (plan === "premium") insertBeforeSettings(aiNavItem);
   if (showTeam) insertBeforeSettings(teamNavItem);
+  // F9 (Lot 42) : Factures visibles pour Pro / Premium (même règle que devis)
+  if (showTeam) insertBeforeSettings(invoicesNavItem);
 
   // Lot 13 : entrée admin uniquement pour les users role=admin
   if (user?.role === "admin") {

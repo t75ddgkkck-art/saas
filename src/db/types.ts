@@ -33,6 +33,7 @@ import type {
   socialLinks,
   galleryItems,
   chatMessages,
+  invoices,
 } from "./schema";
 
 // Select (lecture)
@@ -62,6 +63,9 @@ export type SocialLink = typeof socialLinks.$inferSelect;
 export type GalleryItem = typeof galleryItems.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 
+// Lot 42 (F9) : factures auto post-signature devis
+export type Invoice = typeof invoices.$inferSelect;
+
 // Insert (écriture)
 export type UserInsert = typeof users.$inferInsert;
 export type BusinessInsert = typeof businesses.$inferInsert;
@@ -69,6 +73,7 @@ export type ClientInsert = typeof clients.$inferInsert;
 export type QuoteInsert = typeof quotes.$inferInsert;
 export type AppointmentInsert = typeof appointments.$inferInsert;
 export type ServiceInsert = typeof services.$inferInsert;
+export type InvoiceInsert = typeof invoices.$inferInsert;
 
 // Alias sémantiques pour l'UI côté client (dérivés simples, sans PHI)
 export type PublicUser = Pick<

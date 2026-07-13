@@ -53,6 +53,7 @@ export type FeatureKey =
   | "payments.apple_pay" // Apple Pay
   | "quotes.enable" // création devis
   | "quotes.ai_generation" // F8 (Lot 38) : génération IA des lignes de devis
+  | "invoices.auto_generation" // F9 (Lot 42) : facture PDF auto-générée à la signature
   // --- Automatisations ---
   | "reminders.email" // rappels par email
   | "reminders.sms" // rappels SMS
@@ -171,6 +172,13 @@ export const FEATURES: Readonly<Record<FeatureKey, FeatureDefinition>> = {
     description:
       "Décrivez le chantier en une phrase, l'IA propose les lignes détaillées avec prix médians du marché.",
     minPlan: "premium",
+  },
+  "invoices.auto_generation": {
+    plans: ["pro", "premium"],
+    label: "Facture automatique",
+    description:
+      "À chaque signature de devis, une facture PDF numérotée (séquence légale) est générée et envoyée au client.",
+    minPlan: "pro",
   },
 
   // --- Automatisations ---

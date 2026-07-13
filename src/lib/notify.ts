@@ -39,6 +39,7 @@ export type NotifType =
   | "deposit.paid"
   | "deposit.refunded"
   | "invoice.overdue"
+  | "invoice.generated" // Lot 42 (F9) : facture auto-générée post-signature devis
   // Devis
   | "quote.received"
   | "quote.accepted"

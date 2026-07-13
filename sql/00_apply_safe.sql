@@ -1029,6 +1029,84 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4quindecies. Lot 42 (F9) — Factures auto post-signature devis
+-- -----------------------------------------------------------------------------
+-- Deux volets :
+--   a) Ajout des compteurs de numérotation dans `businesses`
+--   b) Création de la table `invoices` + enum + indexes (nom, statut, échéance)
+--
+-- Contraintes légales FR couvertes :
+--   - séquence sans trou (art. 289 CGI) → géré via SELECT ... FOR UPDATE côté app
+--   - une facture émise est immuable → colonne `snapshot` conserve le contenu
+--     au moment de l'émission (le devis peut évoluer, la facture non)
+--   - unicité du numéro par business → uniqueIndex composite
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    ALTER TABLE public.businesses
+      ADD COLUMN IF NOT EXISTS invoice_prefix  varchar(20) DEFAULT 'F-',
+      ADD COLUMN IF NOT EXISTS invoice_counter integer     DEFAULT 0 NOT NULL;
+  END IF;
+END $$;
+
+-- Enum invoice_status (idempotent : ne CREATE que si absent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'invoice_status') THEN
+    CREATE TYPE public.invoice_status AS ENUM ('draft', 'issued', 'paid', 'cancelled');
+  END IF;
+END $$;
+
+-- Table invoices
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') AND public.__vx_table_exists('quotes') THEN
+    CREATE TABLE IF NOT EXISTS public.invoices (
+      id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      business_id     uuid NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+      quote_id        uuid     REFERENCES public.quotes(id)   ON DELETE SET NULL,
+      client_id       uuid     REFERENCES public.clients(id)  ON DELETE SET NULL,
+      payment_id      uuid     REFERENCES public.payments(id) ON DELETE SET NULL,
+      invoice_number  varchar(50)  NOT NULL,
+      issue_date      varchar(10)  NOT NULL,
+      due_date        varchar(10),
+      subtotal        decimal(10,2) NOT NULL,
+      tax             decimal(10,2) NOT NULL DEFAULT 0,
+      total           decimal(10,2) NOT NULL,
+      currency        varchar(3)    NOT NULL DEFAULT 'EUR',
+      status          public.invoice_status NOT NULL DEFAULT 'draft',
+      pdf_url         text,
+      snapshot        jsonb,
+      sent_at         timestamp,
+      paid_at         timestamp,
+      notes           text,
+      deleted_at      timestamp,
+      created_at      timestamp NOT NULL DEFAULT now(),
+      updated_at      timestamp NOT NULL DEFAULT now()
+    );
+
+    -- Un devis ne peut être facturé qu'une fois (partial unique)
+    CREATE UNIQUE INDEX IF NOT EXISTS invoices_quote_uidx
+      ON public.invoices (quote_id)
+      WHERE quote_id IS NOT NULL;
+
+    -- Numéro unique PAR business (deux artisans peuvent avoir "F-0001")
+    CREATE UNIQUE INDEX IF NOT EXISTS invoices_business_number_uidx
+      ON public.invoices (business_id, invoice_number);
+
+    -- Dashboard : liste par statut
+    CREATE INDEX IF NOT EXISTS invoices_business_status_idx
+      ON public.invoices (business_id, status);
+
+    -- Cron relance impayés (WHERE status='issued' AND due_date < today)
+    CREATE INDEX IF NOT EXISTS invoices_due_status_idx
+      ON public.invoices (due_date, status);
+
+    -- Soft delete
+    CREATE INDEX IF NOT EXISTS invoices_deleted_at_idx
+      ON public.invoices (deleted_at);
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN
@@ -1045,7 +1123,7 @@ END $$;
 DO $$
 DECLARE
   _cnt bigint;
-  _tables text[] := ARRAY['users','businesses','clients','quotes','appointments','payments'];
+  _tables text[] := ARRAY['users','businesses','clients','quotes','appointments','payments','invoices'];
   _tbl text;
 BEGIN
   RAISE NOTICE '--- Vitrix DB status ---';

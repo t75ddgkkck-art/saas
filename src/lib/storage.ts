@@ -141,6 +141,90 @@ async function uploadToSupabase(file: File, path: string, trueMime: string): Pro
   };
 }
 
+/**
+ * Lot 42 : upload d'un Buffer généré côté serveur (PDF facture typiquement).
+ *
+ * Différence avec `uploadFile` :
+ *  - Pas de validation magic bytes (on connaît le contenu, on l'a généré)
+ *  - Pas de limite 10 Mo pour les PDFs multi-pages
+ *  - Path déterministe fourni par l'appelant (facilite les rechargements idempotents)
+ *
+ * Renvoie `null` si aucun backend n'est configuré ET si `allowBase64=false` :
+ * pour un PDF facture on refuse le base64 par défaut (fait exploser la DB).
+ */
+export async function uploadBuffer(
+  buffer: Buffer,
+  opts: {
+    /** Sous-dossier (ex: "invoices"). Sera préfixé au filename. */
+    folder: string;
+    /** Nom de fichier final (SANS le dossier). Doit être unique. */
+    filename: string;
+    /** MIME (défaut application/pdf). */
+    contentType?: string;
+    /** Autoriser le fallback base64 si Supabase non configuré (défaut : false pour PDF). */
+    allowBase64?: boolean;
+  }
+): Promise<UploadedFile | null> {
+  const contentType = opts.contentType ?? "application/pdf";
+  const path = `${opts.folder}/${opts.filename}`;
+
+  if (isSupabaseStorageConfigured()) {
+    try {
+      const url = process.env.SUPABASE_URL!.replace(/\/+$/, "");
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
+
+      const res = await fetch(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          apikey: key,
+          "Content-Type": contentType,
+          "x-upsert": "true",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+        // Buffer est bien accepté par undici/Node fetch runtime mais TS strict
+        // ne le reconnaît pas comme BodyInit (Buffer<ArrayBufferLike> ≠ ArrayBuffer).
+        // Cast explicite — safe car identique au `body: buffer` déjà utilisé
+        // dans uploadToSupabase() plus haut dans ce fichier.
+        body: buffer as unknown as BodyInit,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Supabase upload buffer ${res.status}: ${text}`);
+      }
+
+      return {
+        url: `${url}/storage/v1/object/public/${bucket}/${path}`,
+        backend: "supabase",
+        name: opts.filename,
+        size: buffer.byteLength,
+        contentType,
+      };
+    } catch (err) {
+      logger.error("storage.buffer.supabase.failed", {
+        message: err instanceof Error ? err.message : String(err),
+        path,
+      });
+      // Fall through au base64 si autorisé
+    }
+  }
+
+  if (!opts.allowBase64) {
+    logger.warn("storage.buffer.no_backend", { path, reason: "supabase_missing_and_base64_disabled" });
+    return null;
+  }
+
+  return {
+    url: `data:${contentType};base64,${buffer.toString("base64")}`,
+    backend: "base64",
+    name: opts.filename,
+    size: buffer.byteLength,
+    contentType,
+  };
+}
+
 async function uploadAsBase64(file: File, trueMime: string): Promise<UploadedFile> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const base64 = buffer.toString("base64");

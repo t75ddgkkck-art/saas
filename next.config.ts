@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -6,6 +7,19 @@ const nextConfig: NextConfig = {
 
   // Compression gzip côté server (redondant avec Vercel/Nginx mais utile en self-host)
   compress: true,
+
+  // Lot 42 : ancre explicite pour Node File Trace (@vercel/nft).
+  //
+  // Sans cette option, Next 16 (surtout avec Turbopack sur Windows) peut
+  // logger "Tracing entries due to missing build traces" puis rater le
+  // mapping route→lambda côté Vercel — d'où l'erreur historique :
+  //   Error: Unable to find lambda for route: /dashboard/ai-chat
+  //
+  // On force la racine du tracing à la racine du projet. Cela stabilise
+  // les paths résolus par @vercel/nft (plus de mix relatif/absolu Windows
+  // "C:/Users/…" vs Unix "/vercel/…"), ce qui répare aussi le manifest
+  // de routes en cas de collision de noms courts (ai-chat / dashboard/ai-chat).
+  outputFileTracingRoot: path.join(__dirname),
 
   // Lot 20 : le TypeScript check du build Next fait un check global qui
   // duplique celui de `npx tsc --noEmit` (déjà lancé en CI + pre-commit).

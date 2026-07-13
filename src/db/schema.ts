@@ -49,6 +49,17 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "refunded",
 ]);
 export const paymentTypeEnum = pgEnum("payment_type", ["deposit", "full", "subscription"]);
+// Lot 42 (F9) : statut des factures automatiques post-signature devis.
+// - draft : générée mais pas encore envoyée (fenêtre courte, cas erreur email)
+// - issued : envoyée au client
+// - paid : marquée payée (manuel ou via webhook Stripe si payment lié)
+// - cancelled : annulée (soft, conserve le numéro pour la continuité légale FR)
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "draft",
+  "issued",
+  "paid",
+  "cancelled",
+]);
 // F2 (Lot 30) : statut spécifique aux acomptes RDV. Séparé de payment_status
 // car un RDV peut être `pending` (créneau tenu) → `paid` (acompte reçu) →
 // `refunded` (annulé dans les délais) OU `forfeited` (annulé hors délais,
@@ -209,6 +220,14 @@ export const businesses = pgTable(
     highlightsData: jsonb("highlights_data"), // [{ icon: "⚡", title: "Intervention rapide", subtitle: "Sous 2h" }]
     iban: varchar("iban", { length: 50 }),
     bic: varchar("bic", { length: 20 }),
+    // Lot 42 (F9) : préfixe utilisé pour la numérotation des factures auto.
+    // Ex: "FAC-2026-" → factures "FAC-2026-0001", "FAC-2026-0002", etc.
+    // Défaut "F-" pour rester court si l'artisan ne configure rien.
+    invoicePrefix: varchar("invoice_prefix", { length: 20 }).default("F-"),
+    // Compteur séquentiel de factures. Incrémenté en TRANSACTION `SELECT ... FOR UPDATE`
+    // dans lib/invoice-number.ts → garantit une séquence SANS TROU (obligation légale FR
+    // article 289 CGI). Ne jamais reset ou modifier manuellement.
+    invoiceCounter: integer("invoice_counter").default(0).notNull(),
     // Lot 14.5 doc : timestamp de "reset des stats de visites".
     // Le dashboard analytics ne compte les visites que WHERE created_at >= visits_reset_at.
     // Set via DELETE /api/my-availability (bouton "Réinitialiser mes stats").
@@ -1573,6 +1592,96 @@ export const authTokens = pgTable(
 // ============== SESSIONS (Lot 19 multi-device) ==============
 // Registre des sessions actives d'un user pour "Mes sessions" + "Déconnecter partout".
 // Complémentaire au cookie signé HMAC de session.ts : le cookie prouve l'auth,
+// ============== INVOICES (Lot 42, F9) ==============
+//
+// Factures générées AUTOMATIQUEMENT à la signature d'un devis.
+//
+// Design :
+// - 1 devis signé → 1 facture (colonne quoteId unique). Simplifie la
+//   conformité comptable FR (une facture = une prestation identifiable).
+// - Numérotation via `businesses.invoiceCounter` en `SELECT ... FOR UPDATE`
+//   (séquence sans trou, requise art. 289 CGI).
+// - Soft delete conservé pour l'audit — une facture "supprimée" garde son
+//   numéro visible dans l'export comptable (marquée `deletedAt` + `status='cancelled'`).
+// - Pas de FK stricte vers `payments` : une facture peut exister sans paiement
+//   (client paie par virement hors Stripe). Le lien se fait par `paymentId` nullable.
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    // Lien vers le devis source. UNIQUE : un devis ne peut être facturé qu'une fois.
+    // ON DELETE SET NULL : si le devis est purgé (RGPD), la facture reste pour l'audit.
+    quoteId: uuid("quote_id").references(() => quotes.id, { onDelete: "set null" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    /** Optionnel : paiement lié (Stripe, virement, etc.) */
+    paymentId: uuid("payment_id").references(() => payments.id, { onDelete: "set null" }),
+    /** Numéro humain "F-2026-0001" — unique par business (index partiel). */
+    invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+    /** Date d'émission au format ISO YYYY-MM-DD (obligation FR : date == date envoi). */
+    issueDate: varchar("issue_date", { length: 10 }).notNull(),
+    /** Date d'échéance (30 jours par défaut si non précisé). */
+    dueDate: varchar("due_date", { length: 10 }),
+    subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+    tax: decimal("tax", { precision: 10, scale: 2 }).notNull().default("0"),
+    total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("EUR"),
+    status: invoiceStatusEnum("status").default("draft").notNull(),
+    /** URL du PDF stocké dans Supabase Storage (ou base64 en fallback). */
+    pdfUrl: text("pdf_url"),
+    /** Copie snapshot des données au moment de la facturation (client, business, items) :
+     *  garantit qu'une modif ultérieure du devis ne change PAS la facture émise
+     *  (obligation FR : une facture émise est immuable). */
+    snapshot: jsonb("snapshot"),
+    /** Timestamp d'envoi email au client (null si pas encore envoyée). */
+    sentAt: timestamp("sent_at"),
+    /** Timestamp de paiement (renseigné à la main OU via webhook Stripe si paymentId). */
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    // Soft delete cohérent avec le reste du schéma (Lot 14)
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Un devis ne peut être facturé qu'une fois (contrainte métier + légale)
+    quoteUidx: uniqueIndex("invoices_quote_uidx")
+      .on(t.quoteId)
+      .where(sql`${t.quoteId} is not null`),
+    // Numéro de facture unique par business (deux artisans peuvent avoir "F-0001")
+    businessNumberUidx: uniqueIndex("invoices_business_number_uidx").on(
+      t.businessId,
+      t.invoiceNumber
+    ),
+    // Dashboard : "mes factures" avec filtre statut
+    businessStatusIdx: index("invoices_business_status_idx").on(t.businessId, t.status),
+    // Cron relances impayés (WHERE status='issued' AND dueDate < today)
+    dueStatusIdx: index("invoices_due_status_idx").on(t.dueDate, t.status),
+    deletedAtIdx: index("invoices_deleted_at_idx").on(t.deletedAt),
+  })
+);
+
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+  business: one(businesses, {
+    fields: [invoices.businessId],
+    references: [businesses.id],
+  }),
+  quote: one(quotes, {
+    fields: [invoices.quoteId],
+    references: [quotes.id],
+  }),
+  client: one(clients, {
+    fields: [invoices.clientId],
+    references: [clients.id],
+  }),
+  payment: one(payments, {
+    fields: [invoices.paymentId],
+    references: [payments.id],
+  }),
+}));
+
 // la table permet de RÉVOQUER une session sans changer le secret global.
 //
 // Vérification côté getCurrentUser : après avoir décodé le cookie, on check
