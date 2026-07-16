@@ -26,6 +26,9 @@ import { Button } from "@/components/ui/Button";
 import { GlobalSearch } from "./GlobalSearch";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
+// Lot 46 (F11) : sélecteur de vitrine active — se cache seul si 0 vitrine
+// (user tout neuf) ou 1 seule (mode read-only).
+import { BusinessSwitcher } from "./BusinessSwitcher";
 
 // Menu simplifié
 // F6 (Lot 35) : "Aujourd'hui" en tête (usage terrain quotidien).
@@ -122,6 +125,14 @@ export function Sidebar() {
             <ThemeToggle />
             <NotificationBell />
           </div>
+        </div>
+
+        {/* Lot 46 : Sélecteur multi-vitrines (BusinessSwitcher).
+            Rendu conditionnel côté client — se cache si 0 vitrine, mode read-only
+            si 1 seule, dropdown si 2+. Placé AVANT le search pour être visible
+            en permanence sans scroll. */}
+        <div className="border-b border-slate-200/60 px-4 py-3 dark:border-slate-800">
+          <BusinessSwitcher />
         </div>
 
         {/* Recherche */}

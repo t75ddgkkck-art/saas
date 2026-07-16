@@ -1135,6 +1135,47 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4octodecies. Lot 46 (F11) — Multi-vitrines (compte multi-business)
+-- -----------------------------------------------------------------------------
+-- Ajoute `users.active_business_id` : mémorise la vitrine active sélectionnée
+-- par le user pour restaurer au login (persistance cross-session).
+--
+-- Nullable : fallback = 1er business trouvé (comportement legacy conservé).
+-- Pas de FK stricte vers businesses.id pour éviter les cascades douloureuses.
+-- Un trigger côté DB nettoie l'ID au DELETE d'un business (cf. bloc 4bis Lot 14
+-- qui a déjà mis en place la structure de cascade).
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('users') THEN
+    ALTER TABLE public.users
+      ADD COLUMN IF NOT EXISTS active_business_id uuid;
+  END IF;
+END $$;
+
+-- Trigger de nettoyage : si un business est supprimé, on remet à NULL les
+-- users qui pointaient dessus. Évite les IDs orphelins.
+DO $$ BEGIN
+  IF public.__vx_table_exists('users') AND public.__vx_table_exists('businesses') THEN
+    CREATE OR REPLACE FUNCTION public.__vx_cleanup_active_business()
+    RETURNS trigger AS $trg$
+    BEGIN
+      UPDATE public.users
+      SET active_business_id = NULL
+      WHERE active_business_id = OLD.id;
+      RETURN OLD;
+    END;
+    $trg$ LANGUAGE plpgsql;
+
+    -- Drop l'ancien trigger s'il existe puis recréation (idempotent)
+    DROP TRIGGER IF EXISTS trg_cleanup_active_business ON public.businesses;
+    CREATE TRIGGER trg_cleanup_active_business
+      BEFORE DELETE ON public.businesses
+      FOR EACH ROW
+      EXECUTE FUNCTION public.__vx_cleanup_active_business();
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

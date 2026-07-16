@@ -54,6 +54,7 @@ export type FeatureKey =
   | "quotes.enable" // création devis
   | "quotes.ai_generation" // F8 (Lot 38) : génération IA des lignes de devis
   | "invoices.auto_generation" // F9 (Lot 42) : facture PDF auto-générée à la signature
+  | "business.multi" // F11 (Lot 46) : plusieurs vitrines simultanées
   // --- Automatisations ---
   | "reminders.email" // rappels par email
   | "reminders.sms" // rappels SMS
@@ -179,6 +180,15 @@ export const FEATURES: Readonly<Record<FeatureKey, FeatureDefinition>> = {
     description:
       "À chaque signature de devis, une facture PDF numérotée (séquence légale) est générée et envoyée au client.",
     minPlan: "pro",
+  },
+  "business.multi": {
+    // Lot 46 (F11) : Premium uniquement — jusqu'à 3 vitrines simultanées (voir MAX_BUSINESSES_PER_PLAN).
+    // Argument commercial : un franchisé économise en payant 1x Premium au lieu de 3x Pro.
+    plans: ["premium"],
+    label: "Multi-vitrines",
+    description:
+      "Gérez jusqu'à 3 vitrines simultanément depuis un seul compte (idéal franchise, multi-marques ou multi-métiers).",
+    minPlan: "premium",
   },
 
   // --- Automatisations ---
@@ -317,6 +327,8 @@ export function getLimit(
     | "maxTeamMembers"
     | "maxTemplates"
     | "maxPdfTemplates"
+    // Lot 46 (F11) : nombre max de vitrines par compte
+    | "maxBusinesses"
 ): number {
   return PLAN_PERMISSIONS[plan][limit] as number;
 }
@@ -334,7 +346,9 @@ export function checkQuota(
     | "maxBlogPosts"
     | "maxTeamMembers"
     | "maxTemplates"
-    | "maxPdfTemplates",
+    | "maxPdfTemplates"
+    // Lot 46 (F11) : quota multi-vitrines
+    | "maxBusinesses",
   currentCount: number
 ): { allowed: boolean; limit: number; remaining: number } {
   const max = getLimit(plan, limit);

@@ -9,6 +9,12 @@ import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { CATEGORIES, slugify } from "@/lib/utils";
+// Lot 46 (F11) : gate multi-vitrines côté UI.
+// L'user Free/Pro qui a déjà 1 vitrine voit un CTA upgrade au lieu du bouton "+".
+import { useEntitlement } from "@/hooks/useEntitlement";
+import { useToast } from "@/components/ui/Toast";
+import Link from "next/link";
+import { Sparkles, Lock } from "lucide-react";
 import {
   Store,
   Plus,
@@ -39,6 +45,9 @@ export default function MyBusinessesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const toast = useToast();
+  // Lot 46 : gate `business.multi` — allowed=false pour Free/Pro
+  const { allowed: canMulti } = useEntitlement("business.multi");
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -89,13 +98,32 @@ export default function MyBusinessesPage() {
           phone: "",
           description: "",
         });
+        toast.success("Vitrine créée avec succès");
+      } else {
+        // Lot 46 : gestion des erreurs plan/quota renvoyées par l'API
+        if (res.status === 402) {
+          toast.error(
+            data.error ?? "Fonctionnalité Premium requise pour créer une 2e vitrine"
+          );
+        } else if (res.status === 403 && data.limit) {
+          toast.error(
+            `Quota atteint : ${data.current}/${data.limit} vitrines. Upgrade Premium pour plus.`
+          );
+        } else {
+          toast.error(data.error ?? "Impossible de créer la vitrine");
+        }
       }
     } catch (e) {
       console.error(e);
+      toast.error("Erreur réseau");
     } finally {
       setIsCreating(false);
     }
   };
+
+  // Lot 46 : true si l'user peut créer UNE VITRINE DE PLUS (0 → toujours OK,
+  // 1+ → nécessite Premium avec quota disponible)
+  const canCreateMore = businesses.length === 0 || canMulti;
 
   const categoryInfo = (cat: string) => CATEGORIES.find((c) => c.id === cat);
 
@@ -110,11 +138,46 @@ export default function MyBusinessesPage() {
             Gérez toutes vos pages professionnelles
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvel établissement
-        </Button>
+        {/* Lot 46 : bouton adaptatif selon plan + count actuel.
+            - 0 vitrine → toujours autorisé (onboarding)
+            - 1+ vitrine + plan Premium → OK
+            - 1+ vitrine + plan Free/Pro → CTA upgrade au lieu du bouton */}
+        {canCreateMore ? (
+          <Button onClick={() => setShowModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvelle vitrine
+          </Button>
+        ) : (
+          <Link href="/#pricing">
+            <Button variant="secondary">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Passer Premium
+            </Button>
+          </Link>
+        )}
       </div>
+
+      {/* Lot 46 : bandeau info si l'user est bloqué au quota — pédagogique */}
+      {!canCreateMore && businesses.length >= 1 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/40 dark:bg-amber-950/30">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+          <div className="flex-1">
+            <p className="font-medium text-amber-900 dark:text-amber-100">
+              Gérez plusieurs vitrines avec Premium
+            </p>
+            <p className="mt-1 text-amber-800 dark:text-amber-200">
+              Idéal si vous avez plusieurs points de vente, plusieurs marques ou plusieurs
+              métiers. Jusqu&apos;à 3 vitrines simultanées, un seul abonnement.
+            </p>
+            <Link
+              href="/#pricing"
+              className="mt-2 inline-block font-semibold text-amber-900 underline dark:text-amber-100"
+            >
+              Voir les tarifs Premium →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-20">
@@ -186,14 +249,18 @@ export default function MyBusinessesPage() {
             );
           })}
 
-          {/* Add new card */}
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 p-8 transition-colors hover:border-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:hover:border-white dark:hover:bg-slate-800"
-          >
-            <Plus className="h-8 w-8 text-slate-400" />
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Ajouter</span>
-          </button>
+          {/* Add new card — Lot 46 : visible SEULEMENT si plan autorise ajout */}
+          {canCreateMore && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 p-8 transition-colors hover:border-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:hover:border-white dark:hover:bg-slate-800"
+            >
+              <Plus className="h-8 w-8 text-slate-400" />
+              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                Ajouter
+              </span>
+            </button>
+          )}
         </div>
       )}
 

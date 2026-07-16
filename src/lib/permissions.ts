@@ -60,6 +60,11 @@ export interface PlanPermissions {
   // PDF
   canMultiTemplatePdf: boolean;
   maxPdfTemplates: number;
+
+  // Lot 46 (F11) : nombre max de vitrines/businesses par compte user.
+  // Free: 1, Pro: 1, Premium: 3. Historique compat : sans cette clé, `getLimit`
+  // renvoie undefined donc les vieux users continuent à voir 1 vitrine par défaut.
+  maxBusinesses: number;
 }
 
 export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
@@ -106,6 +111,9 @@ export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
 
     canMultiTemplatePdf: false,
     maxPdfTemplates: 1,
+
+    // Lot 46 : Free = 1 seule vitrine
+    maxBusinesses: 1,
   },
 
   pro: {
@@ -151,6 +159,9 @@ export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
 
     canMultiTemplatePdf: true,
     maxPdfTemplates: 3,
+
+    // Lot 46 : Pro reste à 1 vitrine — argument commercial de l'upgrade Premium
+    maxBusinesses: 1,
   },
 
   premium: {
@@ -196,6 +207,9 @@ export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
 
     canMultiTemplatePdf: true,
     maxPdfTemplates: 10,
+
+    // Lot 46 : Premium = jusqu'à 3 vitrines simultanées (multi-marques / franchisés)
+    maxBusinesses: 3,
   },
 };
 

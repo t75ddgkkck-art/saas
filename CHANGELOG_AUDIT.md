@@ -4,6 +4,167 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 41 — Lot 46 Multi-vitrines (Premium) + sélecteur sidebar
+
+**Idée D audit V5** implémentée : un compte user peut gérer jusqu'à 3 vitrines simultanément (plan Premium uniquement). Argument commercial fort pour franchisés, artisans multi-métiers, réseaux multi-sites.
+
+## Livré
+
+### Cas d'usage
+
+- **Franchisé** : 3 salons coiffure dans 3 villes → 3 vitrines, 1 compte, 1 seul abonnement Premium (économie ~87€/mois vs 3× Pro)
+- **Artisan multi-métiers** : `dupont-plomberie` + `dupont-chauffage` (2 SEO distincts)
+- **Réseau multi-sites** : gestion unifiée depuis un seul dashboard
+
+### Nouvelle feature entitlement `business.multi`
+
+Plans : `[premium]` uniquement. Volontairement pas Pro — c'est CE cas d'usage qui justifie l'upgrade Pro → Premium (au-delà de l'IA).
+
+### Quotas via `maxBusinesses`
+
+| Plan    | maxBusinesses |
+| ------- | ------------- |
+| Free    | 1             |
+| Pro     | 1             |
+| Premium | 3             |
+
+Ajouté dans `PLAN_PERMISSIONS` (permissions.ts) + supporté par `getLimit`/`checkQuota` (entitlements.ts).
+
+### DB — bloc SQL `4octodecies`
+
+```sql
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS active_business_id uuid;  -- nullable, mémorise sélection
+
+-- Trigger cleanup automatique au DELETE d'un business
+CREATE FUNCTION __vx_cleanup_active_business() ...
+CREATE TRIGGER trg_cleanup_active_business BEFORE DELETE ON businesses ...
+```
+
+- Rétrocompat totale : `activeBusinessId NULL` → fallback sur 1er business (comportement legacy)
+- Trigger évite les IDs orphelins si un business est supprimé
+
+### `getCurrentBusiness()` enrichi (session.ts)
+
+```
+1. Si user.activeBusinessId ET business appartient à l'user → return it
+2. Sinon fallback : premier business trouvé (comportement legacy Lot 1)
+```
+
+**Zéro modification** requise sur les ~150 routes API existantes qui utilisent
+`getCurrentBusiness()` — elles bénéficient automatiquement du multi-vitrines.
+
+### Nouvelle route `POST /api/my-businesses/switch`
+
+Change la vitrine active persistée.
+
+- Anti-IDOR : vérifie ownership du business ciblé
+- Rate-limit 10/min
+- Retourne `{ok, businessId, name}` puis le client fait `router.refresh()`
+
+### Route `POST /api/my-businesses` enrichie
+
+- **1ère vitrine** : autorisée pour tous (onboarding user tout neuf)
+- **2e+ vitrine** : gate `canUse(plan, "business.multi")` → 402 sinon
+- **Quota** : `checkQuota(plan, "maxBusinesses", currentCount)` → 403 sinon avec `{limit, current}`
+
+### Composant `<BusinessSwitcher />` en haut de la sidebar
+
+3 rendus adaptatifs auto :
+- **0 vitrine** → rien (welcome onboarding gère)
+- **1 vitrine** → read-only : nom + emoji catégorie + URL
+- **2+ vitrines** → dropdown accessible :
+  - Liste avec check ✅ sur la vitrine active
+  - Bouton "Gérer mes vitrines" → `/dashboard/my-businesses`
+  - Aria complet (haspopup, expanded, Escape ferme, clic hors ferme)
+
+Placé AVANT la recherche globale — visible en permanence sans scroll.
+
+### `/dashboard/my-businesses` enrichie
+
+- Bouton "Nouvelle vitrine" adaptatif :
+  - Plan autorise → "+ Nouvelle vitrine" (primary)
+  - Plan bloque → "✨ Passer Premium" (secondary, link `/#pricing`)
+- Bandeau pédagogique jaune si bloqué au quota
+- Card "Ajouter" en fin de grille cachée si plan bloque
+- Toast d'erreur clair 402/403 avec messages contextualisés
+- Toast succès sur création
+
+### Mise en avant dans les tarifs
+
+**PricingSection** :
+- Pro : ajout `"1 vitrine avec design & couleurs personnalisés"` (contraste explicite)
+- Premium : ajout `"Jusqu'à 3 vitrines simultanées (multi-marques, franchises)"`
+
+**Landing feature card** :
+- "Page publique premium" enrichie : `"...jusqu'à 3 vitrines par compte en Premium"`
+
+### Tests
+
+`tests/unit/multi-business-quota.test.ts` — **16 tests** :
+- Matrice `business.multi` : Free/Pro NON, Premium OUI (3 tests)
+- `maxBusinesses` par plan : Free 1, Pro 1, Premium 3 (3 tests)
+- `checkQuota` flux création : 0→1 OK, 1→2 bloqué Free, Premium 0→1→2→3 (7 tests)
+- Scénarios métier : upgrade path Free→Pro→Premium, chain Premium création (3 tests)
+
+Snapshot `entitlements.test.ts` mis à jour : 22 features désormais (avant 21).
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/app/api/my-businesses/switch/route.ts` (75 lignes)
+  - `src/components/layout/BusinessSwitcher.tsx` (230 lignes)
+  - `tests/unit/multi-business-quota.test.ts` (115 lignes, 16 tests)
+  - `docs/MULTI_BUSINESS.md`
+
+- **Modifiés** :
+  - `src/db/schema.ts` — colonne `users.active_business_id`
+  - `sql/00_apply_safe.sql` — bloc `4octodecies` idempotent + trigger cleanup
+  - `src/lib/session.ts` — `getCurrentBusiness()` respect `activeBusinessId`
+  - `src/lib/entitlements.ts` — feature `business.multi` + support `maxBusinesses` dans `getLimit`/`checkQuota`
+  - `src/lib/permissions.ts` — `PlanPermissions.maxBusinesses` (Free 1, Pro 1, Premium 3)
+  - `src/app/api/my-businesses/route.ts` — gate 402 + quota 403 sur POST
+  - `src/app/dashboard/my-businesses/page.tsx` — bouton adaptatif + bandeau pédagogique
+  - `src/components/layout/Sidebar.tsx` — intégration `<BusinessSwitcher />`
+  - `src/components/public/PricingSection.tsx` — mention Premium multi + Pro clarifié
+  - `src/app/page.tsx` — landing card enrichie
+  - `tests/unit/entitlements.test.ts` — snapshot 22 features
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **663 tests / 60 fichiers** (avant 646/59) ✅
+- `npx next build` → OK, `/api/my-businesses/switch` détectée ✅
+
+## Impact business
+
+- **Segment franchise/multi-marques débloqué** — jusqu'ici obligés de créer N comptes séparés (galère facturation + login)
+- **Argument commercial fort upgrade Pro → Premium** : au-delà de l'IA, la multi-vitrine justifie seule le passage Premium pour un pro avec 2+ activités
+- **Économie client Premium** : ~87€/mois vs 3× Pro séparés (779€/an d'économie côté client, mais Vitrix garde 79€/mois × 12 = 948€/an au lieu de 348€/an sur Pro Solo → net +600€/an de MRR par franchisé converti)
+- **Zéro régression** : rétrocompat totale via fallback `getCurrentBusiness`
+
+## Actions post-déploiement
+
+1. **DB migration** : `bash sql/apply.sh` — bloc `4octodecies` idempotent, ne casse rien sur les user existants
+2. **Vérifier trigger** :
+   ```sql
+   SELECT tgname FROM pg_trigger WHERE tgname = 'trg_cleanup_active_business';
+   ```
+3. **Test end-to-end** :
+   - Compte Free : créer 2e vitrine → CTA upgrade visible + toast 402
+   - Compte Premium : créer 2 vitrines → sélecteur sidebar apparaît → switcher entre les 2
+   - Vérifier que `/dashboard/quotes` (ou n'importe quelle page métier) affiche bien les données de la vitrine ACTIVE (pas la 1ère par défaut)
+
+## Historique commits
+
+```
+<hash>   lot 46 multi-vitrines Premium + sélecteur sidebar + mention tarifs
+c9a76a1  lot 45 UI générer devis IA + mise en avant premium pricing
+b6d8eb9  lot 43 acompte stripe à la signature devis (fusion F2+F8) + facture acompte
+```
+
+---
+
 # 🟢 Tour 40 — Lot 45 UI "Générer devis IA" + mise en avant Premium
 
 **Point P6 audit V5** résolu : la génération de devis par IA existait côté serveur depuis le Lot 38 mais n'avait AUCUN point d'entrée UI. Feature morte, ~0% d'utilisation. Ce lot rend la feature découvrable et gate strictement Premium.

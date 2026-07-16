@@ -185,8 +185,9 @@ export default function Home() {
                 {
                   icon: Globe,
                   title: "Page publique premium",
+                  // Lot 46 : mention discrète multi-vitrines pour titiller les franchisés
                   description:
-                    "Une page professionnelle moderne et responsive, optimisée pour le mobile. Logo, galerie, avis, FAQ, et plus encore.",
+                    "Une page professionnelle moderne et responsive, optimisée pour le mobile. Logo, galerie, avis, FAQ, et jusqu'à 3 vitrines par compte en Premium.",
                 },
                 {
                   icon: CalendarDays,

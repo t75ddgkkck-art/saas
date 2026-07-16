@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/db";
 import { users, businesses } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 // Fail-fast en production si le secret n'est pas configuré.
 // En développement on tolère un secret par défaut mais on le signale bruyamment.
@@ -80,12 +80,38 @@ export async function getCurrentUser() {
 }
 
 // Récupère le business courant de l'utilisateur connecté.
+//
+// Lot 46 (F11) : respect de `users.active_business_id` si présent.
+//  - Si l'user a sélectionné une vitrine active (via /api/my-businesses/switch)
+//    ET qu'il en est bien owner → on renvoie CELLE-LÀ
+//  - Sinon : fallback sur le premier business (comportement legacy Lot 1 → Lot 45)
+//
+// Le fallback garantit que tous les users historiques (activeBusinessId = null)
+// continuent à voir leur 1ère vitrine sans effort. Aucune migration data requise.
 export async function getCurrentBusiness() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const result = await db.select().from(businesses).where(eq(businesses.ownerId, user.id)).limit(1);
-  return result[0] || null;
+  // 1) Business actif explicitement sélectionné ?
+  if (user.activeBusinessId) {
+    const [active] = await db
+      .select()
+      .from(businesses)
+      .where(and(eq(businesses.id, user.activeBusinessId), eq(businesses.ownerId, user.id)))
+      .limit(1);
+    if (active) return active;
+    // Si on tombe ici : l'user a un activeBusinessId périmé (business supprimé,
+    // ou changement d'owner). Le trigger DB `__vx_cleanup_active_business` est
+    // censé remettre à NULL au DELETE, mais on garde ce fallback défensif.
+  }
+
+  // 2) Fallback : premier business trouvé (peut être null si l'user n'en a aucun)
+  const [first] = await db
+    .select()
+    .from(businesses)
+    .where(eq(businesses.ownerId, user.id))
+    .limit(1);
+  return first || null;
 }
 
 // Récupère tous les établissements de l'utilisateur connecté.

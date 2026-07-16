@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleApiError } from "@/lib/api-error";
+import { handleApiError, paymentRequired } from "@/lib/api-error";
 import { db } from "@/db";
 import { businesses, workingHours, faqs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { slugify } from "@/lib/utils";
 import { getCurrentUser, getCurrentUserBusinesses } from "@/lib/session";
+// Lot 46 (F11) : quota + gate multi-vitrines.
+// Le POST accepte SANS gate la 1ère vitrine (onboarding user, tous plans).
+// À partir de la 2e vitrine → gate stricte "business.multi" Premium + check quota.
+import { canUse, checkQuota } from "@/lib/entitlements";
+import type { SubscriptionPlan } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +50,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
     const ownerId = user.id;
+
+    // Lot 46 (F11) : gate + quota multi-vitrines.
+    //
+    // Règle : la PREMIÈRE vitrine est TOUJOURS autorisée (onboarding).
+    // À partir de la 2e → nécessite le plan Premium (feature `business.multi`)
+    // ET le quota `maxBusinesses` doit être respecté (Premium = 3 max).
+    const existing = await getCurrentUserBusinesses();
+    const plan = (user.subscription || "free") as SubscriptionPlan;
+
+    if (existing.length >= 1) {
+      // 2e vitrine ou +
+      if (!canUse(plan, "business.multi")) {
+        throw paymentRequired(
+          "La gestion de plusieurs vitrines est réservée au plan Premium.",
+          {
+            feature: "business.multi",
+            requiredPlan: "premium",
+            currentPlan: plan,
+          }
+        );
+      }
+      const q = checkQuota(plan, "maxBusinesses", existing.length);
+      if (!q.allowed) {
+        return NextResponse.json(
+          {
+            error: `Vous avez atteint le maximum de ${q.limit} vitrines pour votre plan.`,
+            limit: q.limit,
+            current: existing.length,
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     const slug = slugify(body.name);
     const [business] = await db

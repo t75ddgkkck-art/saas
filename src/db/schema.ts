@@ -129,6 +129,13 @@ export const users = pgTable(
     // Lot 36 : dernier email de réactivation envoyé (évite le spam si l'user
     // reste inactif — on ne retente qu'après 30j supplémentaires).
     reactivationEmailAt: timestamp("reactivation_email_at"),
+    // Lot 46 (F11) : multi-vitrines — mémorise la vitrine active sélectionnée
+    // par le user pour restaurer au login. Nullable : si absent, `getCurrentBusiness`
+    // fallback sur le 1er business trouvé (comportement Lot 45 conservé).
+    // Pas de FK circulaire vers businesses.id ici — on garde varchar uuid libre
+    // pour éviter les problèmes de suppression cascade en cas de business supprimé
+    // (on nettoie via SET NULL depuis le trigger cascade côté businesses).
+    activeBusinessId: uuid("active_business_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

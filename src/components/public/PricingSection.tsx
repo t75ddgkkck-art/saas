@@ -32,6 +32,8 @@ const PLANS = [
     tagline: "Pour développer votre activité",
     features: [
       "Tout du Gratuit",
+      // Lot 46 : préciser que Pro = 1 seule vitrine (contraste avec Premium x3)
+      "1 vitrine avec design & couleurs personnalisés",
       "Réservation en ligne 24/7",
       "Devis & signature électronique",
       "Paiements Stripe / Apple Pay",
@@ -55,6 +57,8 @@ const PLANS = [
       // Lot 45 : mise en avant explicite de la génération IA de devis.
       // C'est LA feature Premium avec le meilleur wow-effect démo commerciale.
       "Génération de devis par IA (prix marché intégrés)",
+      // Lot 46 : multi-vitrines — argument franchise / multi-métiers
+      "Jusqu'à 3 vitrines simultanées (multi-marques, franchises)",
       "Programme de fidélité clients",
       "Marque blanche (sans logo Vitrix)",
       "7 templates dont 3 exclusifs",
