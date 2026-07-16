@@ -212,8 +212,9 @@ export default function Home() {
                 {
                   icon: Users,
                   title: "CRM intégré",
+                  // Lot 49 : mention IA clients à recontacter en Premium
                   description:
-                    "Gérez vos clients, leur historique, notes, photos. Relances automatiques pour les devis non signés.",
+                    "Gérez vos clients, leur historique, notes. L'IA identifie les clients à recontacter et rédige le message pour vous (Premium).",
                 },
                 {
                   icon: Zap,

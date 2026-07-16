@@ -515,8 +515,27 @@ export default function VitrinePage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ==================== ÉDITEUR ==================== */}
         <div className="space-y-4">
-          {/* Onglets */}
-          <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+          {/* Onglets — Lot 49 fix mobile : < md un <select> natif (touch-friendly,
+              accessible, occupe 1 ligne), à partir de md la barre horizontale scroll.
+              Avant : 11 onglets `flex-1` illisibles sur < 640px (chaque onglet ~34px). */}
+          <div className="md:hidden">
+            <label htmlFor="vitrine-section-select" className="sr-only">
+              Section de personnalisation
+            </label>
+            <select
+              id="vitrine-section-select"
+              value={section}
+              onChange={(e) => setSection(e.target.value as Section)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              {sections.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="hidden md:flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             {sections.map((s) => (
               <button
                 key={s.id}
@@ -532,7 +551,9 @@ export default function VitrinePage() {
             ))}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 space-y-5">
+          {/* Lot 49 fix mobile : p-6 (24px) trop généreux sur < 640px — p-4 (16px)
+              donne 16px de plus au contenu sans casser la respiration desktop. */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-900 space-y-5">
             {/* DESIGN */}
             {section === "design" && (
               <>
@@ -1997,7 +2018,9 @@ function PersonnalisationSection({
             }));
           }}
         />
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        {/* Lot 49 fix mobile : sur < 640px, 3 cols = boutons color picker illisibles
+            (chacun ~85px). On passe en 1 col mobile → 3 cols sm+. */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <ColorInput
             label="Primaire"
             value={form.primaryColor}

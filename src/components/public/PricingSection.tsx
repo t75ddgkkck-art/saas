@@ -64,6 +64,8 @@ const PLANS = [
       "Jusqu'à 3 vitrines simultanées (multi-marques, franchises)",
       // Lot 47 : quota QR étendu pour campagnes A/B, saisonnières, multi-canaux
       "20 QR codes trackables (campagnes A/B, saisonnières)",
+      // Lot 49 : IA rédige les messages de réactivation clients dormants
+      "IA « Clients à recontacter » (messages personnalisés)",
       "Programme de fidélité clients",
       "Marque blanche (sans logo Vitrix)",
       "7 templates dont 3 exclusifs",

@@ -9,7 +9,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { generateProfessionalPDF } from "@/lib/generate-pdf";
 import {
   Download,
-  Sparkles,
   Share2,
   Users,
   Star,
@@ -514,47 +513,11 @@ export default function OutilsPage() {
         />
       )}
 
-      {/* ===== OUTILS IA (Premium) ===== */}
-      {isPremium ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 space-y-4">
-          <p className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
-            <Sparkles className="h-5 w-5 text-purple-600" /> Automatisations Premium
-            <Badge variant="purple">Premium</Badge>
-          </p>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  🤖 Chatbot IA sur ma vitrine
-                </p>
-                <p className="text-xs text-slate-500">
-                  Répond à vos clients 24/7 directement sur votre page publique
-                </p>
-              </div>
-              <input type="checkbox" className="h-5 w-5" />
-            </div>
-
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  ⭐ Demande d&apos;avis automatique
-                </p>
-                <p className="text-xs text-slate-500">
-                  Email envoyé au client dès qu&apos;un RDV est marqué terminé
-                </p>
-              </div>
-              <input type="checkbox" className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <LockedCard
-          title="Chatbot IA public + Avis automatiques"
-          desc="Un assistant qui répond à vos clients 24/7 et des demandes d'avis automatiques."
-          planNeeded="Premium"
-        />
-      )}
+      {/* Lot 49 : section "Automatisations Premium" retirée d'ici — c'était un
+          DOUBLON avec /dashboard/vitrine > onglet "Automatisations" qui gère déjà
+          les toggles publicChatEnabled + autoReviewRequest. Ces checkboxes-là
+          n'étaient PAS câblées (pas de handler onChange, pas de state initial) →
+          silencieusement inutiles + confusion UX. Le vrai éditeur reste dans vitrine. */}
     </div>
   );
 }

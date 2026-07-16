@@ -55,6 +55,7 @@ export type FeatureKey =
   | "quotes.ai_generation" // F8 (Lot 38) : génération IA des lignes de devis
   | "invoices.auto_generation" // F9 (Lot 42) : facture PDF auto-générée à la signature
   | "business.multi" // F11 (Lot 46) : plusieurs vitrines simultanées
+  | "crm.reactivation_ai" // F13 (Lot 49) : suggestions IA de messages de réactivation clients dormants
   // --- Automatisations ---
   | "reminders.email" // rappels par email
   | "reminders.sms" // rappels SMS
@@ -188,6 +189,16 @@ export const FEATURES: Readonly<Record<FeatureKey, FeatureDefinition>> = {
     label: "Multi-vitrines",
     description:
       "Gérez jusqu'à 3 vitrines simultanément depuis un seul compte (idéal franchise, multi-marques ou multi-métiers).",
+    minPlan: "premium",
+  },
+  "crm.reactivation_ai": {
+    // Lot 49 (F13) : IA génère des messages personnalisés pour reconnecter avec les clients dormants.
+    // Le SCORING (top candidats) est visible pour tous plans (Layer 1 déterministe).
+    // Seule la GÉNÉRATION IA du message est gated Premium (Layer 2 coûteux).
+    plans: ["premium"],
+    label: "IA Clients à recontacter",
+    description:
+      "L'IA analyse vos clients dormants et rédige pour vous des messages personnalisés (email, SMS) prêts à envoyer.",
     minPlan: "premium",
   },
 

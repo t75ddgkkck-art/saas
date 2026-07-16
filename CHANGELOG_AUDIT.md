@@ -4,6 +4,165 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 43 — Lot 49 IA "clients à recontacter" + fix mobile vitrine + cleanup outils
+
+**Idée J audit V5** implémentée : détection automatique des clients dormants avec IA qui rédige les messages de réactivation. Layer 1 (scoring déterministe) tous plans, Layer 2 (génération IA) gate stricte Premium.
+
+Bonus dans le même lot : correctif mobile de `/dashboard/vitrine` (barre 11 onglets illisible < md, couleurs grid-cols-3 trop serrées) + suppression du doublon "Automatisations IA" dans `/dashboard/outils` (les toggles étaient morts + doublonnaient l'onglet Automatisations de la vitrine).
+
+## Livré — Lot 49 réactivation
+
+### Architecture 2 layers
+
+**Layer 1 — Scoring déterministe** (tous plans, gratuit, instantané)
+- `computePriorityScore(client)` → `{ score 0-100, factors[], daysSinceLastContact }`
+- Pure fonction testable, aucun appel LLM
+- Facteurs pris en compte :
+  - Ancienneté dernière interaction (cloche 60→180j peak, décroît > 730j)
+  - Fidélité (≥ 5 RDV = +20, ≥ 3 = +10)
+  - LTV totalSpent (≥ 1000€ = +15, ≥ 300€ = +8)
+  - Conversion 100% devis (+5)
+  - Pénalités : 3+ no-shows (-30), 1-2 no-shows (-5)
+  - Sans coordonnées OU 0 RDV historique → score 0 (impossible/inutile)
+
+**Layer 2 — Génération message IA** (Premium uniquement)
+- `POST /api/reactivation/generate` avec `clientIds[]` (max 10 / batch)
+- Gate stricte `crm.reactivation_ai` + quota AI mensuel (`checkAiQuota`)
+- Rate limit 10 batches / heure / IP
+- Model `gpt-4o-mini` (~0.02$/batch)
+- Prompt système contextualisé métier + JSON strict `[{clientId, reason, suggestedChannel, suggestedMessage}]`
+- Parsing tolérant (retire markdown ``` wrap)
+
+### Nouvelle feature `crm.reactivation_ai` (Premium)
+
+- Snapshot entitlements test étendu à 23 features (avant 22)
+
+### Nouvelles routes API
+
+- `GET /api/reactivation/candidates?limit=10` — Layer 1 pour tous plans
+- `POST /api/reactivation/generate` — Layer 2 IA, gate stricte Premium
+- `POST /api/reactivation/send` — envoi email via Resend (SMS 501 pour l'instant, reste à câbler Twilio en Lot ultérieur), update `client.lastContact` pour anti-double-envoi
+
+### Nouvelle page `/dashboard/reactivation`
+
+- Header pédagogique avec CTA Premium si plan insuffisant
+- Liste top 10 candidats scorés avec badges factors (positive vert, negative rouge, neutral gris)
+- Bouton "Générer messages IA" (visible Premium, secondary "Débloquer avec Premium" sinon)
+- Pour chaque suggestion IA : channel (email/SMS avec compteur 160 chars), subject email, message éditable, bouton "Envoyer"
+- Retire le candidat de la liste après envoi (évite re-relance visuelle)
+- Empty state pédagogique si pas assez de data
+
+### Sidebar + i18n + Breadcrumb
+
+- Nouvel item `reactivationNav` visible Pro/Premium (même règle showTeam)
+- Icône Sparkles
+- Traductions FR / EN / ES / DE (À recontacter / Reconnect / Reconectar / Nachfassen)
+- Breadcrumb "À recontacter" ajouté
+
+### Prompt IA `reactivationSuggestionSystemPrompt`
+
+Nouveau prompt métier-aware :
+- Contextualisé selon `businessCategory` (plombier écrit comme un plombier, coiffeur comme un coiffeur)
+- Vouvoiement JAMAIS de tutoiement
+- Interdit de mentionner "algorithme"/"IA"/"logiciel" (casse le lien humain)
+- SMS < 160 chars strict, email 4-6 lignes max
+- Toujours mentionner au moins UN élément spécifique du client (dernier RDV, service passé)
+- Ton commercial doux JAMAIS agressif
+
+### Mentions dans les tarifs
+
+- **Premium** : ajout `"IA « Clients à recontacter » (messages personnalisés)"`
+- **Landing feature card "CRM intégré"** enrichie : `"L'IA identifie les clients à recontacter et rédige le message pour vous (Premium)"`
+
+## Livré — Fix mobile personnalisation vitrine
+
+Problème signalé : "la customisation s'affiche comme sur web" — les 11 onglets de `/dashboard/vitrine` étaient illisibles sur mobile (chacun ~34px, texte tronqué).
+
+### Correctifs
+
+1. **Barre d'onglets responsive** : `<select>` natif sur `< md` (touch-friendly, accessible avec `sr-only` label + `focus:ring`), barre horizontale tabs sur `md+` conservée
+2. **Grid couleurs** : `grid-cols-3` → `grid-cols-1 sm:grid-cols-3` (les ColorInput ~85px devenaient illisibles < 640px)
+3. **Padding container éditeur** : `p-6` → `p-4 sm:p-6` (+16px de contenu utile sur mobile)
+
+Zéro régression desktop — tous les changements sont uniquement sur les breakpoints `< sm` / `< md`.
+
+## Livré — Cleanup doublon outils
+
+Retiré la section "Automatisations Premium" (chatbot IA + demande d'avis auto) de `/dashboard/outils`.
+
+**Raisons** :
+- Doublon UX avec `/dashboard/vitrine → onglet Automatisations` qui gère déjà `publicChatEnabled` + `autoReviewRequest`
+- Les checkboxes dans outils n'avaient AUCUN `onChange` handler ni state initial → silencieusement inutiles (bug latent)
+- Import `Sparkles` orphelin retiré aussi
+
+## Tests
+
+`tests/unit/client-reactivation.test.ts` — **23 tests** :
+- Cas score 0 : sans RDV, trop récent, sans contact (4 tests)
+- Scoring ancienneté : 60j / 180j / 365j / >730j / lastContact null (5 tests)
+- Boosts fidélité + LTV : 5+RDV / 3RDV / >1000€ / 300-999€ (4 tests)
+- Pénalités no-shows : 3+ / 1-2 / clamp à 0 (3 tests)
+- Score max clamp 100 (1 test)
+- `rankCandidates` : tri, filtre score 0, limite, cap 50, min 1, liste vide (6 tests)
+
+Snapshot `entitlements.test.ts` mis à jour.
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/lib/client-reactivation.ts` (250 lignes)
+  - `src/app/api/reactivation/candidates/route.ts` (75 lignes)
+  - `src/app/api/reactivation/generate/route.ts` (180 lignes)
+  - `src/app/api/reactivation/send/route.ts` (130 lignes)
+  - `src/app/dashboard/reactivation/page.tsx` (300 lignes)
+  - `tests/unit/client-reactivation.test.ts` (240 lignes, 23 tests)
+
+- **Modifiés** :
+  - `src/lib/entitlements.ts` — feature `crm.reactivation_ai` Premium
+  - `src/lib/ai/prompts.ts` — `reactivationSuggestionSystemPrompt` métier-aware
+  - `src/components/layout/Sidebar.tsx` — item `reactivationNav`
+  - `src/components/layout/Breadcrumbs.tsx` — "reactivation" label
+  - `src/lib/i18n.ts` — traductions FR/EN/ES/DE
+  - `src/components/public/PricingSection.tsx` — mention Premium
+  - `src/app/page.tsx` — landing card CRM enrichie
+  - `tests/unit/entitlements.test.ts` — snapshot 23 features
+  - `src/app/dashboard/vitrine/page.tsx` — 3 fixes mobile (select onglets, grid couleurs, padding)
+  - `src/app/dashboard/outils/page.tsx` — suppression doublon Automatisations IA
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **708 tests / 62 fichiers** (avant 684/61) ✅
+- `npx next build` → OK, 3 nouvelles routes API + 1 page détectées ✅
+
+## Impact business
+
+- **Réactivation clients dormants** : segment CRM inexploité jusqu'ici. Un artisan avec 200 clients dormants qui reçoit 10 suggestions/mois peut débloquer 1-2 RDV supplémentaires = ROI immédiat > coût Premium
+- **Argument différenciant Premium** : au-delà de l'IA générique, l'IA "qui comprend TA base clients" est un vrai wow-effect démo
+- **UX vitrine mobile** enfin utilisable : le pro pouvait pas éditer sa vitrine depuis son téléphone avant ce lot (11 onglets illisibles + colors picker microscopique). Maintenant workflow mobile fluide.
+- **Cohérence UI** : plus de doublons trompeurs qui font douter le pro ("j'ai activé où déjà ?")
+
+## Actions post-déploiement
+
+Aucune migration DB requise (Lot 49 utilise 100% des tables existantes : `clients` + `businesses` + `users` + `ai_usage`).
+
+Vérifications :
+1. `OPENAI_API_KEY` doit être en env (existant depuis Lot 10)
+2. Test compte Free : voir liste candidats OK, bouton "Générer" → CTA Premium visible
+3. Test compte Premium : générer un batch → recevoir 10 suggestions → éditer/envoyer un email → vérifier `client.lastContact` mis à jour
+4. Test mobile `/dashboard/vitrine` sur iPhone SE (375px) : sélecteur d'onglet fonctionne, colors picker lisible
+
+## Historique commits
+
+```
+<hash>   lot 49 IA clients à recontacter (Premium) + fix mobile vitrine + cleanup outils
+284bece  lot 47 QR codes trackables UTM multi-supports (quotas Free 1 / Pro 3 / Premium 20)
+43c6a3c  lot 46 multi-vitrines Premium + sélecteur sidebar + mention tarifs
+c9a76a1  lot 45 UI générer devis IA + mise en avant premium pricing
+```
+
+---
+
 # 🟢 Tour 42 — Lot 47 QR codes trackables UTM (multi-supports)
 
 **Idée C audit V5** implémentée : le pro peut créer N QR codes distincts avec sources UTM différentes, et voir dans son analytics d'où viennent les scans (carte visite vs camionnette vs flyer). Quotas B choisis : Free 1 / Pro 3 / Premium 20.

@@ -19,6 +19,7 @@ import {
   Shield,
   Users,
   Sun,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
@@ -48,6 +49,13 @@ const aiNavItem = { href: "/dashboard/ai-chat", labelKey: "aiAssistant", icon: Z
 const teamNavItem = { href: "/dashboard/team", labelKey: "teamNav", icon: Users };
 // F9 (Lot 42) : factures auto post-signature — Pro / Premium via `invoices.auto_generation`
 const invoicesNavItem = { href: "/dashboard/invoices", labelKey: "invoicesNav", icon: FileText };
+// F13 (Lot 49) : "Clients à recontacter" — accessible tous plans, gate Premium
+// se fait au niveau de la génération IA côté page. Visible SI plan Pro+ (aperçu Free basique).
+const reactivationNavItem = {
+  href: "/dashboard/reactivation",
+  labelKey: "reactivationNav",
+  icon: Sparkles,
+};
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,6 +77,10 @@ export function Sidebar() {
   if (showTeam) insertBeforeSettings(teamNavItem);
   // F9 (Lot 42) : Factures visibles pour Pro / Premium (même règle que devis)
   if (showTeam) insertBeforeSettings(invoicesNavItem);
+  // F13 (Lot 49) : "Clients à recontacter" — visible pour Pro/Premium.
+  // Le gate strict IA est appliqué au CTA "Générer messages IA" dans la page.
+  // Rendre visible pour tous serait confusant côté Free (peu de clients dormants).
+  if (showTeam) insertBeforeSettings(reactivationNavItem);
 
   // Lot 13 : entrée admin uniquement pour les users role=admin
   if (user?.role === "admin") {
