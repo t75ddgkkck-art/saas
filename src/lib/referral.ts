@@ -23,6 +23,19 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 
 /**
+ * Lot 52 : plafond maximum de mois offerts cumulés par parrainage.
+ *
+ * Protège Vitrix contre l'abuse : un power-user avec 24 filleuls convertis
+ * ne peut pas gagner 24 mois offerts (= 2 ans gratuits). Au-delà de 12 mois
+ * cumulés, on stoppe la contribution (le crédit reste utilisable).
+ *
+ * Choix 12 : correspond exactement à 1 an offert max — récompense généreuse
+ * mais bornée. Peut être augmenté ultérieurement si la métrique CAC/LTV
+ * montre que le programme est en dessous du break-even.
+ */
+export const REFERRAL_MAX_CREDIT_MONTHS = 12;
+
+/**
  * Génère un code parrain lisible (VX-XXXXXX, base32 sans caractères ambigus).
  * Format : préfixe "VX-" + 6 caractères Crockford (pas de I/O/L/U).
  * Espace de valeur : 32^6 = ~1 milliard → collisions rarissimes.
@@ -78,13 +91,17 @@ export async function resolveReferralCode(code: string): Promise<string | null> 
  * Crédite +N mois au parrain (appelé au checkout complété du filleul).
  * Non-bloquant : si l'écriture échoue on log mais on ne throw pas — la
  * conversion Stripe reste le happy path critique.
+ *
+ * Lot 52 : plafonné à `REFERRAL_MAX_CREDIT_MONTHS` cumulés (protection abuse).
+ * On utilise `LEAST(..., MAX)` en SQL pour rendre l'opération atomique :
+ * si le parrain a déjà 11 crédits et qu'on ajoute +2, il finit à 12 (pas 13).
  */
 export async function creditReferrer(referrerId: string, months = 1): Promise<void> {
   try {
     await db
       .update(users)
       .set({
-        referralCreditMonths: sql`${users.referralCreditMonths} + ${months}`,
+        referralCreditMonths: sql`LEAST(${users.referralCreditMonths} + ${months}, ${REFERRAL_MAX_CREDIT_MONTHS})`,
       })
       .where(and(eq(users.id, referrerId), isNull(users.deletedAt)));
     logger.info("[referral] parrain crédité", { referrerId, months });

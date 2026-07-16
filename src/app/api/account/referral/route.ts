@@ -1,14 +1,15 @@
 /**
  * GET /api/account/referral
  * Retourne le code parrain du user + les filleuls + le crédit accumulé.
+ *
+ * Lot 52 (F14) : enrichi avec `loadReferralStats` + `loadReferralList`.
+ * Ajout du plafond max (12 mois cumulés) + liste des filleuls masquée.
  */
 
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { and, count, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
+import { loadReferralStats, loadReferralList } from "@/lib/referral-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -17,35 +18,30 @@ export async function GET() {
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 
-    // Compte total de filleuls (inscrits) + filleuls convertis (payants)
-    const [{ total }] = await db
-      .select({ total: count() })
-      .from(users)
-      .where(and(eq(users.referredBy, user.id), isNull(users.deletedAt)));
+    const [stats, list] = await Promise.all([
+      loadReferralStats(user.id),
+      // Lot 52 : on plafonne à 50 filleuls affichés (largement suffisant en v1)
+      loadReferralList(user.id, 50),
+    ]);
 
-    const [{ paid }] = await db
-      .select({ paid: count() })
-      .from(users)
-      .where(
-        and(
-          eq(users.referredBy, user.id),
-          isNull(users.deletedAt),
-          isNotNull(users.stripeSubscriptionId),
-          ne(users.subscription, "free")
-        )
-      );
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
 
     return NextResponse.json({
+      ok: true,
       referralCode: user.referralCode,
-      // URL de partage pré-formatée
-      shareUrl: user.referralCode
-        ? `${process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"}/register?ref=${user.referralCode}`
-        : null,
-      creditMonths: user.referralCreditMonths,
+      shareUrl: user.referralCode ? `${appUrl}/register?ref=${user.referralCode}` : null,
+      creditMonths: stats.creditMonths,
+      // Lot 52 : plafond exposé pour l'affichage "X mois sur 12 max"
+      maxCreditMonths: stats.maxCreditMonths,
+      atMaxCredit: stats.atMaxCredit,
       stats: {
-        totalReferred: Number(total),
-        paidReferred: Number(paid),
+        totalReferred: stats.totalReferred,
+        // Backward compat : l'ancien champ s'appelait `paidReferred`, on garde
+        paidReferred: stats.converted,
+        converted: stats.converted,
+        pending: stats.pending,
       },
+      referredList: list,
     });
   } catch (err) {
     return handleApiError(err, { route: "GET /api/account/referral" });

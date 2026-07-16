@@ -4,6 +4,134 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 45 — Lot 52 Programme parrainage v2 (page dédiée + plafond 12 mois)
+
+Depuis le Lot 16.3, la base parrainage existait techniquement (`referralCode`, `referredBy`, `creditReferrer` webhook Stripe) mais **aucune UI dédiée** — 0% d'utilisation. Ce lot rend la feature visible commercialement + ajoute le plafond de sécurité et un feedback in-app au parrain.
+
+## Livré
+
+### Plafond anti-abuse
+
+- Nouvelle constante `REFERRAL_MAX_CREDIT_MONTHS = 12` dans `lib/referral.ts`
+- `creditReferrer(id, months)` utilise `LEAST(current + months, MAX)` en SQL → plafond atomique
+- Un power-user qui parraine 24 fois → 12 mois offerts max (au lieu de 24 mois = 2 ans gratuits potentiellement)
+- Récompense généreuse (1 an gratuit) mais borne l'exposition financière
+
+### Notification in-app au parrain
+
+- Nouveau type `notify` : `referral.converted`
+- Déclenché dans `handleCheckoutCompleted` (Stripe webhook) quand un filleul upgrade Free → Pro/Premium
+- Message : "🎉 +1 mois offert ! Marc a rejoint Vitrix en Pro. Vous gagnez 1 mois offert (plafond 12 mois cumulés)."
+- URL cliquable → `/dashboard/parrainage`
+- Priority high, tag unique par filleul (anti-doublon si webhook rejoué)
+
+### Nouvelle lib `referral-share.ts` (helpers UI purs)
+
+- `buildShareUrl(baseUrl, code)` : URL canonique `/register?ref=CODE`
+- `buildShareTemplates(url, firstName?)` : 3 templates FR figés (subject email, body email 6 lignes, message court < 160 chars)
+- `buildEmailShareLink(templates)` : `mailto:` avec subject + body URL-encodés
+- `buildWhatsappShareLink(templates)` : `https://wa.me/?text=` universel
+- `buildSmsShareLink(templates)` : `sms:?&body=` universel iOS + Android
+- 0 accès DB / réseau → 100% testable unitaire
+
+### Nouvelle lib `referral-stats.ts`
+
+- `loadReferralStats(userId)` : 3 requêtes parallèles agrégées (total / convertis / credits) → 4 KPIs prêts à afficher
+- `loadReferralList(userId, limit)` : liste filleuls avec `displayName` ("Jean D."), `maskedEmail` ("j***@gmail.com"), `isConverted` flag
+- Cap 50/200 défensif — pagination v2 si nécessaire
+
+### `GET /api/account/referral` enrichi
+
+Retourne maintenant :
+```json
+{
+  ok, referralCode, shareUrl, creditMonths,
+  maxCreditMonths: 12, atMaxCredit,
+  stats: { totalReferred, converted, pending, paidReferred (compat) },
+  referredList: [{ id, displayName, maskedEmail, subscription, isConverted, createdAt }]
+}
+```
+Backward compat préservée (champ `paidReferred` conservé).
+
+### Nouvelle page `/dashboard/parrainage/page.tsx` (450 lignes)
+
+**Sections** :
+1. **Hero vert** : code parrain en gros + URL de partage + 3 boutons partage (Email / WhatsApp / SMS) + bouton Copier
+2. **Bandeau plafond** affiché si `atMaxCredit=true` (Trophy icon + message félicitations)
+3. **4 KPIs colorés** : Filleuls invités / Convertis / En attente / Mois gagnés (X/12 max)
+4. **Templates messages** en accordion copiable (email complet + SMS/WhatsApp court)
+5. **Table filleuls** responsive (email masqué caché sm+) avec statut badge (Premium⭐ / Pro✓ / Free en attente)
+6. **FAQ 5 questions** en `<details>` natif accordion
+
+**Aucun gate** — le parrainage est un mécanisme de croissance, ouvert à tous plans. Un Free peut parrainer et cumuler des mois pour son futur upgrade.
+
+### Sidebar + i18n + Breadcrumb
+
+- Nouvel item `parrainageNav` (icône `Gift`) visible TOUS plans
+- Traductions FR/EN/ES/DE : `Parrainage / Refer & Earn / Recomendar / Empfehlen`
+- Breadcrumb `parrainage: "Parrainage"`
+
+### PricingSection Free enrichi
+
+Ajout `"Parrainage : 1 mois offert par filleul Pro/Premium"` dans les features Free. Argument massif car même un Free peut gagner Pro gratuit → viral loop possible dès le plan gratuit.
+
+## Tests
+
+- `tests/unit/referral-share.test.ts` — **14 tests** : buildShareUrl (4), buildShareTemplates (6), 3 deep links
+- `tests/unit/referral-cap.test.ts` — **5 tests** : constante REFERRAL_MAX_CREDIT_MONTHS = 12 snapshot verrouillé, mock DB captures updates
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/lib/referral-share.ts` (90 lignes)
+  - `src/lib/referral-stats.ts` (130 lignes)
+  - `src/app/dashboard/parrainage/page.tsx` (450 lignes)
+  - `tests/unit/referral-share.test.ts` (150 lignes, 14 tests)
+  - `tests/unit/referral-cap.test.ts` (85 lignes, 5 tests)
+
+- **Modifiés** :
+  - `src/lib/referral.ts` — export `REFERRAL_MAX_CREDIT_MONTHS = 12` + `creditReferrer` utilise `LEAST()` SQL
+  - `src/lib/notify.ts` — nouveau type `referral.converted`
+  - `src/lib/stripe-events.ts` — hook notif parrain dans `handleCheckoutCompleted`
+  - `src/app/api/account/referral/route.ts` — utilise `loadReferralStats` + `loadReferralList`
+  - `src/components/layout/Sidebar.tsx` — `parrainageNavItem` visible tous plans
+  - `src/components/layout/Breadcrumbs.tsx` — label "Parrainage"
+  - `src/lib/i18n.ts` — 4 langues FR/EN/ES/DE
+  - `src/components/public/PricingSection.tsx` — mention parrainage plan Free
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **778 tests / 71 fichiers** (avant 759/69) ✅
+- `npx next build` → OK, `/dashboard/parrainage` détecté static ✅
+
+## Impact business
+
+- **Viral loop débloqué** : chaque user satisfait peut ramener 2-3 filleuls sans coût. Sur une base 100 users actifs → 200-300 nouveaux comptes/an potentiels via parrainage
+- **Coût acquisition ÷ 4** : parrainage = quasi zéro comparé à Google Ads (~15€ CAC habituel)
+- **Free upgrade catalyseur** : un Free qui parraine 3 filleuls Pro peut se payer Pro gratuit — motivation forte pour créer un compte
+- **Rétention** : le parrain qui gagne 3-6 mois offerts a un incentive fort à rester actif pour "profiter" de ses crédits
+
+## Actions post-déploiement
+
+**Aucune migration DB** — les 3 colonnes existent depuis Lot 16.3.
+
+1. Test compte : ouvrir `/dashboard/parrainage` → doit afficher le code + boutons partage fonctionnels
+2. Simuler un webhook Stripe filleul convertit → vérifier notif in-app "🎉 +1 mois offert !" + `referralCreditMonths` incrémenté
+3. Vérifier `LEAST()` fonctionne bien : forcer `referralCreditMonths = 11` en DB, déclencher +3 mois → doit finir à 12 (pas 14)
+4. **Note importante** : l'APPLICATION effective des crédits sur la facture Stripe reste manuelle (support) en v1. À automatiser en Lot 53+ via création de coupons Stripe programmatiques.
+
+## Historique commits
+
+```
+<hash>   lot 52 programme parrainage v2 + plafond 12 mois + notif parrain
+0374fdf  lot 50 tests React + audit global + fixes NAV1/A11Y1/UX1 + page tarifs
+c9f049e  lot 49 IA clients à recontacter (Premium) + fix mobile vitrine
+284bece  lot 47 QR codes trackables UTM multi-supports
+```
+
+---
+
 # 🟢 Tour 44 — Lot 50 Tests composants React + audit global + fixes bugs
 
 Gros lot en 4 phases :

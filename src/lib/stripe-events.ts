@@ -69,14 +69,27 @@ export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void
   // pas déjà un stripeSubscriptionId (= déjà converti). C'est plus safe.
   try {
     const [freshUser] = await db
-      .select({ referredBy: users.referredBy })
+      .select({ referredBy: users.referredBy, firstName: users.firstName })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
     if (freshUser?.referredBy) {
       // Import dynamique pour éviter dépendance circulaire potentielle
-      const { creditReferrer } = await import("@/lib/referral");
+      const { creditReferrer, REFERRAL_MAX_CREDIT_MONTHS } = await import("@/lib/referral");
       await creditReferrer(freshUser.referredBy, 1);
+
+      // Lot 52 (F14) : notif in-app au parrain — feedback positif immédiat.
+      // Fire-and-forget, ne peut jamais faire échouer le webhook.
+      const filleulName = freshUser.firstName?.trim() || "Un nouvel utilisateur";
+      notifyAsync({
+        userId: freshUser.referredBy,
+        type: "referral.converted",
+        title: "🎉 +1 mois offert !",
+        message: `${filleulName} a rejoint Vitrix en ${plan.charAt(0).toUpperCase() + plan.slice(1)}. Vous gagnez 1 mois offert (plafond ${REFERRAL_MAX_CREDIT_MONTHS} mois cumulés).`,
+        url: "/dashboard/parrainage",
+        priority: "high",
+        tag: `referral-${userId}`,
+      });
     }
   } catch (err) {
     // Ne jamais faire échouer le webhook Stripe pour un problème de parrainage

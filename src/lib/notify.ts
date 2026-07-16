@@ -40,6 +40,7 @@ export type NotifType =
   | "deposit.refunded"
   | "invoice.overdue"
   | "invoice.generated" // Lot 42 (F9) : facture auto-générée post-signature devis
+  | "referral.converted" // Lot 52 (F14) : filleul converti Pro/Premium → parrain crédité +1 mois
   // Devis
   | "quote.received"
   | "quote.accepted"

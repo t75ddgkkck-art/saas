@@ -20,6 +20,8 @@ const PLANS = [
       "1 QR code trackable imprimable",
       "3 articles de blog SEO",
       "FAQ personnalisable",
+      // Lot 52 : parrainage TOUS plans — argument fort pour Free
+      "Parrainage : 1 mois offert par filleul Pro/Premium",
     ],
     cta: "Commencer gratuitement",
     highlight: false,

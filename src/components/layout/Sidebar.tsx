@@ -20,6 +20,7 @@ import {
   Users,
   Sun,
   Sparkles,
+  Gift,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
@@ -56,6 +57,13 @@ const reactivationNavItem = {
   labelKey: "reactivationNav",
   icon: Sparkles,
 };
+// F14 (Lot 52) : parrainage — visible TOUS plans (Free peut parrainer aussi).
+// C'est un mécanisme de croissance qui doit être ouvert pour maximiser le viral loop.
+const parrainageNavItem = {
+  href: "/dashboard/parrainage",
+  labelKey: "parrainageNav",
+  icon: Gift,
+};
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -81,6 +89,8 @@ export function Sidebar() {
   // Le gate strict IA est appliqué au CTA "Générer messages IA" dans la page.
   // Rendre visible pour tous serait confusant côté Free (peu de clients dormants).
   if (showTeam) insertBeforeSettings(reactivationNavItem);
+  // F14 (Lot 52) : Parrainage TOUS plans — un Free doit pouvoir parrainer pour gagner Pro gratuit
+  insertBeforeSettings(parrainageNavItem);
 
   // Lot 13 : entrée admin uniquement pour les users role=admin
   if (user?.role === "admin") {

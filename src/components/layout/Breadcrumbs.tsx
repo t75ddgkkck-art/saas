@@ -29,6 +29,7 @@ const LABELS: Record<string, string> = {
   quotes: "Devis",
   invoices: "Factures",
   reactivation: "À recontacter",
+  parrainage: "Parrainage",
   clients: "Clients",
   payments: "Paiements",
   blog: "Blog",
