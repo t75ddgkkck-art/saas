@@ -197,8 +197,10 @@ export default function Home() {
                 {
                   icon: FileText,
                   title: "Devis professionnels",
+                  // Lot 45 : mention IA + signature (F8+F9) — ce sont les 2 gros
+                  // arguments de vente du module devis. Court, punchy, non exhaustif.
                   description:
-                    "Créez et envoyez des devis en quelques clics. Signature électronique, suivi et relances automatiques.",
+                    "Générez des devis chiffrés avec l'IA en 1 phrase, signature électronique, facture auto à la signature, relances incluses.",
                 },
                 {
                   icon: CreditCard,

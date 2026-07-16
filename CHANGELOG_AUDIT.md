@@ -4,6 +4,165 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 40 — Lot 45 UI "Générer devis IA" + mise en avant Premium
+
+**Point P6 audit V5** résolu : la génération de devis par IA existait côté serveur depuis le Lot 38 mais n'avait AUCUN point d'entrée UI. Feature morte, ~0% d'utilisation. Ce lot rend la feature découvrable et gate strictement Premium.
+
+## Contexte
+
+Depuis le Lot 38 (F8) :
+- `POST /api/quotes/ai-generate` (route existe, testée, gate `quotes.ai_generation` Premium)
+- Prompt système avec prix médians marché FR intégrés
+- Tracking tokens via `recordAiUsage` + quotas mensuels
+
+Manquait : le pro ne voyait aucune trace de cette feature dans la UI dashboard. Feature payée en R&D mais invisible.
+
+## Livré
+
+### `src/components/quotes/AiGenerateModal.tsx` (nouvelle modal, 275 lignes)
+
+Composant réutilisable **auto-gaté** :
+
+```tsx
+<Modal>
+  <UpgradeGate feature="quotes.ai_generation" mode="card">
+    <AiGenerateForm ... />
+  </UpgradeGate>
+</Modal>
+```
+
+- **Free / Pro** → voient un CTA "Passer Premium" avec redirect vers /#pricing
+- **Premium** → voient le vrai formulaire
+
+Le formulaire a 2 étapes :
+
+**Étape 1 — Saisie**
+- Textarea "Décrivez le chantier" (placeholder concret rénovation SDB)
+- Input titre optionnel
+- Radio "Remplacer / Ajouter à la suite" (visible SI le pro a déjà tapé des lignes)
+  - Défaut smart : `replace` si 0 ligne, `append` si ≥1 (moins destructif)
+- Bouton "Générer avec l'IA" (disabled si < 10 chars, loading state pendant l'appel)
+
+**Étape 2 — Preview**
+- Warning IA en bandeau ambre si présent (ex: "Prix indicatifs, ajustez selon vos marges")
+- Liste des lignes proposées avec qté × prix unit = total
+- Notes IA en encart séparé
+- Délai estimé mentionné
+- Compteur tokens utilisés (transparence)
+- 3 CTAs : "← Modifier la description" (retour étape 1), "Annuler", "Utiliser ces lignes"
+
+### Intégration dashboard/quotes/page.tsx
+
+**Nouveau bouton principal en header** (à côté de "Nouveau devis") :
+
+```tsx
+<Button variant="secondary" onClick={() => setShowAiModal(true)}>
+  <Sparkles /> Générer avec l'IA
+</Button>
+```
+
+Variant `secondary` volontaire — le workflow classique reste central, l'IA est un raccourci.
+
+**Raccourci secondaire dans la modal création** (à côté du "+ Ajouter une ligne") :
+
+```tsx
+<Button variant="ghost" size="sm" onClick={() => setShowAiModal(true)}>
+  <Sparkles /> IA
+</Button>
+```
+
+Utile quand le pro est en train de rédiger et se dit "en fait je veux que l'IA fasse le gros du travail".
+
+### Handler `applyAiGenerated(result, mode)` (page.tsx)
+
+- Convertit `AiGeneratedItem` (`unit_price`) → `NewQuoteItem` (`unitPrice`)
+- Append du unit dans la description (`"Pose carrelage"` → `"Pose carrelage (m²)"`) pour visibilité
+- `mode = replace` : écrase les lignes (fallback ligne vide si IA renvoie 0 items — évite le crash form)
+- `mode = append` : ajoute à la suite ET filtre les lignes existantes vides (évite les "trous")
+- **Titre** : ne remplace QUE si vide (protège le user qui a déjà tapé)
+- **Description** : fusion via `mergeDescription()` — priorité au texte du pro, notes IA appendées avec séparateur
+- **Acompte** : jamais touché (décision commerciale du pro seul)
+- Ouvre automatiquement la modal création si pas déjà ouverte → le pro atterrit sur le form pré-rempli
+
+### PricingSection — mention explicite
+
+```diff
+  Premium features:
+    "Assistant IA 24/7",
++   "Génération de devis par IA (prix marché intégrés)",
+    "Programme de fidélité clients",
+```
+
+Positionné juste après l'Assistant IA — cohérence conceptuelle, mise en évidence commerciale.
+
+### Landing page.tsx — feature card enrichie
+
+Card "Devis professionnels" mise à jour :
+
+```diff
+- "Créez et envoyez des devis en quelques clics. Signature électronique,
+-  suivi et relances automatiques."
++ "Générez des devis chiffrés avec l'IA en 1 phrase, signature électronique,
++  facture auto à la signature, relances incluses."
+```
+
+Reflète maintenant F8 (Lot 38) + F9 (Lot 42) + Lot 45 dans la description commerciale visible dès la landing.
+
+## Tests
+
+`tests/unit/ai-quote-modal-logic.test.ts` — **14 tests** sur les helpers pures :
+
+- `mergeDescription` : 5 tests (vide + notes, rempli + null, fusion propre, whitespace, cas vide/vide)
+- `mapAiItemsToForm` : 4 tests (mapping unit_price → unitPrice, suffixe unit, sans unit, liste vide)
+- `computeFormItems - replace` : 2 tests (écrasement OK, fallback ligne vide si 0 IA)
+- `computeFormItems - append` : 3 tests (append basique, filtre lignes vides, garde ligne avec prix)
+
+Note : la modal React elle-même n'est pas testée (P2 audit V5, nécessite `@testing-library/react`).
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/components/quotes/AiGenerateModal.tsx` (275 lignes)
+  - `tests/unit/ai-quote-modal-logic.test.ts` (200 lignes, 14 tests)
+
+- **Modifiés** :
+  - `src/app/dashboard/quotes/page.tsx` — 2 boutons IA + handler `applyAiGenerated` + helper `mergeDescription`
+  - `src/components/public/PricingSection.tsx` — feature Premium ajoutée
+  - `src/app/page.tsx` — description card "Devis professionnels" enrichie
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **646 tests / 59 fichiers** (avant 632/58) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Feature Premium enfin visible** = argument commercial concret Pro → Premium (+€50/mois de MRR potentiel par upgrade)
+- **Temps devis divisé par ~3** : 10-15 min saisie manuelle → 2-3 min (1 phrase + revue). Gros gain UX pour l'artisan pressé
+- **Différenciation vs concurrents** : Batappli, Codial, Habitatpresto ne font pas ça → argument sales fort
+- **Zéro coût côté Free** : la modal montre juste un CTA upgrade, pas d'appel OpenAI parasite
+
+## Actions post-déploiement
+
+Aucune migration DB. Aucune config nouvelle requise.
+
+**Vérifications** :
+1. `OPENAI_API_KEY` doit être présent en env (existant depuis Lot 10)
+2. Test avec un compte Premium : bouton "Générer avec l'IA" → modal → "Rénovation salle de bain 5m²" → doit renvoyer des lignes chiffrées en 5-10s
+3. Test avec un compte Free/Pro : bouton visible mais clic → CTA upgrade Premium au lieu de la modal
+
+## Historique commits
+
+```
+<hash>   lot 45 UI générer devis IA + mise en avant premium pricing
+b6d8eb9  lot 43 acompte stripe à la signature devis (fusion F2+F8) + facture acompte
+4022bce  lot 42 factures auto post-signature devis + fix build traces windows
+ce49dea  lot 41 landing mobile SE + fix vercel: hero refactor
+```
+
+---
+
 # 🟢 Tour 39 — Lot 43 Acompte Stripe à la signature devis (fusion F2 + F8)
 
 **Idée G de l'audit V5** implémentée : le client SIGNE et PAIE l'acompte en un seul flow.

@@ -22,7 +22,12 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { PageTitle } from "@/components/layout/PageTitle";
-import { FileText, Plus, Eye, Download, Trash2 } from "lucide-react";
+import { FileText, Plus, Eye, Download, Trash2, Sparkles } from "lucide-react";
+// Lot 45 : modal IA de génération de lignes de devis.
+// Elle embarque son propre <UpgradeGate feature="quotes.ai_generation"> :
+// - Free/Pro voient un CTA Premium
+// - Premium voient le formulaire
+import { AiGenerateModal, type AiGenerateResult } from "@/components/quotes/AiGenerateModal";
 import { formatPrice } from "@/lib/utils";
 
 // Types miroir de la réponse GET /api/quotes
@@ -62,10 +67,24 @@ interface NewQuoteItem {
 
 const EMPTY_ITEM: NewQuoteItem = { description: "", quantity: 1, unitPrice: 0 };
 
+/**
+ * Lot 45 : fusion prudente de la description existante avec les notes IA.
+ * Priorité au texte du pro. Les notes IA sont juste appended en séparateur.
+ */
+function mergeDescription(existing: string, aiNotes: string | null): string {
+  const trimmed = existing.trim();
+  if (!aiNotes) return existing;
+  if (!trimmed) return aiNotes;
+  return `${trimmed}\n\n---\n${aiNotes}`;
+}
+
 export default function QuotesPage() {
   const [quotes, setQuotes] = useState<QuoteRow[] | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Lot 45 : modal IA — indépendante de la modal création (peut être ouverte
+  // par-dessus pour "boost" un devis en cours de rédaction).
+  const [showAiModal, setShowAiModal] = useState(false);
   const toast = useToast();
 
   // Form state (création)
@@ -117,6 +136,49 @@ export default function QuotesPage() {
       form.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0),
     [form.items]
   );
+
+  /**
+   * Lot 45 : injecte le résultat IA dans le form courant.
+   *
+   * - `mode = "replace"` → écrase les lignes existantes (ainsi que le titre si vide)
+   * - `mode = "append"` → ajoute à la suite, garde les lignes actuelles
+   *
+   * Les notes IA sont MERGED : si le pro a déjà mis une description, on la
+   * conserve et on ajoute les notes IA en dessous. Sinon on les met direct.
+   * Le montant d'acompte n'est PAS touché (décision commerciale du pro).
+   */
+  function applyAiGenerated(result: AiGenerateResult, mode: "replace" | "append") {
+    setForm((prev) => {
+      // Convertit AiGeneratedItem → NewQuoteItem (nom de champ diff : unit_price → unitPrice)
+      const newItems: NewQuoteItem[] = result.items.map((it) => ({
+        description: it.description + (it.unit ? ` (${it.unit})` : ""),
+        quantity: it.quantity,
+        unitPrice: it.unit_price,
+      }));
+
+      const items =
+        mode === "replace"
+          ? newItems.length > 0
+            ? newItems
+            : [{ ...EMPTY_ITEM }] // safety : au moins 1 ligne vide sinon le form casse
+          : [
+              // Filtre les lignes vides existantes avant append (évite les "trous")
+              ...prev.items.filter((it) => it.description.trim() || it.unitPrice > 0),
+              ...newItems,
+            ];
+
+      return {
+        ...prev,
+        // Titre : ne remplace QUE si vide (protège le user qui a déjà tapé)
+        title: prev.title.trim() || result.title,
+        description: mergeDescription(prev.description, result.notes),
+        items,
+      };
+    });
+    // Ouvre la modal création si elle ne l'est pas déjà (cas où le user
+    // a cliqué directement sur "Générer IA" depuis la page liste)
+    setShowNewModal(true);
+  }
 
   async function createQuote() {
     // Validation client avant de spammer l'API
@@ -189,10 +251,20 @@ export default function QuotesPage() {
             Créez et gérez vos devis professionnels
           </p>
         </div>
-        <Button onClick={() => setShowNewModal(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouveau devis
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {/* Lot 45 : entrée directe IA — la modal gère elle-même le gate Premium.
+              Visible pour tous, le CTA Premium apparaît dans la modal si besoin.
+              Icône Sparkles + variant secondary pour ne pas voler la vedette au
+              bouton principal "Nouveau devis" (workflow classique reste central). */}
+          <Button variant="secondary" onClick={() => setShowAiModal(true)}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            Générer avec l&apos;IA
+          </Button>
+          <Button onClick={() => setShowNewModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouveau devis
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -348,13 +420,21 @@ export default function QuotesPage() {
               <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Lignes du devis
               </h4>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setForm({ ...form, items: [...form.items, { ...EMPTY_ITEM }] })}
-              >
-                <Plus className="mr-1 h-3 w-3" /> Ajouter
-              </Button>
+              <div className="flex gap-1">
+                {/* Lot 45 : raccourci IA depuis l'intérieur de la modal création
+                    → utile quand le pro est en train de rédiger et se dit
+                    "en fait je veux que l'IA fasse le gros du travail". */}
+                <Button variant="ghost" size="sm" onClick={() => setShowAiModal(true)}>
+                  <Sparkles className="mr-1 h-3 w-3" /> IA
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setForm({ ...form, items: [...form.items, { ...EMPTY_ITEM }] })}
+                >
+                  <Plus className="mr-1 h-3 w-3" /> Ajouter
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               {form.items.map((item, i) => (
@@ -461,6 +541,17 @@ export default function QuotesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Lot 45 : Modal génération IA — indépendante, mais son callback
+          onGenerated ouvre AUSSI la modal création (setShowNewModal(true))
+          pour que le pro atterrisse directement sur le form pré-rempli.
+          Le gate Premium est géré à l'intérieur du composant. */}
+      <AiGenerateModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        onGenerated={applyAiGenerated}
+        existingItemsCount={form.items.filter((it) => it.description.trim().length > 0).length}
+      />
     </div>
   );
 }

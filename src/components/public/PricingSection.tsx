@@ -52,6 +52,9 @@ const PLANS = [
     features: [
       "Tout du Pro",
       "Assistant IA 24/7",
+      // Lot 45 : mise en avant explicite de la génération IA de devis.
+      // C'est LA feature Premium avec le meilleur wow-effect démo commerciale.
+      "Génération de devis par IA (prix marché intégrés)",
       "Programme de fidélité clients",
       "Marque blanche (sans logo Vitrix)",
       "7 templates dont 3 exclusifs",
