@@ -136,6 +136,14 @@ export const users = pgTable(
     // pour éviter les problèmes de suppression cascade en cas de business supprimé
     // (on nettoie via SET NULL depuis le trigger cascade côté businesses).
     activeBusinessId: uuid("active_business_id"),
+    // Lot 53 (F15) : opt-in au digest email hebdomadaire.
+    // Défaut TRUE = tous les users nouveaux le reçoivent (opt-out visible dans /dashboard/settings).
+    // Les users historiques (colonne null) sont considérés opt-in via un default SQL.
+    // Un opt-out ici évite AUSSI le prochain envoi via le check dans le cron.
+    weeklyDigestEnabled: boolean("weekly_digest_enabled").default(true).notNull(),
+    // Lot 53 : timestamp du dernier digest envoyé — anti-doublon si le cron est
+    // rejoué manuellement, et permet de tracker le pattern d'engagement.
+    weeklyDigestSentAt: timestamp("weekly_digest_sent_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

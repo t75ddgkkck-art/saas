@@ -23,6 +23,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   reminders: "rappels de rendez-vous et de devis",
   "review-request": "demandes d'avis",
   marketing: "newsletters et communications commerciales",
+  // Lot 53 : catégorie dédiée pour l'opt-out du digest hebdomadaire
+  "weekly-digest": "récap hebdomadaire d'activité",
   all: "tous les emails (sauf confirmations obligatoires)",
 };
 

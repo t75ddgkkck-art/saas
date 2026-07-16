@@ -14,6 +14,8 @@ import { Bell, Moon, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { PushSubscribeButton } from "@/components/notifications/PushSubscribeButton";
+// Lot 53 (F15) : toggle opt-in du digest email hebdomadaire.
+import { WeeklyDigestToggle } from "@/components/settings/WeeklyDigestToggle";
 
 // Liste UI-friendly des types notifs (aligné avec `src/lib/notify.ts`)
 // Grouped par domaine pour la lisibilité.
@@ -111,6 +113,10 @@ export function NotificationsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Lot 53 : digest hebdomadaire — placé en tête car c'est le paramètre
+          "email" le plus visible/impactant pour l'user. */}
+      <WeeklyDigestToggle />
+
       {/* Bloc 1 : Push OS */}
       <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2">

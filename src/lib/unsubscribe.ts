@@ -16,7 +16,13 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 
-export type EmailCategory = "transactional" | "reminders" | "review-request" | "marketing" | "all";
+export type EmailCategory =
+  | "transactional"
+  | "reminders"
+  | "review-request"
+  | "marketing"
+  | "weekly-digest" // Lot 53 : opt-out spécifique digest hebdo (indépendant de "marketing")
+  | "all";
 
 const TOKEN_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000; // 1 an
 
@@ -78,7 +84,14 @@ export function verifyUnsubscribeToken(
 }
 
 export function isValidCategory(c: string): c is EmailCategory {
-  return ["transactional", "reminders", "review-request", "marketing", "all"].includes(c);
+  return [
+    "transactional",
+    "reminders",
+    "review-request",
+    "marketing",
+    "weekly-digest",
+    "all",
+  ].includes(c);
 }
 
 /**

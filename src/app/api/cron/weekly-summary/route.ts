@@ -1,17 +1,59 @@
+/**
+ * Lot 53 (F15) — Cron digest hebdomadaire (refonte complète).
+ *
+ * Avant (Lot 18 initial) : template daté, réservé Pro/Premium, pas d'opt-out,
+ * pas d'action items, pas de segmentation. Résultat : email vu comme spam.
+ *
+ * Après :
+ *  - Envoi à TOUS les plans (Free compris — anti-churn essentiel)
+ *  - Segmentation 4 tons : power / active / quiet / dormant
+ *  - Action items cliquables : devis à relancer, avis à répondre, RDV demain
+ *  - Opt-out RGPD-compliant via lien List-Unsubscribe RFC 8058
+ *  - Anti-doublon via `users.weekly_digest_sent_at`
+ *  - Skip si "quiet + zéro action" (évite email inutile)
+ *  - Skip si "dormant" mais réactivation récente < 30j (double email prévenu)
+ *  - Update `weekly_digest_sent_at` en fin d'envoi
+ *
+ * Programmation : `vercel.json` → dimanche 18h Europe/Paris.
+ * Auth : `Authorization: Bearer <CRON_SECRET>` (Vercel) ou `x-cron-secret` (manuel).
+ *
+ * Ressources : le cron parcourt tous les businesses. Sur une base 10K users
+ * ça prend ~10-20s. Si ça devient un problème → batch async par blocs.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
+import { and, count, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { handleApiError } from "@/lib/api-error";
 import { db } from "@/db";
-import { users, businesses, appointments, quotes, payments, pageVisits } from "@/db/schema";
-import { eq, and, gte } from "drizzle-orm";
-import { sendEmail } from "@/lib/email";
+import {
+  users,
+  businesses,
+  appointments,
+  quotes,
+  payments,
+  pageVisits,
+  reviews,
+  invoices,
+} from "@/db/schema";
+import { sendEmailRaw } from "@/lib/email-core";
+import { isEmailOptedOut } from "@/lib/email-optout-check";
+import { buildUnsubscribeUrl, buildListUnsubscribeHeaders } from "@/lib/unsubscribe";
+import { logger } from "@/lib/logger";
+import {
+  computeDigestSegment,
+  computeActionItems,
+  shouldSendDigest,
+  buildDigestHtml,
+  buildDigestSubject,
+  type WeekStats,
+} from "@/lib/weekly-digest";
 
 export const dynamic = "force-dynamic";
 
-// Cron hebdomadaire (dimanche soir) : récap de la semaine par email pour les pros Pro/Premium
-// Configurer sur Vercel : vercel.json crons ou appel externe avec x-cron-secret
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
 
 async function handler(request: NextRequest) {
-  // Accepte le header Vercel Cron (Authorization: Bearer) OU x-cron-secret (appels manuels)
+  // Auth cron : Bearer (Vercel Cron) ou header custom (manuel)
   const authHeader = request.headers.get("authorization");
   const cronSecret = request.headers.get("x-cron-secret");
   if (process.env.CRON_SECRET) {
@@ -23,69 +65,246 @@ async function handler(request: NextRequest) {
   }
 
   try {
-    const weekAgo = new Date();
+    const now = new Date();
+    const weekAgo = new Date(now);
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoStr = weekAgo.toISOString().split("T")[0];
+    const weekAgoStr = weekAgo.toISOString().slice(0, 10);
 
-    const allBusinesses = await db.select().from(businesses);
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+    // Charge tous les businesses (jointure owner pour digest + opt-in)
+    const rows = await db
+      .select({
+        bizId: businesses.id,
+        bizName: businesses.name,
+        ownerId: users.id,
+        ownerEmail: users.email,
+        ownerFirstName: users.firstName,
+        ownerLastLoginAt: users.lastLoginAt,
+        ownerWeeklyDigestEnabled: users.weeklyDigestEnabled,
+        ownerWeeklyDigestSentAt: users.weeklyDigestSentAt,
+        ownerReactivationSentAt: users.reactivationEmailAt,
+      })
+      .from(businesses)
+      .innerJoin(users, eq(businesses.ownerId, users.id))
+      .where(and(isNull(users.deletedAt), isNull(users.bannedAt), isNotNull(users.email)));
+
     let sent = 0;
+    let skipped = 0;
+    const skipReasons: Record<string, number> = {};
 
-    for (const biz of allBusinesses) {
-      const owner = await db.select().from(users).where(eq(users.id, biz.ownerId)).limit(1);
-      if (!owner.length || !owner[0].email) continue;
-      // Récap réservé aux plans payants
-      if (owner[0].subscription === "free") continue;
+    for (const row of rows) {
+      if (!row.ownerEmail) continue;
 
-      const [apts, qts, pmts, visits] = await Promise.all([
+      // 1) Check DB opt-in
+      if (!row.ownerWeeklyDigestEnabled) {
+        skipped++;
+        skipReasons["opted_out_db"] = (skipReasons["opted_out_db"] ?? 0) + 1;
+        continue;
+      }
+
+      // 2) Check email_optouts (opt-out via lien email — RGPD)
+      const optedOut = await isEmailOptedOut(row.ownerEmail, "weekly-digest");
+      const optedOutAll = await isEmailOptedOut(row.ownerEmail, "all");
+      if (optedOut || optedOutAll) {
+        skipped++;
+        skipReasons["opted_out_email"] = (skipReasons["opted_out_email"] ?? 0) + 1;
+        continue;
+      }
+
+      // 3) Charge les stats en parallèle
+      const [
+        visitsRow,
+        apptRow,
+        quotesRow,
+        paymentsRow,
+        reviewsRow,
+        // Action items — devis en attente signature > 3j
+        awaitingSigRow,
+        // Avis négatifs non répondus (rating <= 2, semaine passée)
+        negReviewsRow,
+        // RDV demain non annulés
+        apptTomorrowRow,
+        // Factures en retard
+        overdueRow,
+      ] = await Promise.all([
         db
-          .select()
-          .from(appointments)
-          .where(and(eq(appointments.businessId, biz.id), gte(appointments.createdAt, weekAgo))),
-        db
-          .select()
-          .from(quotes)
-          .where(and(eq(quotes.businessId, biz.id), gte(quotes.createdAt, weekAgo))),
-        db
-          .select()
-          .from(payments)
-          .where(and(eq(payments.businessId, biz.id), gte(payments.createdAt, weekAgo))),
-        db
-          .select()
+          .select({ n: count() })
           .from(pageVisits)
-          .where(and(eq(pageVisits.businessId, biz.id), gte(pageVisits.date, weekAgoStr))),
+          .where(and(eq(pageVisits.businessId, row.bizId), gte(pageVisits.date, weekAgoStr))),
+        db
+          .select({ n: count() })
+          .from(appointments)
+          .where(and(eq(appointments.businessId, row.bizId), gte(appointments.createdAt, weekAgo))),
+        db
+          .select({ n: count() })
+          .from(quotes)
+          .where(
+            and(
+              eq(quotes.businessId, row.bizId),
+              gte(quotes.createdAt, weekAgo),
+              isNull(quotes.deletedAt)
+            )
+          ),
+        db
+          .select({
+            n: count(),
+            sum: sql<string>`coalesce(sum(amount), '0')`,
+          })
+          .from(payments)
+          .where(
+            and(
+              eq(payments.businessId, row.bizId),
+              gte(payments.createdAt, weekAgo),
+              eq(payments.status, "completed")
+            )
+          ),
+        db
+          .select({ n: count() })
+          .from(reviews)
+          .where(and(eq(reviews.businessId, row.bizId), gte(reviews.createdAt, weekAgo))),
+        // Devis "sent" > 3j sans signature
+        db
+          .select({ n: count() })
+          .from(quotes)
+          .where(
+            and(
+              eq(quotes.businessId, row.bizId),
+              eq(quotes.status, "sent"),
+              isNull(quotes.deletedAt),
+              lt(quotes.updatedAt, new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000))
+            )
+          ),
+        // Avis 1-2 étoiles cette semaine (proxy "non répondu" — on n'a pas de flag replied)
+        db
+          .select({ n: count() })
+          .from(reviews)
+          .where(
+            and(
+              eq(reviews.businessId, row.bizId),
+              gte(reviews.createdAt, weekAgo),
+              lte(reviews.rating, 2)
+            )
+          ),
+        // RDV demain non cancelled
+        db
+          .select({ n: count() })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.businessId, row.bizId),
+              eq(appointments.date, tomorrowStr),
+              isNull(appointments.deletedAt)
+            )
+          ),
+        // Factures issued avec due_date < today (impayées en retard)
+        db
+          .select({ n: count() })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.businessId, row.bizId),
+              eq(invoices.status, "issued"),
+              isNull(invoices.deletedAt),
+              lt(invoices.dueDate, now.toISOString().slice(0, 10))
+            )
+          ),
       ]);
 
-      const revenue = pmts
-        .filter((p) => p.status === "completed")
-        .reduce((s, p) => s + parseFloat(p.amount), 0);
+      // 4) Segmente le user
+      const weeksSinceActivity = row.ownerLastLoginAt
+        ? Math.floor((now.getTime() - row.ownerLastLoginAt.getTime()) / (1000 * 60 * 60 * 24 * 7))
+        : 4; // Si aucun login connu → considère dormant
 
-      // Ne pas spammer si aucune activité
-      if (apts.length === 0 && qts.length === 0 && visits.length === 0) continue;
+      const stats: WeekStats = {
+        visitors: Number(visitsRow[0]?.n ?? 0),
+        appointments: Number(apptRow[0]?.n ?? 0),
+        quotes: Number(quotesRow[0]?.n ?? 0),
+        reviews: Number(reviewsRow[0]?.n ?? 0),
+        revenueEur: parseFloat(paymentsRow[0]?.sum ?? "0"),
+        weeksSinceActivity,
+      };
+      const segment = computeDigestSegment(stats);
 
-      await sendEmail({
-        to: owner[0].email,
-        subject: `📊 Votre semaine chez ${biz.name} — ${visits.length} visites, ${apts.length} RDV`,
-        html: `
-          <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-            <h1 style="color: #0f172a; font-size: 22px;">Votre récap de la semaine 📊</h1>
-            <p style="color: #64748b;">Bonjour ${owner[0].firstName}, voici l'activité de <strong>${biz.name}</strong> ces 7 derniers jours.</p>
-            <div style="display: block; background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0;">
-              <table style="width: 100%; font-size: 15px; color: #334155;">
-                <tr><td style="padding: 8px 0;">👀 Visites de votre vitrine</td><td style="text-align: right; font-weight: 700;">${visits.length}</td></tr>
-                <tr><td style="padding: 8px 0;">📅 Nouveaux rendez-vous</td><td style="text-align: right; font-weight: 700;">${apts.length}</td></tr>
-                <tr><td style="padding: 8px 0;">📋 Demandes de devis</td><td style="text-align: right; font-weight: 700;">${qts.length}</td></tr>
-                <tr><td style="padding: 8px 0;">💰 Encaissements</td><td style="text-align: right; font-weight: 700;">${revenue.toFixed(2)} €</td></tr>
-              </table>
-            </div>
-            <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr"}/dashboard" style="display: inline-block; background: #0f172a; color: white; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: 600;">Voir mon tableau de bord</a>
-            <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">Vitrix — Visibilité & clients pour artisans</p>
-          </div>
-        `,
+      const actionItems = computeActionItems({
+        quotesAwaitingSignature: Number(awaitingSigRow[0]?.n ?? 0),
+        negativeReviewsUnreplied: Number(negReviewsRow[0]?.n ?? 0),
+        appointmentsTomorrow: Number(apptTomorrowRow[0]?.n ?? 0),
+        invoicesOverdue: Number(overdueRow[0]?.n ?? 0),
       });
-      sent++;
+
+      // 5) Décide si on envoie
+      const decision = shouldSendDigest({
+        optIn: true, // déjà vérifié ci-dessus, on force à true pour éviter la double-vérif
+        lastDigestSentAt: row.ownerWeeklyDigestSentAt,
+        lastReactivationSentAt: row.ownerReactivationSentAt,
+        segment,
+        actionItemsCount: actionItems.length,
+        now,
+      });
+
+      if (!decision.send) {
+        skipped++;
+        skipReasons[decision.reason] = (skipReasons[decision.reason] ?? 0) + 1;
+        continue;
+      }
+
+      // 6) Build + send
+      const unsubscribeUrl = buildUnsubscribeUrl(row.ownerEmail, "weekly-digest", APP_URL);
+      const html = buildDigestHtml({
+        firstName: row.ownerFirstName ?? "",
+        businessName: row.bizName,
+        segment,
+        stats,
+        actionItems,
+        appUrl: APP_URL,
+        unsubscribeUrl,
+      });
+      const subject = buildDigestSubject(segment, stats, row.bizName);
+
+      const emailRes = await sendEmailRaw({
+        to: row.ownerEmail,
+        subject,
+        html,
+        headers: {
+          // RFC 8058 : bouton natif "Se désabonner" Gmail/Outlook
+          ...buildListUnsubscribeHeaders(row.ownerEmail, "weekly-digest", APP_URL),
+        },
+      });
+
+      if (emailRes.success) {
+        sent++;
+        // Update flag anti-doublon
+        await db
+          .update(users)
+          .set({ weeklyDigestSentAt: now, updatedAt: now })
+          .where(eq(users.id, row.ownerId));
+      } else {
+        skipped++;
+        skipReasons["email_failed"] = (skipReasons["email_failed"] ?? 0) + 1;
+        logger.warn("weekly-digest.send_failed", {
+          userId: row.ownerId,
+          error: emailRes.error,
+        });
+      }
     }
 
-    return NextResponse.json({ success: true, summariesSent: sent });
+    logger.info("weekly-digest.batch_done", {
+      total: rows.length,
+      sent,
+      skipped,
+      skipReasons,
+    });
+
+    return NextResponse.json({
+      success: true,
+      total: rows.length,
+      sent,
+      skipped,
+      skipReasons,
+    });
   } catch (err) {
     return handleApiError(err, { route: "/api/cron/weekly-summary" });
   }

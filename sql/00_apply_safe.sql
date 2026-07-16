@@ -1215,6 +1215,26 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4vicesimus. Lot 53 (F15) — Digest email hebdomadaire
+-- -----------------------------------------------------------------------------
+-- Ajoute 2 colonnes à `users` :
+--   - `weekly_digest_enabled` : opt-in défaut TRUE (RGPD ok car ce n'est pas
+--     du marketing pur — c'est un récap d'activité DE L'USER, pas de la promo)
+--   - `weekly_digest_sent_at` : anti-doublon si le cron est déclenché plusieurs
+--     fois dans la même semaine (bug op ou test manuel)
+--
+-- Les users existants (colonne NULL) sont considérés opt-in via le DEFAULT SQL.
+-- Un opt-out via /dashboard/settings met le bool à FALSE, respecté par le cron.
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('users') THEN
+    ALTER TABLE public.users
+      ADD COLUMN IF NOT EXISTS weekly_digest_enabled boolean DEFAULT true NOT NULL,
+      ADD COLUMN IF NOT EXISTS weekly_digest_sent_at timestamp;
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN
