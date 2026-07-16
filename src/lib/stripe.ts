@@ -147,6 +147,79 @@ export async function createDepositCheckoutSession(params: {
 }
 
 /**
+ * Lot 43 (F2+F8 fusion) — Session Checkout pour l'acompte à la signature du devis.
+ *
+ * Différences avec `createDepositCheckoutSession` (booking) :
+ *  - metadata.type = "quote_deposit" (vs "booking_deposit") → router distinct côté webhook
+ *  - lie `quoteId` (vs `appointmentId`)
+ *  - product_data.name mentionne le numéro du devis (vs le nom du service)
+ *
+ * On garde intentionnellement 2 fonctions distinctes pour :
+ *  - Isolation : un changement sur booking ne casse pas quote (et inverse)
+ *  - Lisibilité webhook : le switch metadata.type est explicite
+ *  - Traçabilité : metadata.source dans payments.metadata identifie l'origine
+ */
+export async function createQuoteDepositCheckoutSession(params: {
+  businessStripeAccountId: string;
+  businessId: string;
+  quoteId: string;
+  quoteNumber: string;
+  amountCents: number;
+  clientEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+  /** Expiration en secondes (min Stripe = 30 min = 1800, max 24h). */
+  expiresInSec?: number;
+}) {
+  const stripe = getStripe();
+  const now = Math.floor(Date.now() / 1000);
+  const expiresIn = Math.max(30 * 60, params.expiresInSec ?? 30 * 60);
+  const expiresAt = now + expiresIn;
+
+  // Metadata tag sur session ET payment intent → webhook peut router
+  // indifféremment sur l'un ou l'autre (double filet de sécurité).
+  const metadata = {
+    type: "quote_deposit",
+    quoteId: params.quoteId,
+    quoteNumber: params.quoteNumber,
+    businessId: params.businessId,
+  };
+
+  const session = await stripe.checkout.sessions.create(
+    {
+      payment_method_types: ["card"],
+      customer_email: params.clientEmail,
+      expires_at: expiresAt,
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: `Acompte devis ${params.quoteNumber}`,
+              description: "Acompte à la signature, déduit du total final",
+            },
+            unit_amount: params.amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata,
+      payment_intent_data: {
+        metadata,
+      },
+    },
+    {
+      // Compte Connect du pro — l'argent va DIRECTEMENT chez lui, pas de transit Vitrix
+      stripeAccount: params.businessStripeAccountId,
+    }
+  );
+  return session;
+}
+
+/**
  * F2 (Lot 30) — Rembourse un acompte via un PaymentIntent.
  * Utilisé à l'annulation d'un RDV dans la fenêtre de remboursement configurée.
  * Le remboursement est fait sur le compte connect du pro (destination effective).

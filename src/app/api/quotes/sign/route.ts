@@ -28,6 +28,14 @@ import { logger } from "@/lib/logger";
 // Lot 42 (F9) : facture auto post-signature. Fire-and-forget → n'attend pas
 // la génération PDF/email pour répondre au client (< 3 s garantis pour l'UX signature).
 import { generateInvoiceForSignedQuote } from "@/lib/invoice-generator";
+// Lot 43 (F2+F8 fusion) : acompte Stripe à la signature. Contrairement à la
+// facture, celui-ci EST attendu (await) car on doit renvoyer l'URL Checkout
+// au client dans la réponse pour redirection immédiate.
+import { createQuoteDepositCheckoutSession } from "@/lib/stripe";
+import { isStripeConfigured } from "@/lib/stripe";
+import { canUse } from "@/lib/entitlements";
+import { users } from "@/db/schema";
+import { DEPOSIT_CHECKOUT_EXPIRY_SEC } from "@/lib/deposit";
 
 export const dynamic = "force-dynamic";
 
@@ -143,11 +151,21 @@ export async function POST(req: NextRequest) {
     const data = await validateBody(req, SignSchema);
     const tokenHash = hashSignatureToken(data.token);
 
-    // Charge le devis en atomique via WHERE token valide + non signé
+    // Charge le devis en atomique via WHERE token valide + non signé.
+    // Lot 43 : on ramène aussi le stripeAccountId + slug + plan owner pour
+    // décider si on propose l'acompte à la signature sans faire un 2e round-trip DB.
     const rows = await db
-      .select({ quote: quotes, ownerId: businesses.ownerId })
+      .select({
+        quote: quotes,
+        ownerId: businesses.ownerId,
+        bizSlug: businesses.slug,
+        bizStripeAccountId: businesses.stripeAccountId,
+        bizEnableStripe: businesses.enableStripe,
+        ownerPlan: users.subscription,
+      })
       .from(quotes)
       .innerJoin(businesses, eq(quotes.businessId, businesses.id))
+      .innerJoin(users, eq(businesses.ownerId, users.id))
       .where(
         and(
           eq(quotes.signatureTokenHash, tokenHash),
@@ -238,10 +256,91 @@ export async function POST(req: NextRequest) {
     // Toutes les exceptions sont catchées côté generateInvoiceForSignedQuote.
     void generateInvoiceForSignedQuote(row.quote.id);
 
+    // Lot 43 (F2+F8 fusion) — Acompte Stripe à la signature.
+    //
+    // Conditions cumulatives pour proposer le Checkout :
+    //  1. Le devis A un acompte configuré (depositAmount > 0)
+    //  2. Le business a Stripe Connect actif (enableStripe + stripeAccountId)
+    //  3. Le pro (owner) a l'entitlement `payments.stripe` (plan Pro+)
+    //  4. Stripe est configuré côté serveur (clé secrète en env)
+    //  5. Le montant en centimes est ≥ 50 (minimum charge Stripe EUR)
+    //
+    // Si l'une de ces conditions manque → on renvoie juste la signature confirmée
+    // sans checkoutUrl. Le client verra "Merci, devis signé !" comme avant.
+    //
+    // Si tout est OK → checkoutUrl inclus dans la réponse, le client sera
+    // redirigé vers Stripe côté <QuoteSignFlow>.
+    let checkoutUrl: string | undefined;
+    let depositCents: number | undefined;
+
+    try {
+      const depositEuros = Number(row.quote.depositAmount ?? "0");
+      const cents = Math.round(depositEuros * 100);
+
+      const canOfferDeposit =
+        cents >= 50 &&
+        isStripeConfigured() &&
+        !!row.bizStripeAccountId &&
+        !!row.bizEnableStripe &&
+        canUse(row.ownerPlan, "payments.stripe");
+
+      if (canOfferDeposit && row.bizStripeAccountId) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
+        // Success/cancel renvoient sur la MÊME page /devis/[token] avec un flag
+        // → QuoteSignFlow détecte le retour et affiche l'écran "Merci, acompte reçu"
+        //   OU "Signé mais acompte non payé, contactez le pro directement"
+        const successUrl = `${appUrl}/devis/paye?quote=${row.quote.id}`;
+        const cancelUrl = `${appUrl}/devis/paye?quote=${row.quote.id}&canceled=1`;
+
+        const session = await createQuoteDepositCheckoutSession({
+          businessStripeAccountId: row.bizStripeAccountId,
+          businessId: row.quote.businessId,
+          quoteId: row.quote.id,
+          quoteNumber: row.quote.quoteNumber,
+          amountCents: cents,
+          clientEmail: data.email,
+          successUrl,
+          cancelUrl,
+          expiresInSec: DEPOSIT_CHECKOUT_EXPIRY_SEC,
+        });
+
+        if (session.url) {
+          checkoutUrl = session.url;
+          depositCents = cents;
+          // Lie la session au devis pour le webhook (idempotence via index partiel)
+          await db
+            .update(quotes)
+            .set({
+              stripeDepositSessionId: session.id,
+              depositAmountCents: cents,
+              updatedAt: new Date(),
+            })
+            .where(eq(quotes.id, row.quote.id));
+
+          logger.info("quote.deposit.session_created", {
+            quoteId: row.quote.id,
+            sessionId: session.id,
+            amountCents: cents,
+          });
+        }
+      }
+    } catch (err) {
+      // ⚠️ ÉCHEC Stripe = LOG + CONTINUE. La signature EST déjà persistée,
+      // on ne rollback JAMAIS pour un problème de paiement. Le pro pourra
+      // relancer manuellement pour l'acompte.
+      logger.error("quote.deposit.session_failed", {
+        quoteId: row.quote.id,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       quoteId: row.quote.id,
       signedAt: signedAt.toISOString(),
+      // Optionnels — présents SEULEMENT si l'acompte peut être encaissé
+      checkoutUrl,
+      depositAmountCents: depositCents,
     });
   } catch (err) {
     return handleApiError(err, { route: "POST /api/quotes/sign" });

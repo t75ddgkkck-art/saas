@@ -65,6 +65,10 @@ export function QuoteSignFlow({ token }: { token: string }) {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [signed, setSigned] = useState(false);
+  // Lot 43 : URL Checkout Stripe renvoyée par POST /api/quotes/sign quand
+  // un acompte est demandé. Si présent → écran de redirection avant "Merci".
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [depositCents, setDepositCents] = useState<number | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -103,13 +107,31 @@ export function QuoteSignFlow({ token }: { token: string }) {
         toast.error(result.error ?? "Impossible de signer");
         return;
       }
-      setSigned(true);
+      // Lot 43 : si un acompte peut être encaissé, on affiche l'écran de
+      // redirection Stripe AVANT le "Merci". Sinon on passe directement à signé.
+      if (result.checkoutUrl) {
+        setCheckoutUrl(result.checkoutUrl);
+        setDepositCents(result.depositAmountCents ?? null);
+        setSigned(true); // on considère le devis signé (c'est fait en DB)
+      } else {
+        setSigned(true);
+      }
     } catch {
       toast.error("Erreur réseau, réessayez");
     } finally {
       setSubmitting(false);
     }
   }
+
+  // Lot 43 : auto-redirection Stripe après 4s pour laisser lire le message.
+  // Le client peut cliquer "Payer maintenant" avant si impatient.
+  useEffect(() => {
+    if (!checkoutUrl) return;
+    const t = setTimeout(() => {
+      window.location.href = checkoutUrl;
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [checkoutUrl]);
 
   if (loading) {
     return (
@@ -131,6 +153,44 @@ export function QuoteSignFlow({ token }: { token: string }) {
         <p className="text-sm text-slate-600 dark:text-slate-300">
           Ce devis n&apos;est plus accessible via ce lien. Demandez à votre professionnel de vous en
           envoyer un nouveau.
+        </p>
+      </Card>
+    );
+  }
+
+  // Lot 43 : écran intermédiaire "devis signé + acompte à payer"
+  // Prend le pas sur le "Merci" simple si l'API a renvoyé un checkoutUrl.
+  if (checkoutUrl) {
+    const eur = depositCents ? (depositCents / 100).toFixed(2) : null;
+    return (
+      <Card>
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600">
+          <CheckCircle2 className="h-7 w-7" aria-hidden />
+        </div>
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-white">
+          Devis signé ✍️
+        </h1>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Dernière étape : verrouiller votre créneau avec un acompte
+          {eur ? (
+            <>
+              {" "}
+              de <strong>{eur} €</strong>
+            </>
+          ) : null}
+          .
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Redirection automatique vers le paiement sécurisé Stripe…
+        </p>
+        <a
+          href={checkoutUrl}
+          className="mt-6 inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+        >
+          Payer l&apos;acompte maintenant
+        </a>
+        <p className="mt-3 text-xs text-slate-400">
+          Paiement par carte via Stripe. L&apos;acompte sera déduit du montant final.
         </p>
       </Card>
     );

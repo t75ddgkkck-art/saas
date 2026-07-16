@@ -8,7 +8,7 @@
 
 import type Stripe from "stripe";
 import { db } from "@/db";
-import { users, appointments, payments, availabilitySlots, businesses } from "@/db/schema";
+import { users, appointments, payments, availabilitySlots, businesses, quotes } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 import { sendEmail } from "@/lib/email";
@@ -20,9 +20,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.vitrix.fr";
 
 /**
  * checkout.session.completed
- * Deux flows selon `metadata.type` :
+ * Trois flows selon `metadata.type` :
  *  - `booking_deposit` → F2 (Lot 30) : confirme un RDV + enregistre le paiement
- *  - autre / absent → flow subscription : active le plan payant du user
+ *  - `quote_deposit`   → Lot 43 (fusion F2+F8) : marque un devis payé + payment lié
+ *  - autre / absent    → flow subscription : active le plan payant du user
  */
 export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
   const session = event.data.object as Stripe.Checkout.Session;
@@ -30,6 +31,12 @@ export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void
   // F2 (Lot 30) : acompte de réservation ?
   if (session.metadata?.type === "booking_deposit") {
     await handleBookingDepositCompleted(event);
+    return;
+  }
+
+  // Lot 43 : acompte à la signature du devis ?
+  if (session.metadata?.type === "quote_deposit") {
+    await handleQuoteDepositCompleted(event);
     return;
   }
 
@@ -532,8 +539,147 @@ export async function handleBookingDepositCompleted(event: Stripe.Event): Promis
  * de cron côté Vitrix. Un cron de sécurité peut être ajouté séparément si
  * on veut faire du sweep manuel (voir `/api/cron/expire-deposits`).
  */
+// -----------------------------------------------------------------------------
+// Lot 43 (F2+F8 fusion) — Handler acompte à la signature devis
+// -----------------------------------------------------------------------------
+
+/**
+ * `checkout.session.completed` avec metadata.type = "quote_deposit".
+ *
+ * Le client vient de signer le devis PUIS de payer l'acompte associé :
+ *  1. Marque `quotes.deposit_paid_at = now()`
+ *  2. Insère un `payments` (type=deposit, quoteId lié)
+ *  3. Notifie le pro
+ *
+ * Idempotence : détection via `stripe_deposit_session_id` (indexé).
+ * Si déjà payé (deposit_paid_at not null) → no-op.
+ *
+ * NB : la SIGNATURE elle-même a été appliquée AVANT que Stripe soit invoqué.
+ * Donc même si l'acompte échoue, le devis reste signé — le pro ne perd pas
+ * l'engagement client. Le paiement est un "bonus" indépendant.
+ */
+export async function handleQuoteDepositCompleted(event: Stripe.Event): Promise<void> {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const quoteId = session.metadata?.quoteId;
+  const businessId = session.metadata?.businessId;
+
+  if (!quoteId || !businessId) {
+    logger.warn("stripe.quote_deposit.missing_metadata", {
+      sessionId: session.id,
+      metadata: session.metadata,
+    });
+    return;
+  }
+
+  // Idempotence : on cible le devis via l'id de session (indexé partiel)
+  const [q] = await db
+    .select()
+    .from(quotes)
+    .where(and(eq(quotes.id, quoteId), eq(quotes.stripeDepositSessionId, session.id)))
+    .limit(1);
+
+  if (!q) {
+    logger.warn("stripe.quote_deposit.quote_not_found", { quoteId, sessionId: session.id });
+    return;
+  }
+
+  if (q.depositPaidAt) {
+    // Webhook rejoué : rien à faire
+    logger.info("stripe.quote_deposit.already_paid", { quoteId });
+    return;
+  }
+
+  // Marque le devis comme "acompte payé"
+  await db
+    .update(quotes)
+    .set({
+      depositPaidAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(quotes.id, quoteId));
+
+  // Insère la ligne de paiement (type=deposit) — permet au dashboard payments
+  // de voir cet encaissement + à Lot 42 (facture) de le référencer plus tard
+  const amountEuros = ((session.amount_total ?? 0) / 100).toFixed(2);
+  try {
+    await db.insert(payments).values({
+      businessId,
+      clientId: q.clientId,
+      quoteId,
+      stripePaymentId: (session.payment_intent as string) || null,
+      stripeCustomerId: (session.customer as string) || null,
+      amount: amountEuros,
+      currency: (session.currency || "EUR").toUpperCase(),
+      type: "deposit",
+      status: "completed",
+      metadata: {
+        source: "quote_deposit",
+        sessionId: session.id,
+        quoteId,
+        quoteNumber: q.quoteNumber,
+      },
+    });
+  } catch (err) {
+    // Non bloquant : le devis est déjà marqué payé, on log pour audit
+    logger.error("stripe.quote_deposit.payment_insert_failed", {
+      quoteId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  logger.info("stripe.quote_deposit.paid", {
+    quoteId,
+    quoteNumber: q.quoteNumber,
+    amount: session.amount_total,
+    sessionId: session.id,
+  });
+
+  // Notif au pro (owner)
+  try {
+    const [biz] = await db
+      .select({ ownerId: businesses.ownerId })
+      .from(businesses)
+      .where(eq(businesses.id, businessId))
+      .limit(1);
+    if (biz?.ownerId) {
+      notifyAsync({
+        userId: biz.ownerId,
+        businessId,
+        type: "deposit.paid",
+        title: "Acompte devis reçu 💰",
+        message: `Acompte de ${amountEuros} € encaissé pour le devis ${q.quoteNumber}.`,
+        data: { quoteId, amount: session.amount_total },
+        url: `/dashboard/quotes/${quoteId}`,
+        priority: "high",
+        tag: `quote-deposit-${quoteId}`,
+      });
+    }
+  } catch {
+    /* notify est déjà non-throwing */
+  }
+}
+
+// -----------------------------------------------------------------------------
+// F2 (Lot 30) — Handler expiration checkout (RDV + devis)
+// -----------------------------------------------------------------------------
+
 export async function handleCheckoutExpired(event: Stripe.Event): Promise<void> {
   const session = event.data.object as Stripe.Checkout.Session;
+
+  // Lot 43 : expiration acompte devis → on ne fait rien de destructif
+  // (le devis reste signé, on nettoie juste le pointeur session)
+  if (session.metadata?.type === "quote_deposit") {
+    const quoteId = session.metadata.quoteId;
+    if (quoteId) {
+      await db
+        .update(quotes)
+        .set({ stripeDepositSessionId: null, updatedAt: new Date() })
+        .where(and(eq(quotes.id, quoteId), eq(quotes.stripeDepositSessionId, session.id)));
+      logger.info("stripe.quote_deposit.expired", { quoteId, sessionId: session.id });
+    }
+    return;
+  }
+
   if (session.metadata?.type !== "booking_deposit") return;
 
   const appointmentId = session.metadata?.appointmentId;

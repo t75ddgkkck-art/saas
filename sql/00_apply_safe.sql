@@ -1107,6 +1107,34 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4sexdecies. Lot 43 (F2+F8 fusion) — Acompte Stripe à la signature du devis
+-- -----------------------------------------------------------------------------
+-- Ajoute 3 colonnes sur `quotes` + 1 index partiel pour le lookup webhook.
+--
+-- Flow métier :
+--  1. Client signe le devis via /devis/[token]
+--  2. Si quote.deposit_amount > 0 ET business Stripe OK ET owner Pro
+--     → POST /api/quotes/sign crée une session Checkout Stripe et renvoie l'URL
+--  3. QuoteSignFlow redirige le client vers Stripe
+--  4. Webhook checkout.session.completed (metadata.type=quote_deposit) confirme :
+--     - stripe_deposit_session_id renseigné à la création
+--     - deposit_paid_at renseigné au webhook
+--     - insert payments (type=deposit, quote_id lié, ce qui referme la boucle Lot 42)
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('quotes') THEN
+    ALTER TABLE public.quotes
+      ADD COLUMN IF NOT EXISTS stripe_deposit_session_id varchar(255),
+      ADD COLUMN IF NOT EXISTS deposit_amount_cents      integer,
+      ADD COLUMN IF NOT EXISTS deposit_paid_at           timestamp;
+    -- Index partiel pour le lookup webhook Stripe (idempotence rapide)
+    CREATE INDEX IF NOT EXISTS quotes_stripe_deposit_session_idx
+      ON public.quotes (stripe_deposit_session_id)
+      WHERE stripe_deposit_session_id IS NOT NULL;
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN

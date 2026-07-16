@@ -791,6 +791,14 @@ export const quotes = pgTable(
     signatureTokenExpiresAt: timestamp("signature_token_expires_at"),
     signatureReminderSentAt: timestamp("signature_reminder_sent_at"),
     signatureReminderCount: integer("signature_reminder_count").default(0).notNull(),
+    // Lot 43 (F2+F8 fusion) — acompte Stripe encaissé à la signature du devis.
+    // Session Checkout créée dans POST /api/quotes/sign quand quote.depositAmount > 0
+    // + business Stripe configuré + owner Pro. Confirmé par webhook `quote_deposit`.
+    stripeDepositSessionId: varchar("stripe_deposit_session_id", { length: 255 }),
+    /** Snapshot du montant acompte en centimes au moment de la signature (immuable). */
+    depositAmountCents: integer("deposit_amount_cents"),
+    /** Timestamp de confirmation webhook Stripe pour l'acompte. */
+    depositPaidAt: timestamp("deposit_paid_at"),
     termsAndConditions: text("terms_and_conditions"),
     reminderSentAt: timestamp("reminder_sent_at"),
     // Lot 14.3 soft delete
@@ -813,6 +821,10 @@ export const quotes = pgTable(
     signatureTokenIdx: uniqueIndex("quotes_signature_token_uidx")
       .on(t.signatureTokenHash)
       .where(sql`${t.signatureTokenHash} is not null`),
+    // Lot 43 : lookup webhook Stripe (rare mais point critique perf webhook)
+    stripeDepositSessionIdx: index("quotes_stripe_deposit_session_idx")
+      .on(t.stripeDepositSessionId)
+      .where(sql`${t.stripeDepositSessionId} is not null`),
   })
 );
 

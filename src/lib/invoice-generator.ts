@@ -398,12 +398,38 @@ function buildInvoiceData(
     totalHT: Number(row.quote.subtotal ?? 0),
     tva: Number(row.quote.tax ?? 0),
     totalTTC: Number(row.quote.total ?? 0),
-    notes: `Facture émise suite à signature du devis ${row.quote.quoteNumber} le ${
-      row.quote.signedAt?.toISOString().slice(0, 10) ?? issueDate
-    }.`,
+    notes: buildInvoiceNotes(row, issueDate),
     conditions:
       "Paiement à 30 jours par virement bancaire. Pénalités de retard : taux légal + 3 points (art. L441-10 code de commerce). Indemnité forfaitaire de recouvrement : 40 € (art. D441-5).",
   };
+}
+
+/**
+ * Lot 43 : notes facture enrichies quand un acompte a été payé à la signature.
+ *
+ * Le PDF affiche "Acompte de X € déjà versé le YYYY-MM-DD (via Stripe).
+ *  Reste à régler : Y €" — indispensable pour éviter que le client paye
+ *  2 fois par erreur ou conteste que l'acompte n'est pas décompté.
+ */
+function buildInvoiceNotes(row: InvoiceRow, issueDate: string): string {
+  const base = `Facture émise suite à signature du devis ${row.quote.quoteNumber} le ${
+    row.quote.signedAt?.toISOString().slice(0, 10) ?? issueDate
+  }.`;
+
+  // Cas acompte payé — on ne l'ajoute que si le devis a un depositPaidAt.
+  // Note : à ce stade dans le pipeline, row.quote a été chargé APRÈS l'update
+  // signature mais AVANT le webhook Stripe deposit. Donc dans la plupart des
+  // cas le depositPaidAt sera null ici (race avec webhook async). On tolère
+  // les 2 cas — la mention n'apparaîtra que si le webhook est déjà passé.
+  if (row.quote.depositPaidAt && row.quote.depositAmountCents) {
+    const depositEur = (row.quote.depositAmountCents / 100).toFixed(2);
+    const totalEur = Number(row.quote.total ?? "0").toFixed(2);
+    const reste = (Number(totalEur) - Number(depositEur)).toFixed(2);
+    const paidDate = new Date(row.quote.depositPaidAt).toISOString().slice(0, 10);
+    return `${base}\nAcompte de ${depositEur} € déjà versé le ${paidDate} (paiement Stripe).\nReste à régler : ${reste} €.`;
+  }
+
+  return base;
 }
 
 /**
