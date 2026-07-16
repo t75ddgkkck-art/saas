@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
+// Fix UX1 (Lot 50) : remplacement du confirm() natif — pattern projet standardisé.
+import { useConfirm } from "@/components/ui/useConfirm";
 import { generateBlogArticles, BlogArticle } from "@/lib/blog-generator";
 import { useAuth } from "@/contexts/AuthContext";
 import type { BlogTemplate } from "@/lib/blog-templates";
@@ -38,6 +40,8 @@ interface Post {
 export default function BlogPage() {
   const { user } = useAuth();
   const toast = useToast();
+  // Fix UX1 (Lot 50) : hook impératif — le dialog est rendu en fin de JSX
+  const { confirm, dialog } = useConfirm();
   const plan = user?.subscription || "free";
   const maxArticles = plan === "free" ? 3 : Infinity; // 3 modèles pour le plan gratuit
   const [posts, setPosts] = useState<Post[]>([]);
@@ -120,9 +124,17 @@ export default function BlogPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cet article ?")) return;
+    // Fix UX1 (Lot 50) : dialog custom au lieu de confirm() natif
+    const ok = await confirm({
+      title: "Supprimer cet article ?",
+      description: "L'article sera supprimé définitivement et ne pourra plus être restauré.",
+      confirmLabel: "Supprimer",
+      variant: "danger",
+    });
+    if (!ok) return;
     await fetch(`/api/blog/${id}`, { method: "DELETE" });
     fetchPosts();
+    toast.success("Article supprimé");
   };
 
   const loadTemplate = (article: BlogArticle) => {
@@ -374,6 +386,8 @@ export default function BlogPage() {
           </div>
         </div>
       )}
+      {/* Fix UX1 (Lot 50) : dialog impératif du useConfirm hook */}
+      {dialog}
     </div>
   );
 }

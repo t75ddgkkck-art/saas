@@ -202,7 +202,7 @@ export default function ReactivationPage() {
               ) : (
                 <>
                   {" "}
-                  <Link href="/#pricing" className="underline font-semibold">
+                  <Link href="/tarifs" className="underline font-semibold">
                     Passez Premium
                   </Link>{" "}
                   pour laisser l&apos;IA rédiger les messages à votre place.
@@ -228,7 +228,7 @@ export default function ReactivationPage() {
             Générer messages IA
           </Button>
         ) : (
-          <Link href="/#pricing">
+          <Link href="/tarifs">
             <Button variant="secondary" leftIcon={<Sparkles className="h-4 w-4" />}>
               Débloquer avec Premium
             </Button>

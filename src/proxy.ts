@@ -17,6 +17,8 @@ const PUBLIC_ROUTES = new Set([
   "/faq",
   "/cgu",
   "/confidentialite",
+  // Fix NAV1 (Lot 50) : nouvelle page /tarifs publique
+  "/tarifs",
 ]);
 
 const PUBLIC_API_PREFIXES = [

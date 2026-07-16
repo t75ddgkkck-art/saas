@@ -148,7 +148,7 @@ export default function MyBusinessesPage() {
             Nouvelle vitrine
           </Button>
         ) : (
-          <Link href="/#pricing">
+          <Link href="/tarifs">
             <Button variant="secondary">
               <Sparkles className="mr-2 h-4 w-4" />
               Passer Premium
@@ -170,7 +170,7 @@ export default function MyBusinessesPage() {
               métiers. Jusqu&apos;à 3 vitrines simultanées, un seul abonnement.
             </p>
             <Link
-              href="/#pricing"
+              href="/tarifs"
               className="mt-2 inline-block font-semibold text-amber-900 underline dark:text-amber-100"
             >
               Voir les tarifs Premium →

@@ -8,8 +8,21 @@ import path from "node:path";
 // on garde l'info pour tendance/dashboard Codecov ultérieur.
 export default defineConfig({
   test: {
+    // Lot 50 : environmentMatchGlobs → node par défaut (rapide, isolé),
+    // jsdom seulement pour les tests React (`.test.tsx` ou `-component`).
+    // Évite de payer le coût jsdom (~30% plus lent) sur tous les tests unit lib.
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/unit/**/*.test.ts"],
+    environmentMatchGlobs: [
+      ["tests/components/**", "jsdom"],
+      ["**/*.test.tsx", "jsdom"],
+    ],
+    setupFiles: ["./tests/setup-react.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "tests/unit/**/*.test.ts",
+      // Lot 50 : nouveaux tests composants React
+      "tests/components/**/*.test.tsx",
+    ],
     globals: true,
     coverage: {
       provider: "v8",

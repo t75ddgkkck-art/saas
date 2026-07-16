@@ -102,6 +102,9 @@ const nextConfig: NextConfig = {
     return [
       // Anciennes URLs /p/slug redirigées vers les URLs propres /slug
       { source: "/p/:slug*", destination: "/:slug*", permanent: true },
+      // Fix NAV1 (Lot 50) : `/pricing` était référencé par UpgradeGate mais
+      // n'existait pas comme page. Canonique = `/tarifs` (français, cohérence).
+      { source: "/pricing", destination: "/tarifs", permanent: true },
     ];
   },
 };

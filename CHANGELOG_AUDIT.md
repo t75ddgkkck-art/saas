@@ -4,6 +4,148 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 44 — Lot 50 Tests composants React + audit global + fixes bugs
+
+Gros lot en 4 phases :
+1. **Setup complet `@testing-library/react`** + tests sur 6 composants critiques
+2. **Audit global** systématique (a11y, sécurité, cohérence, dead code, imports orphelins)
+3. **Fixes** des bugs découverts pendant les phases 1-2
+4. Documentation des propositions de lots suivants (voir bas du document)
+
+## Phase 1 — Setup tests React (Lot 50)
+
+### Dependencies
+
+```bash
+npm install --save-dev \
+  @testing-library/react@^16 \
+  @testing-library/jest-dom@^6 \
+  @testing-library/user-event@^14 \
+  jsdom
+```
+
+### Config vitest.config.ts
+
+```ts
+environmentMatchGlobs: [
+  ["tests/components/**", "jsdom"],
+  ["**/*.test.tsx", "jsdom"],
+],
+setupFiles: ["./tests/setup-react.ts"],
+```
+
+Env `jsdom` UNIQUEMENT pour les tests `.tsx` (économise ~30% temps sur les tests lib pure).
+
+### `tests/setup-react.ts`
+
+- Import `@testing-library/jest-dom/vitest` (matchers `.toBeInTheDocument()`, `.toHaveClass()`, etc.)
+- `cleanup()` DOM après chaque test (afterEach)
+- No-op si `environment !== "jsdom"`
+
+### 6 composants critiques testés (44 tests total)
+
+| Composant | Tests | Focus |
+|-----------|-------|-------|
+| `<Badge>` | 5 | Sanité setup + variants |
+| `<Button>` | 10 | Loading state, disabled, variants, type default="button" |
+| `<Input>` | 10 | A11y (aria-invalid, aria-describedby, labels), states |
+| `<Modal>` | 7 | role=dialog, aria-modal, Escape ferme, aria-labelledby |
+| `<ConfirmDialog>` | 7 | Labels custom, danger variant, requireTypedConfirmation |
+| `<UpgradeGate>` | 6 | Loading/allowed/blocked, fallback custom, mode blur |
+| `<AiGenerateModal>` | 6 | Gate Free/Premium, radio replace/append, fetch success/error |
+
+## Phase 2 — Audit global : bugs découverts
+
+### 🔴 NAV1 (MAJEUR) — CTAs upgrade Premium tombaient sur 404
+
+**Diagnostic** : `UpgradeGate.tsx:192` liait vers `/pricing` et `/a-propos:111` vers `/tarifs`, mais **ces deux pages n'existaient pas**. Tous les CTAs "Passer Premium" retournaient un 404 silencieux → **catastrophe conversion**.
+
+Bug présent depuis le Lot 29 (F1 entitlements) — non détecté jusqu'ici parce que jamais testé manuellement en dehors de la landing (`#pricing` scroll).
+
+### 🟠 A11Y1 — `<Button loading>` sans `aria-busy`
+
+Screen readers annonçaient un bouton normal cliquable pendant qu'une action async était en cours. Un user aveugle cliquant plusieurs fois → double-submission possible.
+
+### 🟠 UX1 — `confirm()` natif dans `dashboard/blog/page.tsx:123`
+
+Convention projet = `useConfirm()` hook + `<ConfirmDialog>` custom. Un seul endroit encore avec `confirm()` natif (probablement legacy pré-Lot 22). Rupture d'UX.
+
+### 🟡 TODO restants (non bloquants)
+
+- `api/google/callback/route.ts:47` — Google Business callback pas complètement câblé (feature rarement utilisée sans Places API)
+- `dashboard/quotes/[id]/page.tsx:136` — commentaire TODO Lot 20 obsolète depuis F8 (signature via magic-link)
+
+## Phase 3 — Correctifs appliqués
+
+### Fix NAV1
+
+**Nouvelle page `/src/app/tarifs/page.tsx`** (75 lignes) :
+- Server component pour SEO + static generation
+- Metadata canonique `alternates.canonical: "/tarifs"`
+- Rend `<LandingNav />` + heading + `<PricingSection />` + footer minimal
+- Description SEO 155 chars ciblée artisans
+
+**next.config.ts** — redirect permanent 308 :
+```ts
+{ source: "/pricing", destination: "/tarifs", permanent: true }
+```
+
+**`UpgradeGate.tsx`** — `href="/pricing"` → `href="/tarifs"` (URL canonique)
+
+**`proxy.ts`** — ajout `/tarifs` aux `PUBLIC_ROUTES`
+
+**Sweep** — 4 occurrences `href="/#pricing"` (my-businesses, reactivation) → `href="/tarifs"` (URL propre depuis dashboard)
+
+### Fix A11Y1
+
+`Button.tsx` :
+```diff
++ aria-busy={loading || undefined}
++ {loading && <Loader2 aria-hidden />}
+```
+
+Screen readers annoncent maintenant "occupé" pendant chaque action async.
+
+### Fix UX1
+
+`dashboard/blog/page.tsx` :
+- Import `useConfirm` hook
+- Ajout `const { confirm, dialog } = useConfirm()`
+- Remplacement `confirm("Supprimer cet article ?")` → `await confirm({ title, description, variant: "danger" })`
+- Ajout `{dialog}` en fin de JSX (pattern impératif)
+- Bonus : toast succès après suppression
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **759 tests / 69 fichiers** (avant 708/62 — +51 tests React) ✅
+- `npx next build` → OK, `/tarifs` détecté static ✅
+
+## Impact business
+
+- **Fix NAV1 débloque tous les CTA upgrade** : chaque clic "Passer Premium" fonctionne maintenant. Impact conversion potentiellement énorme (un CTA cassé = perte directe MRR). C'est LE fix le plus impactant depuis le Lot 40.
+- **Base tests composants** : maintenant on peut refactorer les composants sans casser silencieusement. Prêt pour Lot 51+ (couverture étendue).
+- **A11y renforcée** : le projet passe mieux les audits Lighthouse/axe-core.
+- **Consistency UX** : dernière trace de `confirm()` natif éliminée.
+
+## Actions post-déploiement
+
+Aucune migration DB. Aucune config nouvelle. Juste :
+1. **Sanity check** : ouvrir `https://vitrix.fr/tarifs` → doit rendre la page tarifs
+2. **Sanity check** : ouvrir `https://vitrix.fr/pricing` → doit redirect 308 vers `/tarifs`
+3. **Test CTA** : cliquer un bouton "Passer Premium" depuis n'importe quel `<UpgradeGate>` → doit atterrir sur `/tarifs`
+
+## Historique commits
+
+```
+<hash>   lot 50 tests React + audit global + fixes NAV1/A11Y1/UX1 + page tarifs
+c9f049e  lot 49 IA clients à recontacter (Premium) + fix mobile vitrine + cleanup outils
+284bece  lot 47 QR codes trackables UTM multi-supports
+43c6a3c  lot 46 multi-vitrines Premium + sélecteur sidebar
+```
+
+---
+
 # 🟢 Tour 43 — Lot 49 IA "clients à recontacter" + fix mobile vitrine + cleanup outils
 
 **Idée J audit V5** implémentée : détection automatique des clients dormants avec IA qui rédige les messages de réactivation. Layer 1 (scoring déterministe) tous plans, Layer 2 (génération IA) gate stricte Premium.

@@ -189,7 +189,7 @@ function UpgradeCard({
           Passer au plan {planLabel}
         </Link>
         <Link
-          href="/pricing"
+          href="/tarifs"
           className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
         >
           Voir tous les plans

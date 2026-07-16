@@ -57,9 +57,13 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         disabled={disabled || loading}
+        // Fix A11Y1 (Lot 50) : screen readers annoncent "occupé" pendant le loading.
+        // Sans ça, un user aveugle qui clique n'a AUCUN feedback qu'une action
+        // asynchrone est en cours (le spinner visuel ne suffit pas).
+        aria-busy={loading || undefined}
         {...props}
       >
-        {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+        {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
         {!loading && leftIcon}
         {children}
         {!loading && rightIcon}
