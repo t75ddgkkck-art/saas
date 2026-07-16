@@ -15,6 +15,8 @@ import {
   Loader2,
   ImageDown,
 } from "lucide-react";
+// Lot 47 (F12) : nouveau composant multi-supports trackables
+import { TrackedQrCodes } from "@/components/qr/TrackedQrCodes";
 
 export default function QRCodePage() {
   const [qrCode, setQrCode] = useState<string>("");
@@ -139,6 +141,11 @@ export default function QRCodePage() {
           Générez un QR code imprimable pour votre page professionnelle
         </p>
       </div>
+
+      {/* Lot 47 (F12) : section QR trackés multi-supports — se cache si aucun
+          business slug chargé (état initial). Les scans sont trackés dans les
+          analytics via page_visits.source. */}
+      {businessSlug && <TrackedQrCodes businessSlug={businessSlug} />}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* QR Display */}

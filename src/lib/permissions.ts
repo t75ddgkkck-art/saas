@@ -65,6 +65,10 @@ export interface PlanPermissions {
   // Free: 1, Pro: 1, Premium: 3. Historique compat : sans cette clé, `getLimit`
   // renvoie undefined donc les vieux users continuent à voir 1 vitrine par défaut.
   maxBusinesses: number;
+
+  // Lot 47 (F12) : nombre max de QR codes trackables par business.
+  // Free: 1 (test), Pro: 3 (multi-supports basiques), Premium: 20 (campagnes A/B).
+  maxQrCodes: number;
 }
 
 export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
@@ -114,6 +118,9 @@ export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
 
     // Lot 46 : Free = 1 seule vitrine
     maxBusinesses: 1,
+
+    // Lot 47 : Free = 1 QR trackable (test unique)
+    maxQrCodes: 1,
   },
 
   pro: {
@@ -162,6 +169,9 @@ export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
 
     // Lot 46 : Pro reste à 1 vitrine — argument commercial de l'upgrade Premium
     maxBusinesses: 1,
+
+    // Lot 47 : Pro = 3 QR (multi-supports basiques : cartes / camionnette / flyer)
+    maxQrCodes: 3,
   },
 
   premium: {
@@ -210,6 +220,9 @@ export const PLAN_PERMISSIONS: Record<SubscriptionPlan, PlanPermissions> = {
 
     // Lot 46 : Premium = jusqu'à 3 vitrines simultanées (multi-marques / franchisés)
     maxBusinesses: 3,
+
+    // Lot 47 : Premium = 20 QR (campagnes A/B, saisonnières, multi-canaux)
+    maxQrCodes: 20,
   },
 };
 

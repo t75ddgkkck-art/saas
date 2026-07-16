@@ -329,6 +329,8 @@ export function getLimit(
     | "maxPdfTemplates"
     // Lot 46 (F11) : nombre max de vitrines par compte
     | "maxBusinesses"
+    // Lot 47 (F12) : nombre max de QR codes trackables par business
+    | "maxQrCodes"
 ): number {
   return PLAN_PERMISSIONS[plan][limit] as number;
 }
@@ -348,7 +350,9 @@ export function checkQuota(
     | "maxTemplates"
     | "maxPdfTemplates"
     // Lot 46 (F11) : quota multi-vitrines
-    | "maxBusinesses",
+    | "maxBusinesses"
+    // Lot 47 (F12) : quota QR codes trackables
+    | "maxQrCodes",
   currentCount: number
 ): { allowed: boolean; limit: number; remaining: number } {
   const max = getLimit(plan, limit);

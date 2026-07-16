@@ -1701,6 +1701,56 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
   }),
 }));
 
+// ============== QR CODES TRACKABLES (Lot 47, F12) ==============
+//
+// Chaque ligne = un QR code distinct avec sa propre `source` (utilisée comme
+// `?src=` dans l'URL générée). Les scans sont trackés indirectement via la
+// table `pageVisits` existante — quand un visiteur arrive sur la vitrine avec
+// `?src=X`, `detectSource()` l'enregistre en `page_visits.source = X`.
+//
+// La feature qr_codes ne fait donc PAS de collecte parallèle — elle ne fait que
+// GÉNÉRER les URLs trackées et FAIRE JOIN avec pageVisits pour le count.
+//
+// Quotas (Lot 47) : Free 1, Pro 3, Premium 20 (voir permissions.maxQrCodes).
+export const qrCodes = pgTable(
+  "qr_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    /** Libellé humain affiché dans le dashboard (ex: "Carte de visite avril 2026"). */
+    label: varchar("label", { length: 100 }).notNull(),
+    /** Slug de source injecté dans l'URL (?src=X). Unique par business.
+     *  Sanitize côté app : [a-z0-9-]+ uniquement, max 50 chars.
+     *  Cohérent avec `detectSource()` dans lib/visitor-hash.ts. */
+    source: varchar("source", { length: 50 }).notNull(),
+    /** UTM standards optionnels — cohérence Google Analytics / Matomo. */
+    utmCampaign: varchar("utm_campaign", { length: 100 }),
+    utmMedium: varchar("utm_medium", { length: 50 }).default("qr"),
+    utmContent: varchar("utm_content", { length: 100 }),
+    // Lot 14 soft delete
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    // Unicité source par business (deux artisans peuvent avoir "carte-visite")
+    businessSourceUidx: uniqueIndex("qr_codes_business_source_uidx").on(t.businessId, t.source),
+    // Dashboard "mes QR" — liste par business, plus récents d'abord
+    businessCreatedIdx: index("qr_codes_business_created_idx").on(t.businessId, t.createdAt),
+    // Soft delete filter
+    deletedAtIdx: index("qr_codes_deleted_at_idx").on(t.deletedAt),
+  })
+);
+
+export const qrCodesRelations = relations(qrCodes, ({ one }) => ({
+  business: one(businesses, {
+    fields: [qrCodes.businessId],
+    references: [businesses.id],
+  }),
+}));
+
 // la table permet de RÉVOQUER une session sans changer le secret global.
 //
 // Vérification côté getCurrentUser : après avoir décodé le cookie, on check

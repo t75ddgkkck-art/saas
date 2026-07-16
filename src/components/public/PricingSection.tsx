@@ -16,7 +16,8 @@ const PLANS = [
       "Page vitrine personnalisée",
       "Boutons contact & WhatsApp",
       "Galerie photos",
-      "QR Code imprimable",
+      // Lot 47 : précision sur le QR pour Free (1 QR trackable, on en fait mention concrète)
+      "1 QR code trackable imprimable",
       "3 articles de blog SEO",
       "FAQ personnalisable",
     ],
@@ -40,6 +41,8 @@ const PLANS = [
       "CRM clients complet",
       "4 templates de vitrine",
       "Blog illimité",
+      // Lot 47 : 3 QR trackables multi-supports (carte visite / camionnette / flyer)
+      "3 QR codes trackables (mesurez vos supports print)",
       "Rappels email automatiques",
     ],
     cta: "Essayer Pro 14 jours",
@@ -59,6 +62,8 @@ const PLANS = [
       "Génération de devis par IA (prix marché intégrés)",
       // Lot 46 : multi-vitrines — argument franchise / multi-métiers
       "Jusqu'à 3 vitrines simultanées (multi-marques, franchises)",
+      // Lot 47 : quota QR étendu pour campagnes A/B, saisonnières, multi-canaux
+      "20 QR codes trackables (campagnes A/B, saisonnières)",
       "Programme de fidélité clients",
       "Marque blanche (sans logo Vitrix)",
       "7 templates dont 3 exclusifs",

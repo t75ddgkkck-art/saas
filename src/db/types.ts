@@ -34,6 +34,7 @@ import type {
   galleryItems,
   chatMessages,
   invoices,
+  qrCodes,
 } from "./schema";
 
 // Select (lecture)
@@ -65,6 +66,8 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 
 // Lot 42 (F9) : factures auto post-signature devis
 export type Invoice = typeof invoices.$inferSelect;
+// Lot 47 (F12) : QR codes trackables avec source UTM
+export type QrCode = typeof qrCodes.$inferSelect;
 
 // Insert (écriture)
 export type UserInsert = typeof users.$inferInsert;
@@ -74,6 +77,7 @@ export type QuoteInsert = typeof quotes.$inferInsert;
 export type AppointmentInsert = typeof appointments.$inferInsert;
 export type ServiceInsert = typeof services.$inferInsert;
 export type InvoiceInsert = typeof invoices.$inferInsert;
+export type QrCodeInsert = typeof qrCodes.$inferInsert;
 
 // Alias sémantiques pour l'UI côté client (dérivés simples, sans PHI)
 export type PublicUser = Pick<

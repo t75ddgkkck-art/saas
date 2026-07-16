@@ -1176,6 +1176,45 @@ DO $$ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 4novodecies. Lot 47 (F12) — QR codes trackables avec source UTM
+-- -----------------------------------------------------------------------------
+-- Chaque ligne = un QR code distinct avec sa propre `source` (?src=X dans l'URL).
+-- Les scans sont trackés indirectement via `page_visits.source` (aucune collecte
+-- parallèle nécessaire — le tracker analytics existe depuis Lot 36).
+--
+-- Quotas (Lot 47) : Free 1, Pro 3, Premium 20 (voir lib/permissions.ts).
+-- Unicité `source` par business.
+
+DO $$ BEGIN
+  IF public.__vx_table_exists('businesses') THEN
+    CREATE TABLE IF NOT EXISTS public.qr_codes (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      business_id   uuid NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+      label         varchar(100) NOT NULL,
+      source        varchar(50)  NOT NULL,
+      utm_campaign  varchar(100),
+      utm_medium    varchar(50)  DEFAULT 'qr',
+      utm_content   varchar(100),
+      deleted_at    timestamp,
+      created_at    timestamp NOT NULL DEFAULT now(),
+      updated_at    timestamp NOT NULL DEFAULT now()
+    );
+
+    -- Unicité source par business (deux artisans peuvent partager "carte-visite")
+    CREATE UNIQUE INDEX IF NOT EXISTS qr_codes_business_source_uidx
+      ON public.qr_codes (business_id, source);
+
+    -- Dashboard : liste par business, ordre chronologique inverse
+    CREATE INDEX IF NOT EXISTS qr_codes_business_created_idx
+      ON public.qr_codes (business_id, created_at);
+
+    -- Soft delete filter
+    CREATE INDEX IF NOT EXISTS qr_codes_deleted_at_idx
+      ON public.qr_codes (deleted_at);
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 5. Nettoyage doux des NULL sur les colonnes NOT NULL requises
 -- -----------------------------------------------------------------------------
 DO $$ BEGIN
@@ -1192,7 +1231,7 @@ END $$;
 DO $$
 DECLARE
   _cnt bigint;
-  _tables text[] := ARRAY['users','businesses','clients','quotes','appointments','payments','invoices'];
+  _tables text[] := ARRAY['users','businesses','clients','quotes','appointments','payments','invoices','qr_codes'];
   _tbl text;
 BEGIN
   RAISE NOTICE '--- Vitrix DB status ---';

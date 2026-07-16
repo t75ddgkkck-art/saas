@@ -4,6 +4,139 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 42 — Lot 47 QR codes trackables UTM (multi-supports)
+
+**Idée C audit V5** implémentée : le pro peut créer N QR codes distincts avec sources UTM différentes, et voir dans son analytics d'où viennent les scans (carte visite vs camionnette vs flyer). Quotas B choisis : Free 1 / Pro 3 / Premium 20.
+
+## Contexte
+
+Avant Lot 47, `/dashboard/qr-code` générait UN seul QR statique pointant vers `vitrix.fr/{slug}`. Aucune manière de savoir si un client venait de la carte de visite, du flyer d'avril, ou de la camionnette. ROI marketing marketing invisible.
+
+## Livré
+
+### DB — table `qr_codes` (bloc SQL `4novodecies`)
+
+```sql
+qr_codes (
+  id, business_id, label, source, utm_campaign, utm_medium, utm_content,
+  deleted_at, created_at, updated_at
+)
+UNIQUE (business_id, source)  -- unicité par business
+```
+
+**Aucune collecte parallèle** — les scans sont trackés indirectement via `page_visits.source` (mécanisme Lot 36 existant). Le tracker `/api/track/visit` + `detectSource()` reconnaissent déjà `?src=X` et l'enregistrent. Le module Lot 47 ne fait qu'ajouter la CRUD + génération URL.
+
+### Quotas `maxQrCodes` (permissions.ts + entitlements.ts)
+
+| Plan    | maxQrCodes |
+| ------- | ---------- |
+| Free    | 1          |
+| Pro     | 3          |
+| Premium | 20         |
+
+`getLimit` et `checkQuota` étendus pour supporter la nouvelle clé.
+
+### Lib `src/lib/qr-tracking.ts` (nouveau, 100 lignes)
+
+3 helpers PURS :
+- `slugifySource(input)` : normalise vers `[a-z0-9-]+` — cohérent avec `detectSource()` (visitor-hash.ts). Supprime accents, caractères spéciaux, cap 50 chars, collapse tirets.
+- `validateSource(source)` : renvoie message d'erreur ou null
+- `buildTrackedUrl(baseUrl, config)` : construit l'URL finale avec `?src=` + UTM standards Google Analytics / Matomo :
+  ```
+  https://vitrix.fr/dupont?src=carte-visite&utm_source=qr&utm_medium=qr&utm_campaign=printemps
+  ```
+  `utm_source=qr` est FIXE (marque du canal), `utm_medium` overrideable.
+
+### Routes API
+
+- `GET /api/qr-codes` — liste avec `scansCount` agrégé depuis `page_visits.source` (1 seul JOIN groupé, pas de N+1)
+- `POST /api/qr-codes` — création avec gate quota `maxQrCodes` → 403 si dépassé (avec `upgradeTo` = pro ou premium selon plan actuel), et 409 si source doublon
+- `DELETE /api/qr-codes/[id]` — soft delete anti-IDOR
+- `GET /api/qr-codes/[id]/download?format=png|svg&size=512` — génération à la demande (jspdf QRCode existant), cache privé 1h, filename safe
+
+### UI — nouveau composant `<TrackedQrCodes />` (280 lignes)
+
+Section ajoutée dans `/dashboard/qr-code` au-dessus du QR "principal" existant (aucune régression).
+
+- Liste : preview mini via l'API download PNG 128×128 (cache navigateur 1h) + label + badge source monospace + scansCount live
+- Bouton "+ Nouveau QR" → modal avec label, source **auto-slugifiée live** depuis le label, UTM optionnels (campagne + contenu)
+- Actions par QR : Download PNG 1024×1024, Download SVG, Copy URL trackée, Delete (avec ConfirmDialog rassurant "les scans historiques sont préservés")
+- Bandeau info pédagogique renvoyant vers analytics
+
+Auto-slugify intelligente : dès que l'user modifie source manuellement, l'auto-fill se désactive (évite d'écraser la saisie custom).
+
+### Analytics — vue automatique
+
+**Aucun changement UI** requis. L'API `/api/analytics` renvoie déjà `data.sources` groupé par `pageVisits.source` (Lot 36) et `<SourcesChart>` (Pro+ via `analytics.advanced`) l'affiche. Les scans QR apparaissent naturellement avec leur nom de source dans le chart existant.
+
+### Mentions dans les tarifs
+
+- **Free** : `"1 QR code trackable imprimable"` (avant : "QR Code imprimable" — précision Lot 47)
+- **Pro** : `"3 QR codes trackables (mesurez vos supports print)"`
+- **Premium** : `"20 QR codes trackables (campagnes A/B, saisonnières)"`
+
+## Tests
+
+`tests/unit/qr-tracking.test.ts` — **21 tests** :
+- `slugifySource` : 9 tests (lowercase, accents NFD, caractères spéciaux, cap 50, emoji…)
+- `validateSource` : 3 tests
+- `buildTrackedUrl` : 8 tests (URL absolue, UTM optionnels, query params préservés, override utm_medium, all UTM ensemble)
+- Intégration slugify + build : 1 test
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/lib/qr-tracking.ts` (100 lignes)
+  - `src/app/api/qr-codes/route.ts` (175 lignes — GET + POST)
+  - `src/app/api/qr-codes/[id]/route.ts` (55 lignes — DELETE)
+  - `src/app/api/qr-codes/[id]/download/route.ts` (95 lignes — PNG/SVG)
+  - `src/components/qr/TrackedQrCodes.tsx` (280 lignes)
+  - `tests/unit/qr-tracking.test.ts` (175 lignes, 21 tests)
+  - `docs/QR_TRACKING.md`
+
+- **Modifiés** :
+  - `src/db/schema.ts` — table `qrCodes` + relations
+  - `src/db/types.ts` — export `QrCode`, `QrCodeInsert`
+  - `sql/00_apply_safe.sql` — bloc `4novodecies` idempotent + ARRAY rapport
+  - `src/lib/permissions.ts` — `maxQrCodes` (Free 1 / Pro 3 / Premium 20)
+  - `src/lib/entitlements.ts` — `getLimit`/`checkQuota` supportent `maxQrCodes`
+  - `src/app/dashboard/qr-code/page.tsx` — intégration `<TrackedQrCodes>`
+  - `src/components/public/PricingSection.tsx` — mentions QR sur les 3 plans
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **684 tests / 61 fichiers** (avant 663/60) ✅
+- `npx next build` → OK, 3 nouvelles routes API détectées ✅
+
+## Impact business
+
+- **Attribution ROI marketing** enfin possible : "mes 500 flyers d'avril ont ramené 87 scans + 12 RDV = 24€ CPA"
+- **Argument commercial Free → Pro** : 1 QR = juste test, 3 QR = usage réel (cartes + camionnette + flyer)
+- **Argument commercial Pro → Premium** : 20 QR = campagnes A/B multi-canaux + saisonnières
+- **Feature sans coût** : réutilise 100% du tracking existant (Lot 36), zéro nouvelle collecte
+- **Différenciation vs concurrents** : Batappli / Codial / Habitatpresto ne font pas ça
+
+## Actions post-déploiement
+
+1. **DB migration** : `bash sql/apply.sh` — bloc `4novodecies` idempotent
+2. **Vérifier `NEXT_PUBLIC_APP_URL`** en env (utilisé par `buildTrackedUrl`)
+3. **Test end-to-end** :
+   - Compte Free : créer 1 QR → OK. Créer 2e → toast 403 "upgradeTo=pro"
+   - Compte Pro : créer 3 QR → OK. Créer 4e → toast 403 "upgradeTo=premium"
+   - Scanner un QR (via téléphone) → vérifier que `page_visits.source` reçoit bien la source → visible dans `/dashboard/analytics` sous ~1min
+
+## Historique commits
+
+```
+<hash>   lot 47 QR codes trackables UTM multi-supports (quotas Free 1 / Pro 3 / Premium 20)
+43c6a3c  lot 46 multi-vitrines Premium + sélecteur sidebar + mention tarifs
+c9a76a1  lot 45 UI générer devis IA + mise en avant premium pricing
+b6d8eb9  lot 43 acompte stripe à la signature devis (fusion F2+F8) + facture acompte
+```
+
+---
+
 # 🟢 Tour 41 — Lot 46 Multi-vitrines (Premium) + sélecteur sidebar
 
 **Idée D audit V5** implémentée : un compte user peut gérer jusqu'à 3 vitrines simultanément (plan Premium uniquement). Argument commercial fort pour franchisés, artisans multi-métiers, réseaux multi-sites.
