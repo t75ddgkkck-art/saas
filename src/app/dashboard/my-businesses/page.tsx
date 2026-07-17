@@ -69,7 +69,12 @@ export default function MyBusinessesPage() {
       const data = await res.json();
       setBusinesses(data.businesses || []);
     } catch (e) {
+      // UX2 fix : silence → user restait bloqué en loading si le réseau tombait.
       console.error(e);
+      toast.error(
+        "Vérifiez votre connexion internet et réessayez.",
+        "Impossible de charger vos vitrines"
+      );
     } finally {
       setIsLoading(false);
     }

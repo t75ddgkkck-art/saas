@@ -17,6 +17,7 @@ import { dispatchWebhook } from "@/lib/webhooks-out";
 // F4 (Lot 33) : push sync Google Calendar (best-effort)
 import { pushUpdateGoogleEvent, pushDeleteGoogleEvent } from "@/lib/google-calendar";
 import { businesses } from "@/db/schema";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,10 @@ const UpdateSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
+    // Rate-limit : 60/min sur PATCH (drag&drop calendar peut chainer plusieurs updates).
+    const rl = checkRateLimit(req, { key: "appointments-patch", limit: 60, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
 
@@ -137,9 +142,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
+    // Rate-limit DELETE : 30/min (Google Calendar sync + webhook dispatch derrière, coûteux).
+    const rl = checkRateLimit(req, { key: "appointments-delete", limit: 30, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
 

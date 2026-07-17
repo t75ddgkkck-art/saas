@@ -4,6 +4,122 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 57 — Nettoyage post-audit : rate-limit routes account/*, parseFloat défensif, toasts erreur, dead code
+
+Suite à l'audit complet réalisé au tour précédent, ce lot ferme les **4 bugs mineurs** identifiés (SEC1, DATA1, UX2, DEAD1). Aucun bug majeur ne restait à traiter.
+
+## SEC1 — Rate-limit sur 11 routes `/api/account/*` et cousines
+
+Un utilisateur authentifié malveillant pouvait spam ces endpoints (auth OK mais 0 rate-limit) → charge serveur / DB / emails. Ajout de `checkRateLimit()` avec seuils calibrés selon le coût de chaque route :
+
+| Route | Verbe | Limite | Justification |
+|---|---|---|---|
+| `/api/account/api-keys` | GET | 60/min | Lecture standard |
+| `/api/account/api-keys` | POST | 10/h | Insertion + génération secret |
+| `/api/account/api-keys/[id]` | DELETE | 30/min | Révocation |
+| `/api/account/webhooks` | GET | 60/min | Lecture standard |
+| `/api/account/webhooks` | POST | 10/h | Insertion + génération HMAC |
+| `/api/account/webhooks/[id]` | DELETE | 30/min | Suppression |
+| `/api/account/notification-preferences` | GET | 60/min | Lecture |
+| `/api/account/notification-preferences` | PUT | 30/min | Upsert |
+| `/api/account/referral` | GET | 60/min | 2 SELECT agrégés |
+| `/api/activity` | GET | 30/min | **6 SELECT parallèles** = route lourde |
+| `/api/ai/usage` | GET | 60/min | Lecture |
+| `/api/appointments/[id]` | PATCH | 60/min | Drag&drop calendar peut chainer |
+| `/api/appointments/[id]` | DELETE | 30/min | Google Calendar sync derrière |
+| `/api/appointments/complete` | POST | 30/min | Envoi email demande d'avis |
+| `/api/auth/session` | GET | 120/min | AuthProvider mount + resync focus tab |
+| `/api/auth/session` | DELETE | 20/min | Logout |
+
+Signature des routes GET adaptée quand nécessaire : `GET()` → `GET(req: NextRequest)`.
+
+## DATA1 — `parseFloat(p.amount)` sans fallback → NaN silencieux
+
+`parseFloat(null)` ou `parseFloat("")` renvoie `NaN` et `NaN + n = NaN` contamine toute la somme. Impact : un seul payment avec amount corrompu → revenue affiché = `NaN` sur tout le dashboard.
+
+Fix dans 2 fichiers :
+- `src/app/api/activity/route.ts:72` (revenue dashboard)
+- `src/app/api/ai-tools/route.ts:101` (revenue IA suggestions)
+
+Pattern défensif :
+```ts
+.reduce((s, p) => {
+  const v = parseFloat(String(p.amount ?? "0"));
+  return s + (Number.isFinite(v) ? v : 0);
+}, 0);
+```
+
+## UX2 — 7 `console.error(e)` catchés silencieusement → toasts utilisateur
+
+L'user restait bloqué en loading indéfini ou pensait avoir enregistré sans succès. Ajout de `toast.error()` explicites + gestion des 4xx/5xx quand `res.ok === false` était ignoré.
+
+Corrigé dans :
+- `src/app/[slug]/PublicPage.tsx` — booking (erreur réseau + créneau déjà pris)
+- `src/app/dashboard/blog/page.tsx` — fetchPosts + handleSave (2)
+- `src/app/dashboard/clients/page.tsx` — fetchClients + handleAddClient (2)
+- `src/app/dashboard/my-businesses/page.tsx` — fetchBusinesses
+
+Le `useToast()` était déjà importé dans les 4 fichiers → 0 ligne d'import ajoutée.
+
+## DEAD1 — `src/components/layout/GlobalSearch.tsx` orphelin depuis Lot 55
+
+170 lignes remplacées par `SearchTrigger` + `CommandPalette` au Lot 55, jamais supprimées. `grep` confirme 0 import actif → fichier supprimé.
+
+## Fichiers touchés
+
+- **Modifiés (14)** :
+  - `src/app/api/account/api-keys/route.ts`
+  - `src/app/api/account/api-keys/[id]/route.ts`
+  - `src/app/api/account/webhooks/route.ts`
+  - `src/app/api/account/webhooks/[id]/route.ts`
+  - `src/app/api/account/notification-preferences/route.ts`
+  - `src/app/api/account/referral/route.ts`
+  - `src/app/api/activity/route.ts` (rate-limit + parseFloat)
+  - `src/app/api/ai/usage/route.ts`
+  - `src/app/api/ai-tools/route.ts` (parseFloat)
+  - `src/app/api/appointments/[id]/route.ts`
+  - `src/app/api/appointments/complete/route.ts`
+  - `src/app/api/auth/session/route.ts`
+  - `src/app/[slug]/PublicPage.tsx` (booking toast)
+  - `src/app/dashboard/blog/page.tsx` + `clients/page.tsx` + `my-businesses/page.tsx` (5 toasts)
+
+- **Supprimés (1)** : `src/components/layout/GlobalSearch.tsx` (dead code, 170 lignes)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **863 tests / 75 fichiers verts** ✅ (inchangé, pas de nouveaux tests — bugs mineurs sans logique métier nouvelle)
+- `npx next build` → OK ✅
+- `npx eslint --fix` sur les fichiers touchés → 0 erreur, 35 warnings pré-existants tolérés
+
+## Impact business
+
+- **Sécurité** : un user authentifié malveillant ne peut plus faire tomber le dashboard admin ou envoyer massivement des emails de review via spam sur `/api/appointments/complete`
+- **Fiabilité data** : le chiffre d'affaires affiché ne peut plus devenir `NaN` à cause d'un seul payment corrompu → confiance user maintenue
+- **UX** : plus d'user bloqué sur un spinner infini ou d'action qui "n'a rien fait sans dire pourquoi" — messages explicites dans 7 flows critiques (booking public, blog, clients, vitrines)
+- **Maintenance** : 170 lignes de dead code en moins, le grep `GlobalSearch` ne renvoie plus rien d'ambigu
+
+## Actions post-déploiement
+
+Aucune action user ou DB requise :
+- Pas de nouvelle table / colonne
+- Pas de nouvelle env var
+- Pas de nouveau cron
+- Le rate-limit est en mémoire (existant) → **⚠️ non partagé entre instances Vercel**. Suffisant en v1 (chaque instance limite à son échelle, l'attaquant vise une seule instance dans 90% des cas). Migration Upstash Redis à prévoir si scaling multi-région.
+
+## Historique commits récents
+
+```
+da9cf34 lot 57 nettoyage post-audit: rate-limit 11 routes account/* + parseFloat defensif + toasts erreur + rm GlobalSearch orphelin
+a0205ae auto-appli coupons Stripe pour crédits parrainage (ferme Lot 52)
+6fa8cc7 lot 56 export CSV analytics (multi-sections, séparateur FR, gate advanced Pro+)
+67343d7 lot 54 optimisation LCP landing (lazy pricing + blurs mobile + preconnect + content-visibility)
+a697936 lot 55 command palette Cmd+K (recherche unifiée privée + publique + historique)
+bf7b5df lot 53 refonte digest email hebdomadaire (segments + action items + opt-out RFC 8058)
+```
+
+---
+
 # 🟢 Tour 50 — Auto-application coupons Stripe pour crédits parrainage (ferme Lot 52)
 
 Depuis le Lot 52, les crédits parrainage sont trackés en DB (`users.referral_credit_months`, plafond 12) mais l'**application effective sur la facture Stripe restait manuelle** (support). Ce lot ferme la boucle : conversion filleul → coupon Stripe créé auto → attaché à la sub du parrain → réduction sur sa prochaine facture, 100% self-service.

@@ -6,15 +6,20 @@
  * Ajout du plafond max (12 mois cumulés) + liste des filleuls masquée.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { loadReferralStats, loadReferralList } from "@/lib/referral-stats";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Rate-limit lecture standard (60/min) — 2 queries agrégées derrière.
+    const rl = checkRateLimit(req, { key: "account-referral-get", limit: 60, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 

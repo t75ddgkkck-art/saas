@@ -14,6 +14,7 @@ import { getCurrentUser, getCurrentBusiness } from "@/lib/session";
 import { handleApiError, unauthorized, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { generateApiKey } from "@/lib/api-keys";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,12 @@ const CreateSchema = z.object({
   scope: z.enum(["read", "read_write"]).default("read"),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Rate-limit : lecture standard (60 req/min) — évite spam d'un user authentifié malveillant.
+    const rl = checkRateLimit(req, { key: "account-api-keys-get", limit: 60, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 
@@ -50,6 +55,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate-limit création : plus strict (10 clés/heure) car chaque POST insère une ligne + génère un secret.
+    const rl = checkRateLimit(req, { key: "account-api-keys-post", limit: 10, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
     const business = await getCurrentBusiness();

@@ -71,7 +71,7 @@ export default function ClientsPage() {
       );
       if (data.errors?.length > 0) {
         toast.warning(`${data.errors.length} lignes en erreur (voir console)`);
-        // eslint-disable-next-line no-console
+         
         console.warn("[import] erreurs:", data.errors);
       }
       fetchClients();
@@ -93,7 +93,12 @@ export default function ClientsPage() {
       const data = await res.json();
       setClients(data.clients || []);
     } catch (e) {
+      // UX2 fix : silence radio → l'user restait en loading indéfini.
       console.error(e);
+      toast.error(
+        "Vérifiez votre connexion internet et réessayez.",
+        "Impossible de charger les clients"
+      );
     } finally {
       setLoading(false);
     }
@@ -103,16 +108,23 @@ export default function ClientsPage() {
     if (!newClient.firstName && !newClient.email) return;
     setIsSaving(true);
     try {
-      await fetch("/api/clients", {
+      const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newClient),
       });
-      setShowNewModal(false);
-      setNewClient({ firstName: "", lastName: "", email: "", phone: "" });
-      fetchClients();
+      if (res.ok) {
+        setShowNewModal(false);
+        setNewClient({ firstName: "", lastName: "", email: "", phone: "" });
+        fetchClients();
+        toast.success("Client ajouté.");
+      } else {
+        // UX2 fix : erreur serveur ignorée → user pensait avoir ajouté.
+        toast.error("Enregistrement impossible.", "Erreur");
+      }
     } catch (e) {
       console.error(e);
+      toast.error("Vérifiez votre connexion et réessayez.", "Erreur réseau");
     } finally {
       setIsSaving(false);
     }

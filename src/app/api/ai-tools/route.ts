@@ -96,9 +96,14 @@ export async function POST(request: NextRequest) {
         db.select().from(reviews).where(eq(reviews.businessId, business.id)),
       ]);
 
+      // DATA1 fix : parseFloat sans garde peut donner NaN si amount est null/invalide,
+      // ce qui contamine toute la somme (NaN + n = NaN). On force fallback 0.
       const revenue = pmts
         .filter((p) => p.status === "completed")
-        .reduce((s, p) => s + parseFloat(p.amount), 0);
+        .reduce((s, p) => {
+          const v = parseFloat(String(p.amount ?? "0"));
+          return s + (Number.isFinite(v) ? v : 0);
+        }, 0);
       const quotesSigned = qts.filter(
         (q) => q.status === "signed" || q.status === "accepted"
       ).length;

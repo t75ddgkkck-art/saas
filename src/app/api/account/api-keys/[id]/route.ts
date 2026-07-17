@@ -9,12 +9,17 @@ import { apiKeys } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
+    // Rate-limit : DELETE plus strict (30/min) → un user ne révoque pas 30 clés/min normalement.
+    const rl = checkRateLimit(req, { key: "account-api-keys-delete", limit: 30, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 

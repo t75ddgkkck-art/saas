@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,12 @@ const UpdateSchema = z.object({
   dndEnd: z.string().regex(HHMM, "Format HH:MM").nullable().optional(),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Rate-limit lecture standard (60/min).
+    const rl = checkRateLimit(req, { key: "notif-prefs-get", limit: 60, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 
@@ -56,6 +61,10 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Rate-limit écriture : 30/min (bloque spam upsert sans être gênant pour UI).
+    const rl = checkRateLimit(request, { key: "notif-prefs-put", limit: 30, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 

@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { getMonthlyUsage, checkAiQuota, AI_TOKEN_LIMITS } from "@/lib/ai/usage";
 import type { SubscriptionPlan } from "@/lib/permissions";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,12 @@ export const dynamic = "force-dynamic";
  *     plan: "pro"
  *   }
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Rate-limit lecture standard (60/min).
+    const rl = checkRateLimit(req, { key: "ai-usage-get", limit: 60, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 

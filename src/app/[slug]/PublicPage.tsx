@@ -1147,9 +1147,20 @@ export function PublicPage({
                         if (res.ok) {
                           setBookingSuccess(true);
                           setBookingStep(2);
+                        } else {
+                          // UX2 fix : on affichait rien en cas de 4xx/5xx → confusion user.
+                          toast.error(
+                            "Impossible de réserver ce créneau. Il est peut-être déjà pris.",
+                            "Réservation échouée"
+                          );
                         }
                       } catch (e) {
+                        // UX2 fix : console.error silencieux → l'user restait bloqué en loading.
                         console.error(e);
+                        toast.error(
+                          "Vérifiez votre connexion et réessayez.",
+                          "Erreur réseau"
+                        );
                       } finally {
                         setBookingLoading(false);
                       }

@@ -62,7 +62,12 @@ export default function BlogPage() {
       const data = await res.json();
       setPosts(data.posts || []);
     } catch (e) {
+      // UX2 fix : on avait un console.error silencieux → l'user restait sur "chargement…" sans feedback.
       console.error(e);
+      toast.error(
+        "Vérifiez votre connexion internet et réessayez.",
+        "Impossible de charger les articles"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -112,9 +117,14 @@ export default function BlogPage() {
         setShowEditor(false);
         setEditingPost(null);
         setFormData({ title: "", excerpt: "", content: "", coverImage: "" });
+        toast.success(editingPost ? "Article mis à jour." : "Article enregistré.");
+      } else {
+        // UX2 fix : 4xx/5xx passait inaperçu, l'user pensait avoir enregistré.
+        toast.error("Enregistrement impossible.", "Erreur");
       }
     } catch (e) {
       console.error(e);
+      toast.error("Vérifiez votre connexion et réessayez.", "Erreur réseau");
     }
   };
 

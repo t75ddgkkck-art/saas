@@ -14,6 +14,7 @@ import { getCurrentUser, getCurrentBusiness } from "@/lib/session";
 import { handleApiError, unauthorized, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { ALL_WEBHOOK_EVENTS, generateWebhookSecret } from "@/lib/webhooks-out";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,12 @@ const CreateSchema = z.object({
   events: z.array(z.enum(ALL_WEBHOOK_EVENTS as [string, ...string[]])).default([]),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Rate-limit lecture standard (60/min).
+    const rl = checkRateLimit(req, { key: "account-webhooks-get", limit: 60, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 
@@ -52,6 +57,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate-limit création : 10/h, cohérent avec api-keys (secret HMAC généré à chaque call).
+    const rl = checkRateLimit(req, { key: "account-webhooks-post", limit: 10, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
     const business = await getCurrentBusiness();

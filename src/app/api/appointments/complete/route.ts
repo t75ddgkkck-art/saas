@@ -8,6 +8,7 @@ import { sendEmail } from "@/lib/email";
 import { handleApiError, unauthorized, notFound, forbidden } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { logger } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,10 @@ const Schema = z.object({
 // Marquer un RDV comme terminé → déclenche la demande d'avis automatique (si activée)
 export async function POST(request: NextRequest) {
   try {
+    // Rate-limit : 30/min (envoi email de demande d'avis à chaque call, coûteux).
+    const rl = checkRateLimit(request, { key: "appointments-complete", limit: 30, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
 

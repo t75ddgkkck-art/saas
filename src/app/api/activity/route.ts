@@ -1,15 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { appointments, quotes, clients, payments, reviews, pageVisits } from "@/db/schema";
 import { eq, desc, gte, and, isNull } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 // Retourne toute l'activité du pro pour le dashboard unifié
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Rate-limit : route lourde (6 SELECT en parallèle) → 30/min suffit largement pour un dashboard.
+    const rl = checkRateLimit(req, { key: "activity-get", limit: 30, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const business = await getCurrentBusiness();
     if (!business) {
       return NextResponse.json({
@@ -67,9 +72,14 @@ export async function GET() {
         .where(and(eq(pageVisits.businessId, business.id), gte(pageVisits.date, sinceStr))),
     ]);
 
+    // DATA1 fix : parseFloat sans garde peut donner NaN → contamine toute la somme.
+    // On force fallback 0 sur null/undefined/chaîne invalide.
     const revenue = pmts
       .filter((p) => p.status === "completed")
-      .reduce((s, p) => s + parseFloat(p.amount), 0);
+      .reduce((s, p) => {
+        const v = parseFloat(String(p.amount ?? "0"));
+        return s + (Number.isFinite(v) ? v : 0);
+      }, 0);
     const avgRating = rvws.length > 0 ? rvws.reduce((s, r) => s + r.rating, 0) / rvws.length : 0;
 
     // Agrégation des visites : par jour + par source + par appareil
