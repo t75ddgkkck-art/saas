@@ -12,7 +12,20 @@ export interface VitrineTemplate {
     pageBg: string;
     cardBg: string;
     cardBorder: string;
+    /**
+     * Lot 62 : NORMALISÉ à un radius pur (rounded-none|md|lg|xl|full).
+     * Avant : contenait aussi bg-indigo-600 hover:bg-indigo-500 (premium-dark)
+     * ou border border-amber-600 text-amber-500 (premium-gold) → conflits avec
+     * `style={{ backgroundColor: primaryColor }}` sur la vraie vitrine.
+     * Les styles de décoration extra vont désormais dans `buttonExtras`.
+     */
     buttonRadius: string;
+    /**
+     * Lot 62 : classes CSS additionnelles pour le bouton principal
+     * (border, glow, uppercase, letter-spacing...). Optionnel — vide sur les
+     * templates simples. Se combine avec primaryColor via className.
+     */
+    buttonExtras?: string;
     avatarRadius: string;
     fontFamily: string; // Police d'écriture (stack CSS)
     headerHeight: string;
@@ -87,7 +100,9 @@ export const vitrineTemplates: VitrineTemplate[] = [
       pageBg: "bg-slate-950 text-slate-100",
       cardBg: "bg-slate-900/50 backdrop-blur-md border border-slate-800",
       cardBorder: "border-slate-800",
-      buttonRadius: "rounded-full bg-indigo-600 hover:bg-indigo-500",
+      // Lot 62 : radius pur, l'effet "glow indigo" est un buttonExtras optionnel
+      buttonRadius: "rounded-full",
+      buttonExtras: "shadow-lg shadow-indigo-500/30",
       avatarRadius: "rounded-full ring-4 ring-indigo-500/30",
       fontFamily: "sans-serif",
       headerHeight: "h-80",
@@ -106,7 +121,9 @@ export const vitrineTemplates: VitrineTemplate[] = [
       pageBg: "bg-black text-amber-50",
       cardBg: "bg-zinc-900 border border-amber-900/30",
       cardBorder: "border-amber-900/30",
-      buttonRadius: "rounded-none border border-amber-600 text-amber-500",
+      // Lot 62 : radius carré + décoration or gérée séparément via buttonExtras
+      buttonRadius: "rounded-none",
+      buttonExtras: "border border-amber-600 uppercase tracking-wider",
       avatarRadius: "rounded-sm border-2 border-amber-600",
       fontFamily: "serif",
       headerHeight: "h-96",

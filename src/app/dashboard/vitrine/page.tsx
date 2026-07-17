@@ -1852,9 +1852,11 @@ export default function VitrinePage() {
                   )}
 
                   {/* Boutons contact — utilise buttonRadius du template */}
+                  {/* Lot 62 : preview aligne son bouton principal sur la vraie
+                      vitrine → buttonRadius + buttonExtras (glow/deco) + primaryColor */}
                   <div className="mt-3 grid grid-cols-2 gap-1.5">
                     <div
-                      className={`${tpl.style.buttonRadius} py-2 text-center text-[10px] font-semibold text-white`}
+                      className={`${tpl.style.buttonRadius} ${tpl.style.buttonExtras ?? ""} py-2 text-center text-[10px] font-semibold text-white`}
                       style={{ backgroundColor: form.primaryColor }}
                     >
                       📞 Appeler
@@ -1874,7 +1876,7 @@ export default function VitrinePage() {
                     )}
                   </div>
                   <div
-                    className={`mt-1.5 ${tpl.style.buttonRadius} py-2 text-center text-[10px] font-semibold text-white`}
+                    className={`mt-1.5 ${tpl.style.buttonRadius} ${tpl.style.buttonExtras ?? ""} py-2 text-center text-[10px] font-semibold text-white`}
                     style={{ backgroundColor: form.primaryColor }}
                   >
                     📅 Prendre rendez-vous

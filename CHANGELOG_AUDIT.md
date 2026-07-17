@@ -4,6 +4,100 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 62 — Templates vitrine phase 2 : primaryColor sur boutons + layout left + structure verrouillée
+
+Prolonge le Lot 61 : après avoir aligné les CARTES sur le template, ce lot aligne les BOUTONS et le LAYOUT. Découverte supplémentaire : `--vx-primary` était exposé en CSS var mais AUCUN bouton l'utilisait → la couleur choisie par le pro (défaut noir) était ignorée partout sur la vraie vitrine.
+
+## Bugs corrigés
+
+### 1. Boutons "Appeler / WhatsApp / Email" ignoraient `primaryColor` + `buttonRadius`
+
+Avant :
+```tsx
+<a className="rounded-xl bg-slate-900 py-3.5 text-white ..."> Appeler </a>
+```
+→ Toujours noir, toujours `rounded-xl`, peu importe le template ou la couleur choisie.
+
+Après :
+```tsx
+<a
+  className={`${tpl.style.buttonRadius} ${tpl.style.buttonExtras ?? ""} py-3.5 text-white ...`}
+  style={{ backgroundColor: business.primaryColor || "#0f172a" }}
+> Appeler </a>
+```
+→ Radius + décoration extra du template + couleur choisie par le pro (avec fallback).
+
+### 2. `buttonRadius` polluait avec des styles visuels → conflit `style` prop
+
+`vitrine-templates.ts` avait :
+- `premium-dark` : `buttonRadius: "rounded-full bg-indigo-600 hover:bg-indigo-500"`
+- `premium-gold` : `buttonRadius: "rounded-none border border-amber-600 text-amber-500"`
+
+Le `bg-indigo-600` overridait le `style={{ backgroundColor: primaryColor }}` → la couleur choisie par le pro n'apparaissait jamais sur ces 2 templates Premium.
+
+**Fix** : nouvelle prop `buttonExtras` optionnelle (shadow, glow, border, uppercase...) séparée du `buttonRadius` qui reste strictement `rounded-*`. Test regex qui bloque toute régression.
+
+### 3. Le `layout: "left"` du template `pro-blue` n'était jamais appliqué
+
+`PublicPage.tsx` avait `<div className="text-center">` hardcodé pour le bloc business info. Le layout `left` défini au Lot 37 pour Pro Business n'avait aucun effet.
+
+**Fix** : `<div className={tpl.style.layout === "left" ? "text-left" : "text-center"}>` + ajustement de `justify-center`/`justify-start` sur la ligne des badges + suppression conditionnelle de `mx-auto` sur le paragraphe description.
+
+### 4. Liens sociaux + FAQ items ignoraient le template
+
+Chips sociaux : `rounded-xl border border-slate-200` en dur → maintenant `${tpl.style.buttonRadius} border ${tpl.style.cardBorder}`.
+Items FAQ : `bg-white dark:bg-slate-900` en dur → maintenant `${tpl.style.cardBg} ${tpl.style.cardBorder}`.
+
+## Tests
+
+Nouveau fichier `tests/unit/vitrine-templates.test.ts` (15 tests) qui verrouille :
+- `buttonRadius` est UN radius pur (regex `^rounded-(none|sm|md|lg|xl|2xl|3xl|full)$`)
+- `buttonExtras` ne contient jamais de radius (évite duplication)
+- Chaque template a ses 8 propriétés obligatoires + layout valide (`center|left`)
+- `pageBg` utilise un préfixe Tailwind `bg-*`
+- `headerHeight` est une classe `h-\d+`
+- IDs uniques
+- `getTemplate` fallback classique sur id inconnu/null/undefined
+- `templatesForPlan` respect strict des gates free/pro/premium
+- `canUseTemplate` refuse aux plans inférieurs
+
+## Fichiers touchés
+
+- **Créés (1)** : `tests/unit/vitrine-templates.test.ts` (15 tests)
+- **Modifiés (3)** :
+  - `src/lib/vitrine-templates.ts` (nouvelle prop `buttonExtras` + refonte `premium-dark` et `premium-gold`)
+  - `src/app/[slug]/PublicPage.tsx` (5 endroits : 3 boutons contact + FAQ items + socials + layout header)
+  - `src/app/dashboard/vitrine/page.tsx` (preview alignée : buttonExtras aussi)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **920 tests / 78 fichiers verts** (avant 905/77, **+15 tests**) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Le pro qui choisit une couleur** (ex: son bleu marque) → il apparaît vraiment sur son bouton "Appeler". Avant le bouton était toujours noir → sensation de "customisation qui sert à rien"
+- **Templates Premium enfin distincts visuellement** : le noir/or de Prestige Or ou le glow indigo de Premium Dark s'appliquent sur tous les boutons (avant : seulement sur la cover et l'avatar, le reste standard)
+- **Cohérence design** : le layout `left` de Pro Business est appliqué → template vraiment "corporate" (avant : indistinguable du template gratuit)
+
+## Actions post-déploiement
+
+Aucune (0 migration DB). Force redeploy Vercel sans cache pour purger les anciens bundles CSS.
+
+## Historique commits
+
+```
+36eeaf7 lot 62 templates vitrine phase 2 (primaryColor + buttonExtras + layout left)
+b3381b4 lot 61 templates vitrine réellement appliqués (preview + PublicPage)
+7061894 revert: lot 60 gate premium avis Google (mauvaise interpretation)
+a3fc9c0 outils: sous-titre nettoyer 'automatisez votre activite'
+cbbdb76 lot 59 fix bugs mineurs + guide Place ID
+7fd3a44 lot 58 fix bugs majeurs (XSS blog + signature devis)
+```
+
+---
+
 # 🟢 Lot 61 — Templates vitrine réellement appliqués (preview ↔ rendu fidèle)
 
 Le user a signalé : "les templates vitrine ne sont pas fidèles à la preview de vitrix fait en sorte qu'il s'applique correctement". Investigation → 2 vraies causes découvertes, 2 fixes livrés.

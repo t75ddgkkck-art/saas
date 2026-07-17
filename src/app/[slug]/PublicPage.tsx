@@ -454,12 +454,16 @@ export function PublicPage({
           </div>
         </div>
 
-        {/* Business Info */}
-        <div className="text-center">
+        {/* Business Info — Lot 62 : layout du template respecté.
+            "center" (défaut) → centré comme avant.
+            "left" (pro-blue) → aligné à gauche pour un look "corporate/services". */}
+        <div className={tpl.style.layout === "left" ? "text-left" : "text-center"}>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {business.name}
           </h1>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-sm">
+          <div
+            className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${tpl.style.layout === "left" ? "justify-start" : "justify-center"}`}
+          >
             <Badge className="capitalize">{category}</Badge>
             {avgRating > 0 && (
               <div className="flex items-center gap-1.5">
@@ -472,19 +476,29 @@ export function PublicPage({
             )}
           </div>
           {business.description && (
-            <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            <p
+              className={`mt-4 max-w-lg text-sm leading-relaxed text-slate-600 dark:text-slate-400 ${tpl.style.layout === "left" ? "" : "mx-auto"}`}
+            >
               {business.description}
             </p>
           )}
         </div>
 
-        {/* Contact Buttons */}
+        {/* Contact Buttons — Lot 62 : utilise enfin primaryColor + tpl.style.buttonRadius.
+            Avant : `rounded-xl bg-slate-900` en dur → n'importait pas quel template
+            ou couleur, tous les boutons "Appeler" étaient noirs standards.
+            Maintenant : le bouton "Appeler" prend la couleur principale (déjà exposée
+            en preview dashboard) + le radius du template (rounded-md classique,
+            rounded-xl pro-blue, rounded-none prestige-or...).
+            WhatsApp garde volontairement bg-emerald-500 = charte officielle WhatsApp. */}
         <div className="mt-6 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             {business.phone && (
               <a
                 href={`tel:${business.phone}`}
-                className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                // Lot 62 : buttonRadius (pur) + buttonExtras (glow, border deco...) + primaryColor
+                className={`flex items-center justify-center gap-2 ${tpl.style.buttonRadius} ${tpl.style.buttonExtras ?? ""} py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90`}
+                style={{ backgroundColor: business.primaryColor || "#0f172a" }}
               >
                 <Phone className="h-4 w-4" />
                 {t(lang, "call")}
@@ -495,7 +509,7 @@ export function PublicPage({
                 href={`https://wa.me/${business.whatsapp.replace("+", "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+                className={`flex items-center justify-center gap-2 ${tpl.style.buttonRadius} bg-emerald-500 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-600`}
               >
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
@@ -505,7 +519,7 @@ export function PublicPage({
           {business.email && (
             <a
               href={`mailto:${business.email}`}
-              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
+              className={`flex items-center justify-center gap-2 ${tpl.style.buttonRadius} border ${tpl.style.cardBorder} py-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900`}
             >
               <Mail className="h-4 w-4" />
               {t(lang, "sendEmail")}
@@ -861,7 +875,8 @@ export function PublicPage({
               {faqs.map((faq, index) => (
                 <div
                   key={faq.id}
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                  // Lot 62 : items FAQ respectent aussi le template (cardBg/cardBorder)
+                  className={`overflow-hidden rounded-xl border ${tpl.style.cardBg} ${tpl.style.cardBorder} dark:border-slate-800 dark:bg-slate-900`}
                 >
                   <button
                     type="button"
@@ -915,7 +930,8 @@ export function PublicPage({
                   href={social.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-slate-900 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:border-white dark:hover:bg-slate-900"
+                  // Lot 62 : buttonRadius + cardBorder du template respectés
+                  className={`flex items-center gap-2 ${tpl.style.buttonRadius} border ${tpl.style.cardBorder} px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900`}
                 >
                   <Globe className="h-4 w-4" />
                   <span className="capitalize">{social.platform}</span>
