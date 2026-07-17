@@ -123,7 +123,7 @@ jobs:
         # Coverage HTML dispo dans "Actions > run > Artifacts" pendant 14j.
         # Si un jour on branche Codecov/Coveralls, l'artifact lcov est prêt.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: coverage/
