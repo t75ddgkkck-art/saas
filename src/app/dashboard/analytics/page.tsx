@@ -26,6 +26,8 @@ import {
 import { PageTitle } from "@/components/layout/PageTitle";
 import { UpgradeGate } from "@/components/entitlements/UpgradeGate";
 import { useEntitlement } from "@/hooks/useEntitlement";
+// Lot 56 : bouton export CSV (multi-sections, gate advanced pour les sections Pro+)
+import { ExportCsvButton } from "@/components/analytics/ExportCsvButton";
 
 // Lazy-load des charts recharts (bundle initial économisé)
 const TimelineChart = dynamic(
@@ -114,7 +116,12 @@ export default function AnalyticsPage() {
             Vue d&apos;ensemble de votre activité et de vos visiteurs
           </p>
         </div>
-        <PeriodPicker value={period} onChange={setPeriod} />
+        {/* Lot 56 : bouton export à côté du picker période. Sur mobile → wrap
+            en dessous du titre (flex-col), sur sm+ à droite du picker. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodPicker value={period} onChange={setPeriod} />
+          <ExportCsvButton period={period} />
+        </div>
       </div>
 
       {loading && !data ? (

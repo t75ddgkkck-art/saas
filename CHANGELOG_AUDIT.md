@@ -4,6 +4,114 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 49 — Lot 56 Export CSV analytics (comptable-friendly)
+
+Nouvelle route `/api/analytics/export` + bouton "Exporter CSV" sur `/dashboard/analytics`. Le pro peut télécharger ses stats en un clic pour reporting Excel / envoi comptable.
+
+## Livré
+
+### Nouvelle lib `analytics-export.ts` (140 lignes)
+
+- `escapeCsvCell(value)` : escape RFC 4180 adapté au séparateur `;` FR
+- `csvRow(cells)` : concat + escape
+- `buildAnalyticsCsv(data)` : assembleur multi-sections (5 sections max)
+- `buildFilename(slug, period)` : `vitrix-analytics-<slug>-<period>-<date>.csv`
+
+**Choix design** (décidés seul, cohérents avec projet) :
+- Séparateur `;` (Excel FR ne détecte pas `,` auto — un CSV Vitrix ouvert par un comptable français doit fonctionner du premier coup)
+- **BOM UTF-8** en tête (accents corrects dans Excel/LibreOffice, sinon "É" → "É")
+- Line ending `\r\n` (compat Excel Windows)
+- Section headers en commentaires `# Vue d'ensemble` (lisible humain, ignoré par Excel)
+- Filename sanitize slug + date ISO
+
+### Nouvelle route `GET /api/analytics/export?period=30d`
+
+- Auth `getCurrentBusiness` + anti-IDOR strict
+- Rate limit 5/min (export = usage rare)
+- Périodes autorisées : `7d | 30d | 90d`
+- 8 requêtes en parallèle (`Promise.all`) : summary, timeline, RDV, devis, revenue + [sources, devices, topPaths si Pro+]
+- Sections avancées **gated `analytics.advanced`** (cohérent avec l'affichage chart existant)
+- Réponse `text/csv` + `Content-Disposition: attachment` déclenchant download natif nav
+
+### Nouveau composant `<ExportCsvButton>` (75 lignes)
+
+- Bouton `<Button variant="outline">` avec icône Download
+- Fetch en Blob + `<a download>` synthétique pour déclencher save-as
+- Loading state pendant fetch (~500ms sur 90d)
+- Toast succès / erreur (avec message API si présent)
+- Gère gracieusement les 401/500 sans télécharger de blob vide
+- Cleanup `URL.revokeObjectURL` après download
+
+### Intégration `/dashboard/analytics`
+
+Ajout du bouton **à côté du `<PeriodPicker>`**, sur la même ligne que le titre. Sur mobile, wrap en dessous (flex-wrap). Simple, discret, découvrable.
+
+## Sections CSV
+
+Toujours présentes (tous plans) :
+1. **Vue d'ensemble** — Visites totales, Visiteurs uniques, Nouveaux RDV, Nouveaux devis, Revenus EUR
+2. **Visites par jour** — Date, Visites, Visiteurs uniques (30 lignes pour 30d, 90 pour 90d)
+
+Uniquement Pro+ (via `analytics.advanced` gate) :
+3. **Sources de trafic** — top 20 (google, carte-visite, camionnette, direct, etc.)
+4. **Devices** — mobile, desktop, tablet
+5. **Pages les plus visitées** — top 20 chemins
+
+## Tests
+
+`tests/unit/analytics-export.test.ts` — **29 tests** :
+- `escapeCsvCell` : 8 tests (null/undefined, `;`, `"`, newline, `,` NON quoté avec sep FR, nombre, boolean)
+- `csvRow` : 4 tests (concat, cellules vides, quoting séparateur, types mixtes)
+- `buildAnalyticsCsv` structure : 5 tests (BOM, header commentaire, section overview, section daily, `\r\n`)
+- `buildAnalyticsCsv` sections optionnelles : 3 tests (absentes Free, vides = pas rendues, présentes = complètes)
+- `buildAnalyticsCsv` escape défensif : 3 tests (business name avec `;`, source avec `"`, path avec `;`)
+- `buildFilename` : 4 tests (format standard, sanitize spéciaux, tronc 40 chars, date par défaut)
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/lib/analytics-export.ts` (140 lignes)
+  - `src/app/api/analytics/export/route.ts` (225 lignes)
+  - `src/components/analytics/ExportCsvButton.tsx` (75 lignes)
+  - `tests/unit/analytics-export.test.ts` (200 lignes, 29 tests)
+
+- **Modifiés** :
+  - `src/app/dashboard/analytics/page.tsx` — intègre `<ExportCsvButton>` à côté du picker
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **850 tests / 74 fichiers** (avant 821/73) ✅
+- `npx next build` → OK, `/api/analytics/export` détecté `ƒ (Dynamic)` ✅
+
+## Impact business
+
+- **Feature réclamée** par tous les pros qui font leur compta manuellement
+- **Argument sales** — "vos stats exportables en 1 clic pour votre comptable" (vs concurrents qui obligent à recopier)
+- **Rétention comptable** — chaque mois quand le pro exporte, il revient sur Vitrix (touchpoint récurrent)
+- **Segmentation Pro+** — les sections avancées (Sources/Devices/Pages) restent gated `analytics.advanced` → argument upgrade sans bloquer l'usage basique
+
+## Actions post-déploiement
+
+Aucune migration DB, aucune config.
+
+1. Ouvrir `/dashboard/analytics` → bouton "Exporter CSV" visible à droite du picker période
+2. Cliquer → un fichier `vitrix-analytics-<slug>-30d-<date>.csv` doit se télécharger en <1s
+3. Ouvrir avec Excel FR → accents corrects, séparateur détecté, tableau propre
+4. **Test compte Free** : sections avancées absentes du CSV (bien)
+5. **Test compte Pro/Premium** : les 5 sections complètes
+
+## Historique commits
+
+```
+<hash>   lot 56 export CSV analytics (multi-sections, séparateur FR, gate advanced Pro+)
+67343d7  lot 54 optimisation LCP landing (lazy pricing + blurs mobile + preconnect + content-visibility)
+a697936  lot 55 command palette Cmd+K (recherche unifiée privée + publique + historique)
+bf7b5df  lot 53 refonte digest email hebdomadaire (segments + action items + opt-out RFC 8058)
+```
+
+---
+
 # 🟢 Tour 48 — Lot 54 Optimisation LCP landing (Perf 85 → 92+)
 
 Passe la landing `/` de ~85 à ~92+ Lighthouse Perf mobile via 5 optimisations ciblées, sans casser le design ni introduire de dette.
