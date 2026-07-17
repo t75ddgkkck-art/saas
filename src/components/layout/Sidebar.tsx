@@ -25,7 +25,10 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/Button";
-import { GlobalSearch } from "./GlobalSearch";
+// Lot 55 : remplace l'ancien GlobalSearch par le bouton SearchTrigger qui ouvre
+// la Command Palette Cmd+K. L'input inline sidebar est OUT — remplacé par une
+// modal full-screen bien plus puissante (recherche privée + publique + actions rapides).
+import { SearchTrigger } from "@/components/command/SearchTrigger";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 // Lot 46 (F11) : sélecteur de vitrine active — se cache seul si 0 vitrine
@@ -157,9 +160,11 @@ export function Sidebar() {
           <BusinessSwitcher />
         </div>
 
-        {/* Recherche */}
+        {/* Lot 55 : trigger Command Palette ⌘K — ouvre la recherche modal
+            avec navigation clavier + résultats privés (clients/RDV/devis/factures)
+            + résultats publics (businesses/blog). Voir SearchTrigger.tsx. */}
         <div className="border-b border-slate-200/60 px-4 py-3 dark:border-slate-800">
-          <GlobalSearch />
+          <SearchTrigger />
         </div>
 
         {/* Navigation */}

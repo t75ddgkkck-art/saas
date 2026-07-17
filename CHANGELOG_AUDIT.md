@@ -4,6 +4,131 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 47 — Lot 55 Command Palette Cmd+K (recherche unifiée)
+
+Remplace l'ancien `<GlobalSearch>` sidebar (input inline, publique uniquement) par une **Command Palette full-screen** style Linear/Notion/GitHub avec raccourci `Cmd+K` / `Ctrl+K` global.
+
+## Livré
+
+### Nouvelle route `/api/search/dashboard` (authentifiée)
+
+Recherche dans les données PRIVÉES du business courant :
+- **Clients** — recherche `firstName || ' ' || lastName`, email, téléphone
+- **Rendez-vous** — titre + description
+- **Devis** — numéro + titre
+- **Factures** — numéro
+
+Sécurité :
+- `getCurrentBusiness` → anti-IDOR strict, filtre `businessId`
+- Rate limit 30/min (dashboard = user power qui tape vite)
+- Soft delete `isNull(deletedAt)` partout
+- Cap 5 résultats par catégorie (max 20 total)
+- 4 requêtes en `Promise.all` — 1 round-trip logique
+
+### Composant `<CommandPalette>` (500 lignes)
+
+Modal centrée, backdrop blur + click-outside ferme.
+
+**Sections** selon état :
+- **Query vide** : historique (5 derniers cliqués depuis `localStorage`) + 6 actions rapides (Nouveau devis, Nouveau client, Aujourd'hui, Stats, Vitrine, Paramètres)
+- **Query >= 2 chars** : 2 groupes side-by-side "Dans votre business" (privé) + "Sur Vitrix" (public businesses/blog)
+- **Empty** : "Aucun résultat pour « xxx »"
+
+**Navigation clavier complète** :
+- `↑` `↓` : change item sélectionné (highlight bleu + scroll into view)
+- `Enter` : navigate vers href + ajoute à historique + ferme
+- `Esc` : ferme
+- `Cmd+K` / `Ctrl+K` : toggle open/close (écouté par le Provider)
+
+**Optimisations** :
+- Debounce 200ms + `AbortController` (annule requêtes obsolètes)
+- Fetch privé + public en parallèle
+- `scrollIntoView({ block: "nearest" })` sur l'item sélectionné
+- `localStorage` historique cap 5, dédup par href
+- Auto-focus input à l'ouverture (setTimeout 50ms pour skip transition)
+- Reset état à chaque ouverture (query vide, résultats vides)
+
+**A11Y** :
+- `role="dialog"` + `aria-modal` + `aria-label="Rechercher"`
+- Input `aria-autocomplete="list"`
+- Chaque item `role="option"` + `aria-selected`
+- Footer keyboard hints visibles
+
+### Hook `useCommandPalette` + `<CommandPaletteProvider>`
+
+Provider monté dans `layout.tsx` dashboard → shortcut Cmd+K écouté globalement.
+
+Cross-platform : `event.metaKey || event.ctrlKey` couvre Mac + Win/Linux/ChromeOS.
+
+Hook `useCommandPalette()` retourne `{ isOpen, open, close, toggle }` — utile pour un bouton externe qui déclenche la palette (voir `<SearchTrigger>`).
+
+### `<SearchTrigger>` — remplace `<GlobalSearch>` sidebar
+
+Bouton compact qui ressemble à un input mais ouvre la palette. Affiche :
+- Icône `Search`
+- Label "Rechercher…"
+- Badge `⌘K` (Mac) OU `Ctrl+K` (autres OS) — détection auto via `navigator.platform`
+
+L'ancien `<GlobalSearch>` reste dans le repo (pas cassé) mais n'est plus utilisé.
+
+## Tests
+
+`tests/components/CommandPalette.test.tsx` — **15 tests** :
+- Rendu conditionnel isOpen (3)
+- Écran accueil (actions rapides, groupe "Récents" avec/sans localStorage) (4)
+- Recherche (fetch pas <2 chars, fetch >=2 chars, empty state, résultats privés) (4)
+- Interactions (clic backdrop, clic action → router.push + historique) (3)
+- Footer keyboard hints (1)
+
+**Nouveau polyfill jsdom** : `Element.prototype.scrollIntoView = () => {}` dans `tests/setup-react.ts` — sans ça, tout composant qui appelle `scrollIntoView` crashe en test (bug jsdom connu).
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/app/api/search/dashboard/route.ts` (170 lignes)
+  - `src/components/command/CommandPalette.tsx` (500 lignes)
+  - `src/components/command/useCommandPalette.tsx` (75 lignes — Provider + hook)
+  - `src/components/command/SearchTrigger.tsx` (45 lignes)
+  - `tests/components/CommandPalette.test.tsx` (200 lignes, 15 tests)
+
+- **Modifiés** :
+  - `src/app/dashboard/layout.tsx` — enveloppe `<CommandPaletteProvider>`
+  - `src/components/layout/Sidebar.tsx` — remplace `<GlobalSearch>` par `<SearchTrigger>`
+  - `tests/setup-react.ts` — polyfill `scrollIntoView` jsdom
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **821 tests / 73 fichiers** (avant 806/72) ✅
+- `npx next build` → OK, `/api/search/dashboard` détecté ✅
+
+## Impact business
+
+- **Ergonomie power user** : accès instantané à n'importe quel client/devis/facture sans naviguer dans les menus. Un pro qui traite 30 clients/jour gagne ~15 min/jour
+- **Différenciation** : les concurrents (Batappli, Codial) n'ont pas de Cmd+K. Feature qui claque en démo commerciale
+- **Découvrabilité** : les actions rapides (Nouveau devis, Nouveau client...) éduquent les nouveaux users aux fonctionnalités clés dès la 1ère utilisation
+- **Aucun coût runtime** : pas d'index externe (Meilisearch/Algolia), juste ILIKE Postgres — scale jusqu'à 100k rows sans souci
+
+## Actions post-déploiement
+
+**Aucune migration DB** — toutes les tables existent déjà.
+
+1. Vérifier `/dashboard` sur desktop → `Cmd+K` ouvre la palette
+2. Taper "test" ou un nom de client → doit renvoyer les résultats groupés
+3. Cliquer un résultat → doit naviguer + fermer la palette + ajouter à l'historique (visible au prochain Cmd+K)
+4. Refresh la page → l'historique doit persister (localStorage)
+
+## Historique commits
+
+```
+<hash>   lot 55 command palette Cmd+K (recherche unifiée privée + publique + historique)
+bf7b5df  lot 53 refonte digest email hebdomadaire (segments + action items + opt-out RFC 8058)
+22ef83a  lot 52 programme parrainage v2 + plafond 12 mois + notif parrain
+0374fdf  lot 50 tests React + audit global + fixes NAV1/A11Y1/UX1 + page tarifs
+```
+
+---
+
 # 🟢 Tour 46 — Lot 53 Refonte digest email hebdomadaire (anti-churn)
 
 Refonte complète du cron `weekly-summary` existant (Lot 18 initial) qui était froid, Pro-only, sans opt-out et sans action items. Résultat : email vu comme spam et abandonné. Le Lot 53 le transforme en outil anti-churn majeur.

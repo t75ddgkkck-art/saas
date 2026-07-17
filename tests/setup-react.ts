@@ -4,7 +4,7 @@
  * Applique :
  *  - @testing-library/jest-dom matchers (`toBeInTheDocument`, `toHaveClass`, etc.)
  *  - Nettoyage automatique du DOM après chaque test (cleanup)
- *  - Mocks globaux nécessaires : next/navigation, next/link
+ *  - Polyfills jsdom : scrollIntoView (Lot 55), matchMedia (si utilisé)
  *
  * Chargé uniquement quand `environment === "jsdom"` (voir vitest.config.ts).
  * Pour les tests en env `node` (libs pures), ce fichier est un no-op silencieux.
@@ -18,3 +18,12 @@ import "@testing-library/jest-dom/vitest";
 afterEach(() => {
   cleanup();
 });
+
+// Lot 55 — Polyfill jsdom : scrollIntoView n'est PAS implémenté dans jsdom.
+// Sans ce stub, les composants qui l'appellent (CommandPalette, Modal, etc.)
+// crashent en test avec "el.scrollIntoView is not a function".
+if (typeof window !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function () {
+    /* no-op — le scroll n'a pas de sens en jsdom */
+  };
+}
