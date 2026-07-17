@@ -6,6 +6,7 @@ import { eq, and, gte, lte } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError, unauthorized, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,14 @@ const UpsertSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  // Lot 64 : 60/min — lecture calendar
+  const rl = checkRateLimit(request, {
+    key: "schedule-exceptions-get",
+    limit: 60,
+    windowSec: 60,
+  });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) return NextResponse.json({ exceptions: [] });
@@ -54,6 +63,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Lot 64 : 60 exceptions/h — un pro peut planifier plusieurs congés d'affilée
+  const rl = checkRateLimit(request, {
+    key: "schedule-exceptions-post",
+    limit: 60,
+    windowSec: 3600,
+  });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
@@ -96,6 +113,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  // Lot 64 : 60/h aligné avec POST
+  const rl = checkRateLimit(request, {
+    key: "schedule-exceptions-delete",
+    limit: 60,
+    windowSec: 3600,
+  });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();

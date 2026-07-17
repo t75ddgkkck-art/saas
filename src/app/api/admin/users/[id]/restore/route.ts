@@ -12,10 +12,16 @@ import { eq } from "drizzle-orm";
 import { requireAdmin, logAdminEvent } from "@/lib/admin";
 import { handleApiError, notFound } from "@/lib/api-error";
 import { markRestored } from "@/lib/soft-delete";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 30 restaurations/h — action rare (support qui répond à un ticket
+  // "je me suis trompé, remettez mon compte") aligné avec ban/unban.
+  const rl = checkRateLimit(req, { key: "admin-restore", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await params;
   try {
     const admin = await requireAdmin();

@@ -6,6 +6,7 @@ import { eq, and, gte } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError, unauthorized, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,10 @@ const GenerateSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  // Lot 64 : 60 lectures/min — le dashboard peut poller pour refresh calendar
+  const rl = checkRateLimit(request, { key: "my-availability-get", limit: 60, windowSec: 60 });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) return NextResponse.json({ hours: [], slots: [] });
@@ -75,6 +80,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  // Lot 64 : 30 updates horaires/h — un pro change ses horaires rarement
+  const rl = checkRateLimit(request, { key: "my-availability-put", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
@@ -101,6 +110,10 @@ export async function PUT(request: NextRequest) {
 
 // POST : génère automatiquement des créneaux à partir des horaires
 export async function POST(request: NextRequest) {
+  // Lot 64 : 10 générations/h — opération lourde (peut créer 100s de slots)
+  const rl = checkRateLimit(request, { key: "my-availability-gen", limit: 10, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();
@@ -181,7 +194,11 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE : réinitialise les statistiques de visites du business courant
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  // Lot 64 : 5 resets/h — action rare et destructive (efface les stats)
+  const rl = checkRateLimit(request, { key: "my-availability-reset", limit: 5, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();

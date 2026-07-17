@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm";
 import { requireAdmin, logAdminEvent } from "@/lib/admin";
 import { handleApiError, badRequest, notFound } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,11 @@ const BanSchema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 30 bans/h max (audit event à chaque call, notif à l'user banni).
+  // Un admin légitime en fait rarement plus de 5/h même en modération intense.
+  const rl = checkRateLimit(req, { key: "admin-ban", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await params;
   try {
     const admin = await requireAdmin();
@@ -49,6 +55,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 30 unbans/h aligné avec bans
+  const rl = checkRateLimit(req, { key: "admin-unban", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await params;
   try {
     const admin = await requireAdmin();

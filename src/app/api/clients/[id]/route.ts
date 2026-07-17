@@ -15,6 +15,7 @@ import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { normalizePhone } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 120 patchs/h — un pro peut mettre à jour beaucoup de fiches
+  // client d'affilée (session de nettoyage CRM).
+  const rl = checkRateLimit(req, { key: "clients-patch", limit: 120, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await params;
   try {
     const business = await getCurrentBusiness();
@@ -164,7 +170,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 60 suppressions/h (soft delete, nettoyage massif possible)
+  const rl = checkRateLimit(req, { key: "clients-delete", limit: 60, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await params;
   try {
     const business = await getCurrentBusiness();

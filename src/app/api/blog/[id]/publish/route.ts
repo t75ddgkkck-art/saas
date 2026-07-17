@@ -4,10 +4,15 @@ import { blogPosts } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError, notFound, unauthorized } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function PUT(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 60 publications/h (toggle publish/unpublish possible en batch)
+  const rl = checkRateLimit(request, { key: "blog-publish", limit: 60, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const { id } = await params;
     const business = await getCurrentBusiness();

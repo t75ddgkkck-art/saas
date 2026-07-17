@@ -6,7 +6,7 @@
  *          révoquer côté Google via son compte)
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireTeamPermission } from "@/lib/team-context";
 import {
   hasGoogleCalendarConnection,
@@ -14,10 +14,15 @@ import {
   isGoogleCalendarConfigured,
 } from "@/lib/google-calendar";
 import { handleApiError } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Lot 64 : 60 checks/min — lecture standard
+  const rl = checkRateLimit(request, { key: "google-cal-get", limit: 60, windowSec: 60 });
+  if (!rl.ok) return rl.response;
+
   try {
     const ctx = await requireTeamPermission("business.edit");
     const connected = await hasGoogleCalendarConnection(ctx.business.id);
@@ -30,7 +35,11 @@ export async function GET() {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  // Lot 64 : 10 déconnexions/h — action rare
+  const rl = checkRateLimit(request, { key: "google-cal-disconnect", limit: 10, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const ctx = await requireTeamPermission("business.edit");
     await disconnectGoogleCalendar(ctx.business.id);

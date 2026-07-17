@@ -10,10 +10,15 @@ import { unavailabilities } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { handleApiError, notFound } from "@/lib/api-error";
 import { requireTeamPermission } from "@/lib/team-context";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 60/h — un pro peut supprimer plusieurs blocs unavail en cascade
+  const rl = checkRateLimit(req, { key: "unavail-delete", limit: 60, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await ctx.params;
   try {
     const context = await requireTeamPermission("appointments.delete");

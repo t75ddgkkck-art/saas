@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, businesses } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { markDeleted } from "@/lib/soft-delete";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,14 @@ export const dynamic = "force-dynamic";
  * de suite (ex: RGPD article 17 avec urgence médicale), un endpoint admin
  * dédié permettra le hard delete. Ce endpoint public reste soft.
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  // Lot 64 SEC3-suite : 3 suppressions/h — action irréversible (soft delete
+  // 30j puis hard delete cron). Un user légitime ne le fait qu'une fois.
+  // 3/h laisse une marge pour erreurs UI (double clic accidentel bloqué par
+  // le modal de confirmation SUPPRIMER en amont, mais defense in depth).
+  const rl = checkRateLimit(request, { key: "account-delete", limit: 3, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const user = await getCurrentUser();
     if (!user) throw unauthorized();

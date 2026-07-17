@@ -9,6 +9,7 @@ import { sendEmail } from "@/lib/email";
 import { handleApiError, unauthorized, badRequest, notFound } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { logger } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,11 @@ const Schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Lot 64 : 30 emails d'avis/h — chaque call envoie un email au client (coût
+  // Resend + potentiel spam). 30/h = un pro très actif fait 3-5 demandes/h.
+  const rl = checkRateLimit(request, { key: "ai-auto-review", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const perm = await requirePermission("canAutoReviewRequest");
   if (perm.error) return perm.error;
 

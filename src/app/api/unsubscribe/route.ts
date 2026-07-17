@@ -15,6 +15,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import { logger } from "@/lib/logger";
 import { handleApiError } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,11 @@ function escapeHtml(s: string): string {
 }
 
 export async function GET(request: NextRequest) {
+  // Lot 64 : 30/min — protège contre spam de tokens fabriqués/brute-force
+  // (le token est signé HMAC donc invalidé côté verifyUnsubscribeToken, mais
+  // le rate-limit épargne le coût CPU HMAC + query DB par tentative).
+  const rl = checkRateLimit(request, { key: "unsubscribe-get", limit: 30, windowSec: 60 });
+  if (!rl.ok) return rl.response;
   return handleUnsubscribe(request);
 }
 
@@ -152,6 +158,9 @@ export async function GET(request: NextRequest) {
 // bonne pratique "ne pas exécuter d'action sur un GET" (mais ils lisent
 // aussi le GET pour être compatibles avec les vieux serveurs).
 export async function POST(request: NextRequest) {
+  // Lot 64 : plus permissif pour POST (Gmail/Yahoo peuvent grouper des requests)
+  const rl = checkRateLimit(request, { key: "unsubscribe-post", limit: 60, windowSec: 60 });
+  if (!rl.ok) return rl.response;
   await handleUnsubscribe(request);
   // Réponse 200 vide suffit pour Gmail/Yahoo one-click.
   return new NextResponse(null, { status: 200 });

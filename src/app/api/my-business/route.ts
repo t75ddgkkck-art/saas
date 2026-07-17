@@ -8,6 +8,7 @@ import { getCurrentBusiness } from "@/lib/session";
 import { slugify } from "@/lib/utils";
 import { handleApiError, unauthorized, conflict, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,10 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  // Lot 64 : 60 updates/h — édition vitrine active (auto-save côté editor)
+  const rl = checkRateLimit(request, { key: "my-business-put", limit: 60, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();

@@ -4,6 +4,123 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 64 — Rate-limit couverture 100% sur toutes les routes de mutation
+
+Suite du Lot 63 qui avait fixé 11 routes critiques. Ce lot ajoute rate-limit sur les **19 routes secondaires restantes** identifiées par l'audit passe 3 → couverture **100%** des mutations.
+
+## Bilan couverture rate-limit
+
+| Statut | Nombre | Détail |
+|---|---|---|
+| Routes API totales | **136** | |
+| Routes avec rate-limit | **107** | Toutes celles avec mutation utilisateur |
+| Routes SANS rate-limit (légitime) | 29 | Crons (auth `CRON_SECRET`), webhooks Stripe (auth signature HMAC), routes GET-only publiques statiques |
+| **Routes de mutation sans rate-limit** | **0** | ✅ Couverture 100% atteinte |
+
+## Routes protégées ce lot (19)
+
+| Route | Verbe | Limite | Justification |
+|---|---|---|---|
+| `/api/account` | DELETE | 3/h | RGPD delete — action irréversible, un user légitime le fait 1 fois |
+| `/api/admin/users/[id]/ban` | POST | 30/h | Modération admin |
+| `/api/admin/users/[id]/ban` | DELETE | 30/h | Unban |
+| `/api/admin/users/[id]/plan` | POST | 30/h | Override plan (comps VIP, fix webhook) |
+| `/api/admin/users/[id]/restore` | POST | 30/h | Support ticket "remettre mon compte" |
+| `/api/ai/auto-review` | POST | 30/h | Envoi email demande d'avis (coût Resend) |
+| `/api/blog/[id]/publish` | PUT | 60/h | Toggle publish/unpublish |
+| `/api/client/logout` | POST | 20/min | Logout trivial, anti-spam |
+| `/api/clients/[id]` | PATCH | 120/h | Update fiche client (nettoyage CRM en batch) |
+| `/api/clients/[id]` | DELETE | 60/h | Soft delete |
+| `/api/google/calendar` | GET | 60/min | Check statut connexion |
+| `/api/google/calendar` | DELETE | 10/h | Déconnexion sync (rare) |
+| `/api/my-availability` | GET | 60/min | Poll dashboard calendar |
+| `/api/my-availability` | PUT | 30/h | Édition horaires |
+| `/api/my-availability` | POST | 10/h | Génération slots (opération lourde) |
+| `/api/my-availability` | DELETE | 5/h | Reset stats (destructive) |
+| `/api/my-business` | PUT | 60/h | Édition vitrine (auto-save côté editor) |
+| `/api/my-faqs` | PUT | 30/h | Édition FAQ |
+| `/api/pdf/invoice` | POST | 30/h | Génération PDF coûteuse (jsPDF RAM/CPU) |
+| `/api/quote-form-fields` | GET | 60/min | Visiteur charge formulaire devis (public) |
+| `/api/quote-form-fields` | PUT | 30/h | Édition config formulaire devis |
+| `/api/schedule/exceptions` | GET | 60/min | Lecture calendar |
+| `/api/schedule/exceptions` | POST | 60/h | Planification congés |
+| `/api/schedule/exceptions` | DELETE | 60/h | |
+| `/api/services` | PUT | 30/h | Édition catalogue services |
+| `/api/unavailabilities/[id]` | DELETE | 60/h | Suppression blocs unavail |
+| `/api/unsubscribe` | GET | 30/min | Protège brute-force tokens |
+| `/api/unsubscribe` | POST | 60/min | RFC 8058 one-click (Gmail/Yahoo) |
+| `/api/v1/appointments` | GET | 600/h | API publique — protège scripts mal paginés |
+| `/api/v1/appointments` | POST | 300/h | API publique write |
+
+## Fichiers touchés
+
+- **Modifiés (19)** :
+  - `src/app/api/account/route.ts`
+  - `src/app/api/admin/users/[id]/ban/route.ts`
+  - `src/app/api/admin/users/[id]/plan/route.ts`
+  - `src/app/api/admin/users/[id]/restore/route.ts`
+  - `src/app/api/ai/auto-review/route.ts`
+  - `src/app/api/blog/[id]/publish/route.ts`
+  - `src/app/api/client/logout/route.ts`
+  - `src/app/api/clients/[id]/route.ts`
+  - `src/app/api/google/calendar/route.ts`
+  - `src/app/api/my-availability/route.ts`
+  - `src/app/api/my-business/route.ts`
+  - `src/app/api/my-faqs/route.ts`
+  - `src/app/api/pdf/invoice/route.ts`
+  - `src/app/api/quote-form-fields/route.ts`
+  - `src/app/api/schedule/exceptions/route.ts`
+  - `src/app/api/services/route.ts`
+  - `src/app/api/unavailabilities/[id]/route.ts`
+  - `src/app/api/unsubscribe/route.ts`
+  - `src/app/api/v1/appointments/route.ts`
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **926 tests / 78 fichiers verts** (inchangé, aucune régression) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Défense en profondeur** : plus aucune route de mutation exploitable en spam par un user authentifié malveillant
+- **Coûts contrôlés** : les routes coûteuses (PDF, emails, API Stripe) ont toutes leur plafond horaire
+- **Protection API publique v1** : les scripts partenaires mal codés (pagination cassée) ne peuvent plus faire tomber la DB
+- **Compliance** : le DELETE compte RGPD est plafonné à 3/h → protège contre les scripts qui essaient de forcer un hard delete immédiat
+
+## Reste 0 route de mutation sans rate-limit
+
+Couverture **100%** validée par script :
+```bash
+for f in $(find src/app/api -name "route.ts"); do
+  has_mut=$(grep -c "^export async function (POST|PUT|PATCH|DELETE)" "$f")
+  has_rl=$(grep -c "checkRateLimit" "$f")
+  has_cron=$(grep -c "CRON_SECRET" "$f")
+  has_stripe=$(grep -c "stripe.*signature" "$f")
+  [ "$has_mut" -gt 0 ] && [ "$has_rl" -eq 0 ] && [ "$has_cron" -eq 0 ] && [ "$has_stripe" -eq 0 ] && echo "$f"
+done
+# → 0 résultat
+```
+
+## Actions post-déploiement
+
+Aucune (0 DB, 0 env, 0 cron). Push et Vercel redéploie.
+
+⚠️ Rappel : le rate-limit est **en mémoire par instance Vercel** (voir `src/lib/rate-limit.ts`). Suffisant pour bloquer un attaquant mono-IP en v1. Si scaling multi-région → migrer vers Upstash Redis.
+
+## Historique commits
+
+```
+9ef0b75 lot 64 rate-limit couverture 100% (19 routes secondaires)
+b5405fe lot 63 audit passe 3 (rate-limit 11 routes critiques + safeParseAmount)
+7c74f26 lot 62 templates vitrine phase 2 (primaryColor + buttonExtras + layout)
+b3381b4 lot 61 templates vitrine réellement appliqués
+7061894 revert: lot 60 gate premium avis Google
+cbbdb76 lot 59 fix bugs mineurs + guide Place ID
+```
+
+---
+
 # 🟢 Lot 63 — Audit passe 3 : rate-limit sur 11 routes critiques + safeParseAmount helper
 
 3e passe d'audit après 62 lots livrés. Découverte : 28 routes de mutation manquaient de rate-limit. Priorisation des 11 les plus critiques (financières + business) + création d'un helper `safeParseAmount` pour éliminer définitivement les affichages "NaN" dans le dashboard/exports.

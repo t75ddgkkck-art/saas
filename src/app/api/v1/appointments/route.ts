@@ -17,6 +17,7 @@ import { requireApiKey } from "@/lib/public-api";
 import { handleApiError, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { dispatchWebhook } from "@/lib/webhooks-out";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,11 @@ const CreateSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  // Lot 64 : API publique — 600/h par IP (10/min) protège la DB des scripts
+  // qui ne paginent pas correctement. Le vrai gate reste requireApiKey (per-key).
+  const rl = checkRateLimit(req, { key: "v1-appointments-get", limit: 600, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const gate = await requireApiKey(req);
   if (!gate.ok) return gate.response;
 
@@ -88,6 +94,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Lot 64 : API publique write — 300/h par IP (5/min) protège contre spam
+  // + création client à la volée (double insert par call, coûteux).
+  const rl = checkRateLimit(req, { key: "v1-appointments-post", limit: 300, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const gate = await requireApiKey(req, /* requireWrite */ true);
   if (!gate.ok) return gate.response;
 

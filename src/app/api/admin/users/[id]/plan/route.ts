@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import { requireAdmin, logAdminEvent } from "@/lib/admin";
 import { handleApiError, notFound } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,10 @@ const PlanSchema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lot 64 : 30 overrides/h — action rare (comps VIP, fix webhook Stripe raté)
+  const rl = checkRateLimit(req, { key: "admin-plan-override", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { id } = await params;
   try {
     const admin = await requireAdmin();

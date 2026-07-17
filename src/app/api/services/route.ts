@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getCurrentBusiness } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,10 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  // Lot 64 : 30 updates/h — édition catalogue services (purge + réinsertion)
+  const rl = checkRateLimit(request, { key: "services-put", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const business = await getCurrentBusiness();
     if (!business) throw unauthorized();

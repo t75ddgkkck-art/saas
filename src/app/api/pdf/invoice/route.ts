@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateInvoicePDF, type PdfTemplate } from "@/lib/pdf-generator";
 import { handleApiError, badRequest } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,11 @@ const VALID_TYPES = new Set(["devis", "facture"]);
 const VALID_TEMPLATES = new Set<PdfTemplate>(["standard", "moderne", "minimaliste"]);
 
 export async function POST(request: NextRequest) {
+  // Lot 64 : 30 PDFs/h — génération PDF coûteuse (jsPDF côté serveur, RAM/CPU).
+  // 30/h couvre l'usage normal (un pro génère 5-10 PDF/jour typiquement).
+  const rl = checkRateLimit(request, { key: "pdf-invoice", limit: 30, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   try {
     const body = await request.json().catch(() => null);
     if (!body) throw badRequest("JSON invalide");
