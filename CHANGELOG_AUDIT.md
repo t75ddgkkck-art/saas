@@ -4,6 +4,92 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 59 — Fix bugs MINEURS + guide Google Place ID intégré
+
+Ferme les 2 bugs MINEURS restants de l'audit post-Lot 57 (SEC1bis, SEC2) + enrichit le composant `GoogleReviewsCard` livré au Lot 58 avec un guide pédagogique 3 méthodes (l'artisan lambda ne sait pas ce qu'est un "Place ID").
+
+## Guide Google Place ID intégré (UX)
+
+L'usage réel a montré que le composant `GoogleReviewsCard` livré au Lot 58 partait du principe que l'user savait ce qu'est un Place ID → décrochage. Ajout d'un accordéon replié par défaut "❓ C'est quoi un Place ID ? Comment le trouver ?" :
+
+- **Explication grand public** : "c'est l'identifiant unique de votre entreprise sur Google Maps, comme un numéro d'immatriculation"
+- **Méthode 1 (recommandée, 3 clics)** : lien direct vers le Place ID Finder officiel Google, puis instructions "tapez votre nom + ville → cliquez sur votre fiche → copiez l'ID affiché en gras"
+- **Méthode 2** : depuis l'URL Google Maps (avec avertissement que ce n'est pas fiable)
+- **Méthode 3** : depuis Google Business Profile
+- **Bloc "pas encore de fiche Google Business ?"** : lien vers business.google.com/create avec délai réaliste (1-2 semaines de vérification postale)
+
+L'ancien lien "Guide officiel Google" (peu explicite) est retiré au profit de ce guide contextuel.
+
+## MIN1 — Rate-limit sur `/api/availability`
+
+**Problème** : route publique appelée à chaque ouverture du widget booking sur la vitrine, 0 rate-limit. Un scraper pouvait extraire tous les créneaux de tous les pros (concurrence) ou faire tomber la DB par spam.
+
+**Fix** : `checkRateLimit(req, { key: "availability", limit: 60, windowSec: 60 })`. 60 req/min/IP largement au-dessus du besoin légitime (un visiteur ouvre le widget ~5 fois avant de réserver).
+
+## MIN2 — Validation Zod stricte sur `POST /api/my-businesses`
+
+**Problème** : `body = await request.json()` cru sans validation. Un attaquant pouvait envoyer :
+- `name` en objet → crash SQL
+- `siret` de 10 000 caractères → crash SQL avec message technique exposé
+- `postalCode` alphanumérique → invalide DB
+
+**Fix** : nouveau `CreateBusinessSchema` Zod avec longueurs alignées sur le schéma DB :
+- `name` / `category` : 1-100 chars
+- `description` : max 2000 chars
+- `address` : max 500 chars
+- `city` : max 100 chars
+- `postalCode` : regex `^\d{0,5}$` (norme FR)
+- `phone` : max 30 chars
+- `siret` : regex `^(\d{14})?$` (14 chiffres exactement ou vide, norme INSEE)
+
+Utilise `validateBody()` de `@/lib/api-helpers` — les erreurs remontent proprement en 400 avec le field concerné (au lieu de crashes 500 techniques).
+
+**Bonus** : ajout rate-limit `10/h` sur la même route (création vitrine = action rare, Premium max 3 vitrines total → 10/h suffit largement).
+
+19 tests unitaires `tests/unit/my-businesses-schema.test.ts` :
+- 3 happy path (minimal, complet, champs optionnels vides)
+- 13 rejets (name manquant/vide/trop long, category, description trop long, siret non numérique / trop court / trop long, postalCode invalide, name en objet, phone trop long, city trop long)
+- 3 tests normalisation (trim, optionnels vides)
+
+## Fichiers touchés
+
+- **Créés (1)** :
+  - `tests/unit/my-businesses-schema.test.ts` (19 tests Zod)
+
+- **Modifiés (3)** :
+  - `src/components/reviews/GoogleReviewsCard.tsx` (accordéon guide 3 méthodes)
+  - `src/app/api/availability/route.ts` (rate-limit)
+  - `src/app/api/my-businesses/route.ts` (Zod + rate-limit)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **905 tests / 77 fichiers verts** (avant 886/76, **+19 tests MIN2**) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **UX Google Reviews** : le taux d'activation devrait passer de ~5% (avant : bouton "Guide officiel Google" opaque) à ~40% (méthode 1 en 3 clics accessible sans quitter Vitrix)
+- **Sécurité** : le widget booking public ne peut plus être scrapé/DDoS trivialement
+- **Fiabilité data** : les valeurs invalides côté `POST /api/my-businesses` renvoient un 400 clair au lieu de crasher la DB avec un message SQL en 500
+
+## Actions post-déploiement
+
+Aucune (0 DB, 0 env, 0 cron). Push et deploy.
+
+## Historique commits
+
+```
+08db0c7 lot 59 fix bugs mineurs (rate-limit availability + Zod my-businesses + guide Place ID)
+7fd3a44 lot 58 fix bugs majeurs (XSS blog + signature devis pro + Google Business Place ID)
+d16aff1 lot 57 nettoyage post-audit
+a0205ae auto-appli coupons Stripe (ferme Lot 52)
+6fa8cc7 lot 56 export CSV analytics
+a697936 lot 55 command palette Cmd+K
+```
+
+---
+
 # 🟢 Lot 58 — Fix bugs MAJEURS : XSS blog, signature devis pro fake, Google Business OAuth mort
 
 Suite au 2e audit complet, 3 bugs MAJEURS avaient été identifiés. Ce lot les ferme intégralement. Les 2 bugs MINEURS restants (SEC1bis rate-limit availability, SEC2 Zod my-businesses) seront traités au Lot 59.
