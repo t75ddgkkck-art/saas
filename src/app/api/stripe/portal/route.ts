@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { createPortalSession, isStripeConfigured } from "@/lib/stripe";
 import { handleApiError, badRequest, unauthorized } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,12 @@ export const dynamic = "force-dynamic";
  *
  * → Renvoie { url } que le front redirige.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Lot 63 SEC3 : 20 sessions portal/h — le user clique parfois plusieurs
+  // fois avant de comprendre que ça ouvre un nouvel onglet. 20/h = safe.
+  const rl = checkRateLimit(request, { key: "stripe-portal", limit: 20, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   if (!isStripeConfigured()) {
     return NextResponse.json(
       { error: "Stripe n'est pas configuré. Contactez le support." },

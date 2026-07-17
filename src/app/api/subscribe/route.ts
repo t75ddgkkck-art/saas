@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { createSubscriptionSession, isStripeConfigured } from "@/lib/stripe";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,12 @@ const Schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Lot 63 SEC3 : 10 checkouts/h → largement suffisant (un user légitime
+  // en crée 1 puis paie/annule, pas 10 dans l'heure). Empêche spam à coût
+  // Stripe (chaque call = 1 création session côté Stripe API).
+  const rl = checkRateLimit(request, { key: "subscribe-post", limit: 10, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   if (!isStripeConfigured()) {
     return NextResponse.json(
       { error: "Stripe n'est pas configuré. Contactez le support." },

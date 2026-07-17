@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
 import { logger } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,11 @@ const Schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Lot 63 SEC3 : 20 subs/h max — un user légitime souscrit 1x par device.
+    // 20/h couvre le cas multi-devices + retry techniques (Service Worker).
+    const rl = checkRateLimit(request, { key: "push-subscribe", limit: 20, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 

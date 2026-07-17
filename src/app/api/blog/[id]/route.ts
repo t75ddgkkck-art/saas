@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { slugify } from "@/lib/utils";
 import { getCurrentBusiness } from "@/lib/session";
 import { badRequest, forbidden, handleApiError, notFound, unauthorized } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,10 @@ async function ownedPost(id: string) {
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // Lot 63 SEC3 : 60 modifications/h (édition rapide + auto-save possible)
+    const rl = checkRateLimit(request, { key: "blog-put", limit: 60, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     const { id } = await params;
     await ownedPost(id); // ⚠️  vérif d'appartenance (fix IDOR)
 
@@ -58,10 +63,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Lot 63 SEC3 : 30 suppressions/h (nettoyage massif ponctuel possible)
+    const rl = checkRateLimit(request, { key: "blog-delete", limit: 30, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     const { id } = await params;
     const { business } = await ownedPost(id);
 

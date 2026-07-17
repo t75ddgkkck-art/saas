@@ -9,6 +9,21 @@ export function formatPrice(amount: number, currency = "€") {
   return `${amount.toFixed(2)} ${currency}`;
 }
 
+/**
+ * Lot 63 — parseFloat défensif pour les montants stockés en `numeric` PostgreSQL
+ * qui remontent en string via Drizzle. Fallback 0 si null/undefined/invalide.
+ *
+ * Avant : `parseFloat(p.amount).toFixed(2)` → "NaN" affiché si amount corrompu
+ * (ou p.amount = null). Contaminait les exports CSV comptables et le dashboard.
+ *
+ * Usage : `safeParseAmount(p.amount).toFixed(2)` (safe partout).
+ */
+export function safeParseAmount(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = typeof value === "number" ? value : parseFloat(String(value));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function formatDate(date: Date | string) {
   return new Date(date).toLocaleDateString("fr-FR", {
     year: "numeric",

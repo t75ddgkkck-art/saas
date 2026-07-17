@@ -4,6 +4,122 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 63 — Audit passe 3 : rate-limit sur 11 routes critiques + safeParseAmount helper
+
+3e passe d'audit après 62 lots livrés. Découverte : 28 routes de mutation manquaient de rate-limit. Priorisation des 11 les plus critiques (financières + business) + création d'un helper `safeParseAmount` pour éliminer définitivement les affichages "NaN" dans le dashboard/exports.
+
+## SEC3 — Rate-limit sur 11 routes de mutation
+
+Sans ce lot, un user authentifié malveillant pouvait :
+- Spam **`POST /api/subscribe`** → coût Stripe API + potentielle double-charge
+- Spam **`POST /api/stripe/portal`** → épuiser le quota Portal Sessions Stripe
+- Spam **`POST /api/loyalty`** → écrire des milliers de points de fidélité
+- Spam **`POST /api/blog`** → remplir la DB avec du contenu spam
+- etc.
+
+Rate-limits calibrés selon le coût et l'usage légitime :
+
+| Route | Verbe | Limite | Justification |
+|---|---|---|---|
+| `/api/subscribe` | POST | 10/h | Création session Stripe (coût API) |
+| `/api/subscribe/cancel` | POST | 5/h | Annulation abonnement (rare) |
+| `/api/stripe/portal` | POST | 20/h | Portal Session (user peut cliquer plusieurs fois) |
+| `/api/loyalty` | POST | 60/h | Award/redeem points (usage pro très actif) |
+| `/api/blog` | POST | 20/h | Nouveaux articles (1-3/jour typique) |
+| `/api/blog/[id]` | PUT | 60/h | Édition (auto-save possible) |
+| `/api/blog/[id]` | DELETE | 30/h | Nettoyage massif OK |
+| `/api/clients` | POST | 100/h | Import manuel possible |
+| `/api/notifications` | POST | 60/h | Usage UI normal |
+| `/api/notifications` | PATCH | 120/min | "Mark all as read" batch |
+| `/api/push/subscribe` | POST | 20/h | 1x par device + retries |
+
+Toutes les routes utilisent le pattern standard `checkRateLimit(req, {...})` → `{ok: false, response}` 429 renvoyé directement, jamais de throw.
+
+## Helper `safeParseAmount` — élimination des "NaN" affichés
+
+Créé dans `src/lib/utils.ts` :
+
+```ts
+export function safeParseAmount(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = typeof value === "number" ? value : parseFloat(String(value));
+  return Number.isFinite(n) ? n : 0;
+}
+```
+
+Applique :
+- `parseFloat` défensif pour les montants stockés en `numeric` PostgreSQL (remontent en string via Drizzle)
+- Fallback 0 sur null/undefined/invalide/Infinity/NaN
+- Type-safe
+
+Remplacement dans 3 endroits critiques :
+- **`src/app/api/export/route.ts`** : export CSV comptable — évite "NaN" dans le fichier envoyé au comptable
+- **`src/app/dashboard/page.tsx`** (2 endroits) : dashboard admin — évite "NaN €" affiché à l'user
+
+6 tests couvrent tous les cas (string valide, number, null, undefined, string invalide, Infinity/NaN, parseFloat partiel).
+
+## Fichiers touchés
+
+- **Modifiés (13)** :
+  - `src/lib/utils.ts` (nouveau helper `safeParseAmount`)
+  - `src/app/api/subscribe/route.ts`
+  - `src/app/api/subscribe/cancel/route.ts`
+  - `src/app/api/stripe/portal/route.ts`
+  - `src/app/api/loyalty/route.ts`
+  - `src/app/api/blog/route.ts`
+  - `src/app/api/blog/[id]/route.ts`
+  - `src/app/api/clients/route.ts`
+  - `src/app/api/notifications/route.ts`
+  - `src/app/api/push/subscribe/route.ts`
+  - `src/app/api/export/route.ts` (safeParseAmount)
+  - `src/app/dashboard/page.tsx` (safeParseAmount x2)
+  - `tests/unit/utils.test.ts` (+6 tests)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **926 tests / 78 fichiers verts** (avant 920/78, **+6 tests**) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Sécurité financière** : les endpoints Stripe (subscribe, cancel, portal) sont maintenant protégés → plus de risque de spam générant un coût API élevé
+- **Intégrité data** : le CSV export comptable ne peut plus contenir "NaN" (défiance client) — le dashboard non plus
+- **Cohérence** : le pattern rate-limit standard est maintenant appliqué de manière uniforme sur toutes les routes sensibles
+
+## Reste à faire (routes non critiques restantes)
+
+17 routes de mutation restent sans rate-limit mais toutes non critiques :
+- `/api/my-availability`, `/api/my-faqs`, `/api/services` — usage UI standard
+- `/api/schedule/exceptions`, `/api/quote-form-fields` — usage rare
+- `/api/pdf/invoice`, `/api/quote-pdf` — génération PDF (coûteuse mais gate côté user)
+- `/api/v1/appointments` — API publique déjà gated par api-key
+- `/api/unavailabilities/[id]`, `/api/clients/[id]` — CRUD standard
+- `/api/blog/[id]/publish` — action de switch ponctuelle
+- `/api/admin/users/[id]/{ban,plan,restore}` — protégés par `requireAdmin`
+- `/api/account/route.ts` — RGPD delete (gate côté UI + confirm)
+- `/api/client/logout` — logout trivial
+- `/api/unsubscribe` — token-based (autre protection)
+
+Pourront être ajoutés au Lot 64 si tu veux la couverture 100%.
+
+## Actions post-déploiement
+
+Aucune (0 DB, 0 env). Push et Vercel redéploie.
+
+## Historique commits
+
+```
+2fcd26d lot 63 audit passe 3 (rate-limit 11 routes critiques + safeParseAmount)
+7c74f26 lot 62 templates vitrine phase 2 (primaryColor + buttonExtras + layout)
+b3381b4 lot 61 templates vitrine réellement appliqués
+7061894 revert: lot 60 gate premium avis Google
+cbbdb76 lot 59 fix bugs mineurs + guide Place ID
+7fd3a44 lot 58 fix bugs majeurs (XSS blog + signature devis)
+```
+
+---
+
 # 🟢 Lot 62 — Templates vitrine phase 2 : primaryColor sur boutons + layout left + structure verrouillée
 
 Prolonge le Lot 61 : après avoir aligné les CARTES sur le template, ce lot aligne les BOUTONS et le LAYOUT. Découverte supplémentaire : `--vx-primary` était exposé en CSS var mais AUCUN bouton l'utilisait → la couleur choisie par le pro (défaut noir) était ignorée partout sur la vraie vitrine.

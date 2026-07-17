@@ -33,10 +33,13 @@ export async function GET(request: NextRequest) {
       csv =
         "Date;Montant (EUR);Type;Statut;Facture\n" +
         rows
-          .map(
-            (p) =>
-              `${p.createdAt.toISOString().split("T")[0]};${parseFloat(p.amount).toFixed(2)};${p.type};${p.status};${p.invoiceUrl || ""}`
-          )
+          .map((p) => {
+            // Lot 63 : parseFloat défensif — si amount corrompu, on met 0.00
+            // plutôt que "NaN" dans le CSV export comptable.
+            const amt = parseFloat(String(p.amount ?? "0"));
+            const safe = Number.isFinite(amt) ? amt.toFixed(2) : "0.00";
+            return `${p.createdAt.toISOString().split("T")[0]};${safe};${p.type};${p.status};${p.invoiceUrl || ""}`;
+          })
           .join("\n");
       filename = "vitrix-paiements.csv";
     } else if (type === "clients") {

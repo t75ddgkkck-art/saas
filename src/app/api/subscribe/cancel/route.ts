@@ -1,11 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { cancelSubscriptionAtPeriodEnd, isStripeConfigured } from "@/lib/stripe";
 import { handleApiError, badRequest, unauthorized } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Lot 63 SEC3 : 5 annulations/h — un user légitime annule 1 fois puis c'est
+  // fait. 5/h protège contre spam sans être gênant si erreur UI transitoire.
+  const rl = checkRateLimit(request, { key: "subscribe-cancel", limit: 5, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   if (!isStripeConfigured()) {
     return NextResponse.json(
       { error: "Stripe n'est pas configuré. Contactez le support." },

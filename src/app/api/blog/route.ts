@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/validation";
 import { PLAN_PERMISSIONS, type SubscriptionPlan } from "@/lib/permissions";
 import { handleApiError, unauthorized, forbidden, conflict } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Lot 63 SEC3 : 20 articles/h max — un pro écrit 1-3 articles/jour au max.
+  // Protège contre spam de contenu généré (surtout maintenant que le blog est
+  // rendu safe XSS via renderBlogContent : évite juste le remplissage DB).
+  const rl = checkRateLimit(request, { key: "blog-post", limit: 20, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const perm = await requirePermission("maxBlogPosts");
   // requirePermission renvoie une erreur uniquement si false — ici maxBlogPosts est un nombre,
   // donc on gère la limite manuellement.

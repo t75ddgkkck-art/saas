@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { slugify, formatPrice, generateQuoteNumber } from "@/lib/utils";
+import { slugify, formatPrice, generateQuoteNumber, safeParseAmount } from "@/lib/utils";
 import { isValidEmail, isValidFrenchPhone, normalizePhone } from "@/lib/validation";
 
 describe("slugify", () => {
@@ -51,5 +51,40 @@ describe("téléphone français", () => {
     expect(isValidFrenchPhone("+33612345678")).toBe(true);
     expect(isValidFrenchPhone("0012345678")).toBe(false);
     expect(isValidFrenchPhone("12345")).toBe(false);
+  });
+});
+
+describe("safeParseAmount (Lot 63)", () => {
+  it("parse un montant string valide", () => {
+    expect(safeParseAmount("29.99")).toBe(29.99);
+    expect(safeParseAmount("100")).toBe(100);
+    expect(safeParseAmount("0")).toBe(0);
+  });
+
+  it("accepte les numbers", () => {
+    expect(safeParseAmount(42)).toBe(42);
+    expect(safeParseAmount(0)).toBe(0);
+  });
+
+  it("fallback 0 sur null/undefined", () => {
+    expect(safeParseAmount(null)).toBe(0);
+    expect(safeParseAmount(undefined)).toBe(0);
+  });
+
+  it("fallback 0 sur string invalide", () => {
+    expect(safeParseAmount("abc")).toBe(0);
+    expect(safeParseAmount("")).toBe(0);
+    expect(safeParseAmount("NaN")).toBe(0);
+  });
+
+  it("fallback 0 sur Infinity", () => {
+    expect(safeParseAmount(Infinity)).toBe(0);
+    expect(safeParseAmount(-Infinity)).toBe(0);
+    expect(safeParseAmount(NaN)).toBe(0);
+  });
+
+  it("parse partiellement (parseFloat comportement) puis valide", () => {
+    // parseFloat("29.99 euros") = 29.99 → OK
+    expect(safeParseAmount("29.99 euros")).toBe(29.99);
   });
 });

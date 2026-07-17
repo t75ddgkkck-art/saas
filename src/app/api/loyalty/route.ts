@@ -9,6 +9,7 @@ import { handleApiError, unauthorized, badRequest, notFound, forbidden } from "@
 import { validateBody } from "@/lib/api-helpers";
 // F1 (Lot 29) : gate d'entitlement — le programme de fidélité est Premium only.
 import { requireEntitlement } from "@/lib/require-entitlement";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Lot 63 SEC3 : 60 award/redeem par heure — un pro très actif peut faire
+    // 10-15 award/heure au max (nb de RDV terminés). 60/h = large marge.
+    const rl = checkRateLimit(request, { key: "loyalty-post", limit: 60, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     // F1 : gate en 402 avant même de parser le body
     await requireEntitlement("loyalty.enable");
 

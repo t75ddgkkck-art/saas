@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/validation";
 import { normalizePhone } from "@/lib/validation";
 import { handleApiError, unauthorized, conflict, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Lot 63 SEC3 : 100 clients/h — un pro peut légitimement importer un carnet
+  // via saisie manuelle rapide (bien qu'il y ait /api/clients/import pour CSV).
+  const rl = checkRateLimit(request, { key: "clients-post", limit: 100, windowSec: 3600 });
+  if (!rl.ok) return rl.response;
+
   const { error } = await requirePermission("canAddClients");
   if (error) return error;
 

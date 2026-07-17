@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { safeParseAmount } from "@/lib/utils";
 import {
   CalendarDays,
   FileText,
@@ -447,7 +448,7 @@ export default function UnifiedDashboard() {
                   {q.quoteNumber} — {q.title}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {q.total ? `${parseFloat(q.total).toFixed(2)} €` : "Montant à définir"}
+                  {q.total ? `${safeParseAmount(q.total).toFixed(2)} €` : "Montant à définir"}
                 </p>
               </div>
               <Badge variant={statusLabels[q.status]?.variant || "default"}>
@@ -521,7 +522,7 @@ export default function UnifiedDashboard() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  {parseFloat(p.amount).toFixed(2)} €
+                  {safeParseAmount(p.amount).toFixed(2)} €
                 </p>
                 <p className="text-xs text-slate-500">
                   {new Date(p.createdAt).toLocaleDateString("fr-FR")}

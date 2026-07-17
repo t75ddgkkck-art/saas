@@ -6,6 +6,7 @@ import { and, eq, desc } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/session";
 import { handleApiError, unauthorized, forbidden, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Lot 63 SEC3 : 60 notifs/h — usage normal via UI (rarement plus de 10/h).
+    const rl = checkRateLimit(request, { key: "notifications-post", limit: 60, windowSec: 3600 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 
@@ -75,6 +80,11 @@ export async function POST(request: NextRequest) {
 // Marque comme lu (une ou toutes)
 export async function PATCH(request: NextRequest) {
   try {
+    // Lot 63 SEC3 : 120 patchs/min — un user peut cliquer "marquer lu" sur
+    // beaucoup de notifs rapidement (fenêtre notifs qui s'ouvre).
+    const rl = checkRateLimit(request, { key: "notifications-patch", limit: 120, windowSec: 60 });
+    if (!rl.ok) return rl.response;
+
     const user = await getCurrentUser();
     if (!user) throw unauthorized();
 
