@@ -1759,26 +1759,38 @@ export default function VitrinePage() {
           </p>
           {(() => {
             const tpl = getTemplate(form.template);
-            const isDark =
-              tpl.style.pageBg.includes("slate-950") ||
-              tpl.style.pageBg.includes("stone-950") ||
-              tpl.style.pageBg.includes("bg-slate-900");
-            const textColor = isDark ? "text-white" : "text-slate-900";
-            const subTextColor = isDark ? "text-slate-400" : "text-slate-500";
-            const cardBg = isDark ? "bg-slate-900" : "bg-white";
-            const borderColor = isDark ? "border-slate-800" : "border-slate-200";
+
+            // Lot 61 fix templates : avant, la preview réinventait le rendu avec
+            // ses propres classes (isDark détecté sur "slate-950" uniquement,
+            // cardBg/borderColor hardcodés) → 3 templates cassés :
+            //  - premium-gold (bg-black) rendu en clair
+            //  - pro-green (bg-stone-50) fond blanc au lieu de beige
+            //  - premium-dark : le cardBg avec backdrop-blur ignoré
+            //
+            // Fix : on utilise DIRECTEMENT les classes du template (pageBg,
+            // cardBg, cardBorder) — les mêmes que PublicPage.tsx applique en
+            // vrai. Détection dark plus robuste sur bg-slate-950 | bg-black |
+            // bg-zinc-900 | bg-slate-900 (tous les cas actuels).
+            const darkPageBg = /bg-(slate-950|black|zinc-950|slate-900|stone-950)/.test(
+              tpl.style.pageBg
+            );
+            const textColor = darkPageBg
+              ? tpl.style.pageBg.includes("amber-50")
+                ? "text-amber-50"
+                : "text-slate-100"
+              : "text-slate-900";
+            const subTextColor = darkPageBg ? "text-slate-400" : "text-slate-500";
 
             return (
               <div
-                className={`overflow-hidden rounded-3xl border-4 shadow-xl ${borderColor} w-full max-w-[380px] mx-auto lg:mx-0`}
-                style={{
-                  background: isDark ? "#0f172a" : "#ffffff",
-                  fontFamily: tpl.style.fontFamily,
-                }}
+                // On utilise pageBg directement pour respecter les nuances
+                // (bg-slate-50, bg-stone-50, bg-black, bg-slate-950, etc.)
+                className={`overflow-hidden rounded-3xl border-4 border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-[380px] mx-auto lg:mx-0 ${tpl.style.pageBg}`}
+                style={{ fontFamily: tpl.style.fontFamily }}
               >
-                {/* Cover */}
+                {/* Cover — utilise coverGradient du template comme la vraie vitrine */}
                 <div
-                  className="relative h-28 sm:h-32"
+                  className={`relative ${tpl.style.headerHeight === "h-96" ? "h-36" : tpl.style.headerHeight === "h-80" ? "h-32" : "h-28"}`}
                   style={{
                     background: form.coverImage
                       ? `url(${form.coverImage}) center/cover`
@@ -1794,11 +1806,11 @@ export default function VitrinePage() {
                     </span>
                   )}
                 </div>
-                {/* Body */}
-                <div className={`${cardBg} px-4 pb-5`}>
-                  <div className="-mt-8 mb-2 flex justify-center">
+                {/* Body — cardBg du template pour respecter shadow, backdrop-blur, etc. */}
+                <div className={`${tpl.style.cardBg} m-3 p-4 rounded-2xl border ${tpl.style.cardBorder}`}>
+                  <div className="-mt-10 mb-2 flex justify-center">
                     <div
-                      className={`flex h-16 w-16 items-center justify-center overflow-hidden border-4 bg-slate-900 text-2xl ${tpl.style.avatarRadius} ${isDark ? "border-slate-900" : "border-white"}`}
+                      className={`flex h-16 w-16 items-center justify-center overflow-hidden ${tpl.style.avatarRadius} bg-slate-900 text-2xl`}
                     >
                       {form.profileImage ? (
                         <img
@@ -1811,12 +1823,14 @@ export default function VitrinePage() {
                       )}
                     </div>
                   </div>
-                  <div className="text-center">
+                  <div className={tpl.style.layout === "left" ? "text-left" : "text-center"}>
                     <p className={`font-bold ${textColor}`}>{form.name || "Nom de l'entreprise"}</p>
                     <p className={`mt-1 text-[11px] line-clamp-2 ${subTextColor}`}>
                       {form.description || "Votre description apparaîtra ici"}
                     </p>
-                    <div className="mt-1 flex items-center justify-center gap-1 text-[10px] text-amber-500">
+                    <div
+                      className={`mt-1 flex items-center ${tpl.style.layout === "left" ? "justify-start" : "justify-center"} gap-1 text-[10px] text-amber-500`}
+                    >
                       <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> 5.0 ·{" "}
                       {form.city || "Ville"}
                     </div>
@@ -1828,7 +1842,7 @@ export default function VitrinePage() {
                       {servicesList.slice(0, 3).map((s, i) => (
                         <div
                           key={i}
-                          className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1 last:border-0"
+                          className={`flex justify-between border-b border-dashed pb-1 last:border-0 ${darkPageBg ? "border-slate-700" : "border-slate-200"}`}
                         >
                           <span>{s.name}</span>
                           <span className="font-semibold">{s.price}</span>
@@ -1837,10 +1851,8 @@ export default function VitrinePage() {
                     </div>
                   )}
 
-                  {/* Boutons contact */}
-                  <div
-                    className={`mt-3 grid grid-cols-2 gap-1.5 ${tpl.style.buttonRadius === "rounded-full" ? "" : ""}`}
-                  >
+                  {/* Boutons contact — utilise buttonRadius du template */}
+                  <div className="mt-3 grid grid-cols-2 gap-1.5">
                     <div
                       className={`${tpl.style.buttonRadius} py-2 text-center text-[10px] font-semibold text-white`}
                       style={{ backgroundColor: form.primaryColor }}
@@ -1855,7 +1867,7 @@ export default function VitrinePage() {
                       </div>
                     ) : (
                       <div
-                        className={`${tpl.style.buttonRadius} border ${borderColor} py-2 text-center text-[10px] ${subTextColor}`}
+                        className={`${tpl.style.buttonRadius} border ${tpl.style.cardBorder} py-2 text-center text-[10px] ${subTextColor}`}
                       >
                         💬 WhatsApp
                       </div>
@@ -1872,22 +1884,21 @@ export default function VitrinePage() {
                   <div className="mt-3 flex justify-center gap-1">
                     {form.enableStripe && (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[8px] ${isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}
+                        className={`rounded-full px-2 py-0.5 text-[8px] ${darkPageBg ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}
                       >
                         💳 CB
                       </span>
                     )}
                     {form.acceptApplePay && (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[8px] ${isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}
+                        className={`rounded-full px-2 py-0.5 text-[8px] ${darkPageBg ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}
                       >
-                        {" "}
-                        Pay
+                         Pay
                       </span>
                     )}
                     {form.acceptCash && (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[8px] ${isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}
+                        className={`rounded-full px-2 py-0.5 text-[8px] ${darkPageBg ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}
                       >
                         💵 Espèces
                       </span>
@@ -1896,7 +1907,7 @@ export default function VitrinePage() {
                   {/* Fidélité */}
                   {canLoyalty && form.loyaltyEnabled && (
                     <div
-                      className={`mt-2 rounded-lg py-1.5 text-center text-[9px] font-medium ${isDark ? "bg-amber-900/20 text-amber-400" : "bg-amber-50 text-amber-700"}`}
+                      className={`mt-2 rounded-lg py-1.5 text-center text-[9px] font-medium ${darkPageBg ? "bg-amber-900/20 text-amber-400" : "bg-amber-50 text-amber-700"}`}
                     >
                       🎁 Programme fidélité : {form.loyaltyPointsPerEuro} pt/€
                     </div>

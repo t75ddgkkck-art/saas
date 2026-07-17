@@ -162,6 +162,15 @@ export function PublicPage({
   const lang = business.language || "fr";
   const canQuote = ownerPlan !== "free"; // Devis réservé aux plans payants
   const tpl = getTemplate(business.template ?? undefined);
+  // Lot 61 fix templates : avant, la vraie vitrine appliquait tpl.style.pageBg,
+  // headerHeight, coverGradient, avatarRadius uniquement sur le conteneur+cover.
+  // Toutes les CARTES internes (menu, services, gallerie, blog, contact)
+  // avaient des styles hardcodés `bg-white dark:bg-slate-900` → le template
+  // "Premium Dark" ou "Prestige Or" affichait des cartes blanches en clair
+  // → décalage massif entre la preview dashboard et le rendu final.
+  // Fix : classes réutilisables `cardClasses` qui combinent cardBg + cardBorder
+  // du template. On garde `dark:` pour les users en mode sombre navigateur.
+  const cardClasses = `mt-8 rounded-2xl border p-5 sm:p-6 shadow-sm ${tpl.style.cardBg} ${tpl.style.cardBorder} dark:border-slate-800 dark:bg-slate-900`;
   const showQr = business.showQrOnPage !== false;
   const showReviews = business.showReviewsOnPage !== false;
   const highlightsEnabled = business.highlightsEnabled !== false;
@@ -561,7 +570,7 @@ export function PublicPage({
         {business.category === "restaurant" &&
           Array.isArray(business.menuData) &&
           business.menuData.length > 0 && (
-            <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900 shadow-sm">
+            <div className={cardClasses}>
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100 mb-6">
                 <span className="text-2xl">🍽️</span> Notre Carte
               </h2>
@@ -622,7 +631,7 @@ export function PublicPage({
 
         {/* Services & Tarifs — Design épuré et pro avec avantages */}
         {servicesList.length > 0 && (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900 shadow-sm">
+          <div className={cardClasses}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
                 <Briefcase className="h-5 w-5 text-blue-600" />
@@ -709,7 +718,7 @@ export function PublicPage({
 
         {/* Location */}
         {(business.address || business.serviceArea) && (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+          <div className={cardClasses}>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
               <MapPin className="h-5 w-5" />
               {t(lang, "address")}
@@ -792,7 +801,7 @@ export function PublicPage({
 
         {/* Reviews */}
         {showReviews && (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+          <div className={cardClasses}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
                 <Star className="h-5 w-5 text-amber-400" />

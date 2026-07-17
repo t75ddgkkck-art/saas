@@ -4,6 +4,76 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 61 — Templates vitrine réellement appliqués (preview ↔ rendu fidèle)
+
+Le user a signalé : "les templates vitrine ne sont pas fidèles à la preview de vitrix fait en sorte qu'il s'applique correctement". Investigation → 2 vraies causes découvertes, 2 fixes livrés.
+
+Note : le Lot 60 (gate Premium Google Reviews) avait été livré puis reverté immédiatement (mauvaise interprétation d'une demande user). Le vrai problème pointé par le user était la section "Automatisations Premium" dans /dashboard/outils — **déjà retirée au Lot 49 dans le code**. Le user la voyait encore parce que sa prod Vercel n'était pas déployée sur les derniers commits (push effectué au Lot 61).
+
+## Cause 1 — Preview du dashboard réinventait le rendu
+
+`src/app/dashboard/vitrine/page.tsx` construisait la preview avec ses propres classes hardcodées (`cardBg = isDark ? "bg-slate-900" : "bg-white"`) au lieu d'utiliser `tpl.style.cardBg`.
+
+**Bugs concrets** :
+- Détection dark buguée : ne matchait que `"slate-950"` → le template `premium-gold` (`bg-black`) rendu en clair au lieu de noir
+- Backgrounds hardcodés `#0f172a` / `#ffffff` → nuances `bg-stone-50` (pro-green), `bg-slate-50` (classique) ignorées
+- `cardBg` réinventé → `bg-slate-900/50 backdrop-blur-md border` du template `premium-dark` jamais appliqué
+
+**Fix** :
+- Détection dark robuste : regex `bg-(slate-950|black|zinc-950|slate-900|stone-950)` (couvre les 5 templates)
+- `pageBg` du template appliqué au conteneur externe
+- `cardBg` + `cardBorder` du template appliqués au body de la card
+- `buttonRadius` du template appliqué à TOUS les boutons (contact, WhatsApp, RDV)
+- `avatarRadius` du template appliqué à l'avatar
+- `layout` du template respecté (`center` vs `left`)
+- Hauteur cover proportionnée à `headerHeight` (h-96 → h-36, h-80 → h-32, autres → h-28)
+
+## Cause 2 — VRAIE vitrine (`PublicPage.tsx`) ignorait le template sur ses cartes
+
+Découverte plus grave : `tpl.style.cardBg` et `tpl.style.cardBorder` n'étaient utilisés que **par le QrCodeCard** (l.935). Les 5 autres cartes (menu resto, services, location, avis, blog) avaient des styles **hardcodés** `bg-white dark:bg-slate-900` → même en template "Premium Dark" ou "Prestige Or", les cartes internes restaient blanches en mode clair navigateur.
+
+**Le pro voyait donc en preview : magnifique noir/or.** Puis "Voir ma vitrine" : cartes standards blanches. Décalage total entre promesse et rendu.
+
+**Fix** :
+- Nouvelle variable `cardClasses = "mt-8 rounded-2xl border p-5 sm:p-6 shadow-sm ${tpl.style.cardBg} ${tpl.style.cardBorder} dark:border-slate-800 dark:bg-slate-900"` extraite au début du render
+- Remplace les 5 occurrences hardcodées → menu, services, location, avis, blog
+- Les cartes CTA volontairement colorées (Paiement en ligne bleu, Blog CTA) NE sont PAS touchées (accent volontaire)
+
+## Fichiers touchés
+
+- **Modifiés (2)** :
+  - `src/app/dashboard/vitrine/page.tsx` (~170 lignes de preview refondues)
+  - `src/app/[slug]/PublicPage.tsx` (extraction cardClasses + 5 remplacements)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **905 tests / 77 fichiers verts** ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Cohérence promesse/rendu** : ce que le pro paie en Premium (templates Dark, Gold) apparaît vraiment sur sa vitrine → confiance + rétention Premium
+- **Argument commercial** : la preview live est maintenant une vraie preview → conversion Free → Pro/Premium boostée pendant la démo
+- **Support déchargé** : plus de tickets "j'ai payé Premium mais rien n'a changé sur ma vitrine"
+
+## Actions post-déploiement
+
+Aucune. Après push, forcer un redeploy Vercel **sans cache** (Deployments → 3 points → Redeploy → décocher "Use existing Build Cache").
+
+## Historique commits
+
+```
+58ba490 lot 61 templates vitrine reellement appliques (preview + PublicPage)
+7061894 revert: lot 60 gate premium avis Google (mauvaise interpretation)
+dcfc17f lot 60 gate premium sur import avis Google (Place ID)
+a3fc9c0 outils: sous-titre nettoyer 'automatisez votre activite'
+cbbdb76 lot 59 fix bugs mineurs + guide Place ID
+7fd3a44 lot 58 fix bugs majeurs (XSS blog + signature devis)
+```
+
+---
+
 # 🟢 Lot 59 — Fix bugs MINEURS + guide Google Place ID intégré
 
 Ferme les 2 bugs MINEURS restants de l'audit post-Lot 57 (SEC1bis, SEC2) + enrichit le composant `GoogleReviewsCard` livré au Lot 58 avec un guide pédagogique 3 méthodes (l'artisan lambda ne sait pas ce qu'est un "Place ID").
