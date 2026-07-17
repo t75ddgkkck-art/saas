@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
+import { renderBlogContent } from "@/lib/blog-renderer";
 
 // Rendu dynamique (dépendance DB)
 // ISR : régénération toutes les 10 minutes.
@@ -72,24 +73,10 @@ export default async function BlogPostPage({ params }: Props) {
   const post = postResult[0];
   if (!post) notFound();
 
-  // Simple markdown-like rendering
-  const renderedContent = post.content
-    .split("\n")
-    .map((line) => {
-      if (line.startsWith("# "))
-        return `<h1 class="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-8 mb-4">${line.slice(2)}</h1>`;
-      if (line.startsWith("## "))
-        return `<h2 class="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-6 mb-3">${line.slice(3)}</h2>`;
-      if (line.startsWith("- "))
-        return `<li class="ml-4 list-disc text-slate-700 dark:text-slate-300">${line.slice(2)}</li>`;
-      if (line.match(/^\d+\.\s/))
-        return `<li class="ml-4 list-decimal text-slate-700 dark:text-slate-300">${line.replace(/^\d+\.\s/, "")}</li>`;
-      if (line.trim() === "") return `<div class="h-4"></div>`;
-      if (line.startsWith("**") && line.endsWith("**"))
-        return `<p class="font-bold text-slate-900 dark:text-slate-100">${line.slice(2, -2)}</p>`;
-      return `<p class="text-slate-700 dark:text-slate-300 leading-relaxed">${line}</p>`;
-    })
-    .join("");
+  // Lot 58 MAJ1 fix : ancien renderer inline injectait le contenu utilisateur SANS
+  // échappement dans du HTML → XSS stored possible. Extrait dans une lib pure qui
+  // échappe systématiquement le texte avant interpolation.
+  const renderedContent = renderBlogContent(post.content);
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">

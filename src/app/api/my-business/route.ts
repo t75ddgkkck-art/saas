@@ -81,6 +81,19 @@ const UpdateSchema = z
     loyaltyEnabled: z.boolean().optional().nullable(),
     loyaltyPointsPerEuro: z.number().int().min(0).max(1000).optional().nullable(),
     loyaltyReward: z.string().trim().max(500).optional().nullable(),
+    // Lot 58 MAJ3 : Place ID Google (récupéré manuellement via
+    // https://developers.google.com/maps/documentation/places/web-service/place-id).
+    // Approche pragmatique v1 — pas d'OAuth Google Business (workflow trop lourd,
+    // scope `business.manage` en review Google = semaines). L'user colle son ID,
+    // on l'utilise pour appeler Places API et importer ses vrais avis Google.
+    googlePlaceId: z
+      .string()
+      .trim()
+      .max(200)
+      .regex(/^[A-Za-z0-9_-]*$/, "Place ID invalide (caractères alphanumériques uniquement)")
+      .optional()
+      .nullable()
+      .or(z.literal("")),
   })
   .passthrough();
 
@@ -187,6 +200,13 @@ export async function PUT(request: NextRequest) {
         loyaltyEnabled: body.loyaltyEnabled ?? business.loyaltyEnabled,
         loyaltyPointsPerEuro: body.loyaltyPointsPerEuro ?? business.loyaltyPointsPerEuro,
         loyaltyReward: body.loyaltyReward ?? business.loyaltyReward,
+        // Lot 58 MAJ3 : "" → null (le user vide le champ = déconnecter Google Reviews)
+        googlePlaceId:
+          body.googlePlaceId !== undefined
+            ? body.googlePlaceId === ""
+              ? null
+              : body.googlePlaceId
+            : business.googlePlaceId,
         updatedAt: new Date(),
       })
       .where(eq(businesses.id, business.id));

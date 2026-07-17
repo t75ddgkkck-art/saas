@@ -1,10 +1,18 @@
-// Système d'avis Google
-// 1. Après chaque RDV terminé → envoyer un lien pour laisser un avis
-// 2. Récupérer automatiquement les avis Google via l'API Places (si configurée)
-// 3. Afficher les meilleurs avis sur la page publique
+/**
+ * Système d'avis Google — Lot 58 MAJ3 refonte.
+ *
+ * Approche v1 pragmatique : pas d'OAuth Google Business (workflow scope
+ * `business.manage` = validation Google en semaines). L'user récupère
+ * manuellement son Place ID sur https://developers.google.com/maps/documentation/places/web-service/place-id
+ * et le colle dans ses settings → on utilise Places API pour importer les avis.
+ *
+ * 1. Après chaque RDV terminé → envoyer un lien pour laisser un avis (buildReviewLink)
+ * 2. Récupérer automatiquement les avis Google via l'API Places (fetchGoogleReviews)
+ * 3. Afficher les meilleurs avis sur la page publique (filterBestReviews)
+ */
 import { logger } from "@/lib/logger";
 
-interface GoogleReview {
+export interface GoogleReview {
   author_name: string;
   rating: number;
   text: string;
@@ -12,24 +20,44 @@ interface GoogleReview {
   profile_photo_url?: string;
 }
 
+/**
+ * Construit le lien "Laisser un avis Google" pour un business donné.
+ * Si placeId manquant, on tombe sur une recherche générique par nom (moins précis
+ * mais fonctionnel — Google va proposer les fiches correspondantes).
+ */
+export function buildReviewLink(businessName: string, placeId: string | null): string {
+  if (placeId && placeId.length > 0) {
+    return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}`;
+  }
+  // Fallback : recherche par nom (fonctionne mais ouvre une SERP, pas direct)
+  return `https://www.google.com/search?q=${encodeURIComponent(businessName + " avis")}`;
+}
+
+/**
+ * Version legacy conservée pour compat existant. Nouveau code : utilise buildReviewLink.
+ * @deprecated Utiliser `buildReviewLink(businessName, business.googlePlaceId)`
+ */
 export async function requestGoogleReview(
   clientEmail: string,
   clientName: string,
-  businessName: string
+  businessName: string,
+  placeId: string | null = null
 ) {
   // Note : l'envoi email réel se fait via sendEmail() côté route.
-  // Cette fonction ne fait que construire le lien de review.
-  logger.info("google-review.requested", { clientEmail, businessName });
-
-  const reviewLink = `https://search.google.com/local/writereview?placeid=YOUR_PLACE_ID`;
+  logger.info("google-review.requested", { clientEmail, businessName, hasPlaceId: !!placeId });
 
   return {
     success: true,
-    reviewLink,
+    reviewLink: buildReviewLink(businessName, placeId),
     message: `Un email a été envoyé à ${clientName} pour laisser un avis Google.`,
   };
 }
 
+/**
+ * Récupère les avis Google via Places API.
+ * Nécessite : GOOGLE_PLACES_API_KEY en env + placeId configuré côté business.
+ * Retourne [] silencieux si config manquante (feature simplement inactive).
+ */
 export async function fetchGoogleReviews(placeId: string): Promise<GoogleReview[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
@@ -40,7 +68,7 @@ export async function fetchGoogleReviews(placeId: string): Promise<GoogleReview[
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=reviews&key=${apiKey}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=reviews&key=${apiKey}`
     );
 
     const data = (await response.json()) as {

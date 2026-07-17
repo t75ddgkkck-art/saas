@@ -92,6 +92,10 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
   const [errored, setErrored] = useState<string | null>(null);
   const [showSignModal, setShowSignModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  // Lot 58 MAJ2 : nom du client tapé lors de la signature présentiel (preuve légale)
+  const [presentielName, setPresentielName] = useState("");
+  const [signSaving, setSignSaving] = useState(false);
+  const [sendingToClient, setSendingToClient] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,20 +136,83 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
     void load();
   }, [load]);
 
+  /**
+   * Lot 58 MAJ2 — Signature EN PRÉSENTIEL par le client sur la tablette du pro.
+   *
+   * Avant : le bouton "Signer" ouvrait le SignaturePad puis update optimiste local
+   * SANS jamais persister → bug MAJ2 (signature perdue au refresh). Maintenant on
+   * appelle POST /api/quotes/[id]/mark-signed qui écrit en DB avec :
+   *  - nom tapé (preuve légale)
+   *  - signature dessinée (data URL PNG)
+   *  - hash de preuve + IP + user-agent
+   *  - facture auto générée (fire-and-forget)
+   */
   const handleSignature = async (dataUrl: string, _metadata: SignatureMetadata) => {
-    // TODO Lot 20 : POST /api/quotes/[id]/sign — pour l'instant on affiche
-    // juste un toast et on ferme (la vraie route de signature reste à créer
-    // avec le SignaturePad. Elle existait déjà pour le public, pas côté pro).
-    toast.info("Signature enregistrée localement — endpoint POST /sign à câbler au Lot 20");
-    setShowSignModal(false);
-    // Update optimiste minimal
-    if (quote)
-      setQuote({
-        ...quote,
-        signatureUrl: dataUrl,
-        signedAt: new Date().toISOString(),
-        status: "signed",
+    if (!quote) return;
+    const typedName = presentielName.trim();
+    if (typedName.length < 2) {
+      toast.error("Saisissez le nom du signataire avant de valider.");
+      return;
+    }
+    setSignSaving(true);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/mark-signed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          typedName,
+          email: client?.email ?? undefined,
+          signatureDataUrl: dataUrl,
+        }),
       });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(err.error ?? "Impossible d'enregistrer la signature.");
+        return;
+      }
+      toast.success("Devis signé — facture générée automatiquement.");
+      setShowSignModal(false);
+      setPresentielName("");
+      // Reload plutôt qu'update optimiste : on veut voir la vraie signatureUrl/signedAt
+      // renvoyés par le serveur (hash de preuve etc.)
+      await load();
+    } catch {
+      toast.error("Erreur réseau. Réessayez.");
+    } finally {
+      setSignSaving(false);
+    }
+  };
+
+  /**
+   * Lot 58 MAJ2 — Envoie le devis au client par email pour signature à distance
+   * (magic-link avec token). Endpoint existant depuis Lot 38.
+   */
+  const handleSendForSignature = async () => {
+    if (!quote) return;
+    if (!client?.email) {
+      toast.error(
+        "Le client n'a pas d'email — ajoutez-en un ou faites signer en présentiel."
+      );
+      return;
+    }
+    setSendingToClient(true);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/send-signature`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(err.error ?? "Envoi impossible.");
+        return;
+      }
+      toast.success(`Devis envoyé à ${client.email} pour signature.`);
+      await load();
+    } catch {
+      toast.error("Erreur réseau. Réessayez.");
+    } finally {
+      setSendingToClient(false);
+    }
   };
 
   const handleDownloadPDF = () => {
@@ -245,10 +312,25 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
           <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
             <Download className="mr-1 h-4 w-4" /> PDF
           </Button>
-          {quote.status !== "signed" && (
-            <Button size="sm" onClick={() => setShowSignModal(true)}>
-              <Pen className="mr-1 h-4 w-4" /> Signer
-            </Button>
+          {/* Lot 58 MAJ2 : ex-bouton "Signer" (fake) remplacé par 2 vrais boutons.
+              Le devis est signé PAR LE CLIENT — soit à distance via email/lien,
+              soit en présentiel sur la tablette du pro. */}
+          {quote.status !== "signed" && quote.status !== "accepted" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendForSignature}
+                loading={sendingToClient}
+                disabled={!client?.email}
+                title={!client?.email ? "Le client doit avoir un email" : undefined}
+              >
+                <FileText className="mr-1 h-4 w-4" /> Envoyer pour signature
+              </Button>
+              <Button size="sm" onClick={() => setShowSignModal(true)}>
+                <Pen className="mr-1 h-4 w-4" /> Signer en présentiel
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -364,29 +446,76 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Ce devis n&apos;a pas encore été signé
             </p>
-            <Button className="mt-3" size="sm" onClick={() => setShowSignModal(true)}>
-              <Pen className="mr-2 h-4 w-4" /> Signer maintenant
-            </Button>
+            {/* Lot 58 MAJ2 : idem — 2 vraies actions au lieu du bouton fake */}
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendForSignature}
+                loading={sendingToClient}
+                disabled={!client?.email}
+              >
+                <FileText className="mr-2 h-4 w-4" /> Envoyer au client
+              </Button>
+              <Button size="sm" onClick={() => setShowSignModal(true)}>
+                <Pen className="mr-2 h-4 w-4" /> Signer en présentiel
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Modal signature */}
+      {/* Modal signature — Lot 58 MAJ2 : signature EN PRÉSENTIEL par le client.
+          Le pro passe sa tablette au client, celui-ci saisit son nom + signe.
+          Preuve légale FR : nom tapé + dessin + IP + user-agent + hash SHA-256. */}
       <Modal
         isOpen={showSignModal}
-        onClose={() => setShowSignModal(false)}
-        title="Signature du devis"
+        onClose={() => {
+          setShowSignModal(false);
+          setPresentielName("");
+        }}
+        title="Signature en présentiel"
         description={`${quote.quoteNumber} — ${quote.title}`}
         size="lg"
       >
         <div className="space-y-4">
-          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              En signant, vous acceptez les conditions du devis pour un montant de{" "}
-              <strong>{formatPrice(total)}</strong>.
+          <div className="rounded-xl bg-amber-50 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <p className="text-sm">
+              👉 <strong>Passez la tablette au client.</strong> Cette signature vaut acceptation
+              du devis pour un montant de <strong>{formatPrice(total)}</strong>. Une facture
+              sera automatiquement générée.
             </p>
           </div>
-          <SignaturePad onSave={handleSignature} onCancel={() => setShowSignModal(false)} />
+          <div>
+            <label
+              htmlFor="presentiel-name"
+              className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+            >
+              Nom complet du signataire <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="presentiel-name"
+              type="text"
+              value={presentielName}
+              onChange={(e) => setPresentielName(e.target.value)}
+              placeholder="Prénom Nom"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900"
+              maxLength={100}
+              disabled={signSaving}
+            />
+          </div>
+          <SignaturePad
+            onSave={handleSignature}
+            onCancel={() => {
+              setShowSignModal(false);
+              setPresentielName("");
+            }}
+          />
+          {signSaving && (
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+              Enregistrement en cours…
+            </p>
+          )}
         </div>
       </Modal>
 

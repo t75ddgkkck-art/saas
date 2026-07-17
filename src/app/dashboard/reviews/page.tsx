@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Star, ThumbsUp, Send, Check, Sparkles, Copy } from "lucide-react";
+// Lot 58 MAJ3 : remplacement de la bannière "Bientôt disponible" par un vrai
+// composant fonctionnel (saisie Place ID, test du lien avis).
+import { GoogleReviewsCard } from "@/components/reviews/GoogleReviewsCard";
 
 const mockReviews = [
   {
@@ -85,10 +88,8 @@ export default function ReviewsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl bg-blue-50 p-4 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-        ⭐ <strong>Bientôt disponible :</strong> importez automatiquement vos vrais avis Google
-        Business sur votre vitrine. Fini les faux avis !
-      </div>
+      {/* Lot 58 MAJ3 : configuration Google Reviews (Place ID + lien avis). */}
+      <GoogleReviewsCard />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Avis clients</h1>
