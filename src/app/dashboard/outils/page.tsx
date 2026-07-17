@@ -164,8 +164,8 @@ export default function OutilsPage() {
           Outils Professionnels
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-          Générez des documents PDF professionnels, exportez vos données et automatisez votre
-          activité
+          Générez des documents PDF professionnels et exportez vos données pour votre
+          comptable.
         </p>
       </div>
 
