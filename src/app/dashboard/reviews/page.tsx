@@ -7,10 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Star, ThumbsUp, Send, Check, Sparkles, Copy } from "lucide-react";
 // Lot 58 MAJ3 : remplacement de la bannière "Bientôt disponible" par un vrai
 // composant fonctionnel (saisie Place ID, test du lien avis).
-// Lot 60 : gate Premium ajoutée (feature `reviews.google_import`) — l'user Free
-// voit le CTA upgrade + description, mais ne peut pas configurer.
 import { GoogleReviewsCard } from "@/components/reviews/GoogleReviewsCard";
-import { UpgradeGate } from "@/components/entitlements/UpgradeGate";
 
 const mockReviews = [
   {
@@ -91,14 +88,8 @@ export default function ReviewsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Lot 58 MAJ3 : configuration Google Reviews (Place ID + lien avis).
-          Lot 60 : gate Premium — un user Free voit le CTA "Passez Premium" à
-          la place du composant fonctionnel. Défense en profondeur : l'API
-          `PATCH /api/my-business` refuse aussi le champ googlePlaceId pour
-          non-Premium (voir route.ts). */}
-      <UpgradeGate feature="reviews.google_import">
-        <GoogleReviewsCard />
-      </UpgradeGate>
+      {/* Lot 58 MAJ3 : configuration Google Reviews (Place ID + lien avis). */}
+      <GoogleReviewsCard />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Avis clients</h1>

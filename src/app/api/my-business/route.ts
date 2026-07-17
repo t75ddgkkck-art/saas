@@ -4,14 +4,10 @@ import { z } from "zod";
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
-import { getCurrentBusiness, getCurrentUser } from "@/lib/session";
+import { getCurrentBusiness } from "@/lib/session";
 import { slugify } from "@/lib/utils";
-import { handleApiError, unauthorized, conflict, badRequest, paymentRequired } from "@/lib/api-error";
+import { handleApiError, unauthorized, conflict, badRequest } from "@/lib/api-error";
 import { validateBody } from "@/lib/api-helpers";
-// Lot 60 : gate Premium sur le champ googlePlaceId (défense en profondeur —
-// même si un user Free bypass l'UI, l'API refuse le champ).
-import { canUse } from "@/lib/entitlements";
-import type { SubscriptionPlan } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -117,25 +113,6 @@ export async function PUT(request: NextRequest) {
     if (!business) throw unauthorized();
 
     const body = await validateBody(request, UpdateSchema);
-
-    // Lot 60 — Gate Premium sur `googlePlaceId` (défense en profondeur).
-    // L'UI affiche déjà un `<UpgradeGate>` sur /dashboard/reviews pour les non-Premium,
-    // mais un attaquant peut hit l'API directement en curl → on ré-vérifie ici.
-    // On ne fait l'appel getCurrentUser que si le champ est POST/PATCHé (perf).
-    if (body.googlePlaceId !== undefined && body.googlePlaceId !== business.googlePlaceId) {
-      const user = await getCurrentUser();
-      const plan = (user?.subscription || "free") as SubscriptionPlan;
-      if (!canUse(plan, "reviews.google_import")) {
-        throw paymentRequired(
-          "L'import des avis Google est réservé au plan Premium.",
-          {
-            feature: "reviews.google_import",
-            requiredPlan: "premium",
-            currentPlan: plan,
-          }
-        );
-      }
-    }
 
     // Slug personnalisé : anti-collision
     let newSlug = business.slug;

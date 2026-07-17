@@ -61,7 +61,6 @@ export type FeatureKey =
   | "reminders.sms" // rappels SMS
   | "reminders.whatsapp" // rappels WhatsApp
   | "reviews.auto_request" // demande auto d'avis post-RDV
-  | "reviews.google_import" // Lot 60 : import avis Google via Place ID (Premium)
   // --- Équipe & Analytics ---
   | "team.enable" // inviter des membres
   | "analytics.advanced" // dashboard analytics avancé
@@ -227,18 +226,6 @@ export const FEATURES: Readonly<Record<FeatureKey, FeatureDefinition>> = {
     label: "Demande d'avis automatique",
     description: "Email de demande d'avis envoyé 24h après chaque RDV.",
     minPlan: "pro",
-  },
-  // Lot 60 — Gate Premium ajoutée à la demande utilisateur.
-  // L'import des avis Google via Place ID (setup dans /dashboard/reviews) est
-  // une fonctionnalité "wow" qui justifie l'upgrade Premium. Sans cette gate,
-  // n'importe quel Free pouvait configurer + faire consommer notre quota
-  // Google Places API (payant côté Google Cloud).
-  "reviews.google_import": {
-    plans: ["premium"],
-    label: "Import avis Google",
-    description:
-      "Importez automatiquement vos vrais avis Google sur votre vitrine + envoyez à vos clients un lien direct pour laisser un avis Google après chaque RDV.",
-    minPlan: "premium",
   },
 
   // --- Équipe & Analytics ---
