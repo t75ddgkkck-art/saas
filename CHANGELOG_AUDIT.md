@@ -4,6 +4,100 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 60 — Gate Premium sur import avis Google (Place ID)
+
+Le user a précisé après le Lot 58 : "cette option est dispo que pour ceux ayant abonnement premium donc vérifie bien". Le composant `GoogleReviewsCard` livré aux Lots 58/59 était accessible à tous les plans (Free/Pro/Premium) — ce lot ferme la gate proprement en 3 endroits (UI, API, marketing).
+
+## Livré
+
+### 1. Nouvel entitlement `reviews.google_import` (Premium)
+
+Ajouté dans `src/lib/entitlements.ts` :
+```ts
+"reviews.google_import": {
+  plans: ["premium"],
+  label: "Import avis Google",
+  description: "Importez automatiquement vos vrais avis Google...",
+  minPlan: "premium",
+}
+```
+Snapshot `tests/unit/entitlements.test.ts` mis à jour (features passent de 23 → 24). Test dédié `tests/unit/google-place-id-gate.test.ts` (7 tests) qui protège contre les régressions accidentelles (matrice figée : free NO / pro NO / premium OUI).
+
+### 2. Gate UI dans `/dashboard/reviews`
+
+Le `<GoogleReviewsCard>` est maintenant wrappé dans `<UpgradeGate feature="reviews.google_import">` :
+- User Free → voit une carte verrouillée avec CTA "Passez Premium" + description de la feature
+- User Pro → **idem** (feature exclusivement Premium)
+- User Premium → voit le composant fonctionnel complet avec le guide 3 méthodes
+
+### 3. Gate API (défense en profondeur)
+
+Sans ça, un attaquant pouvait bypass l'UI avec un simple curl :
+```bash
+curl -X PUT /api/my-business -d '{"googlePlaceId":"..."}'
+```
+
+Ajouté dans `PUT /api/my-business` :
+```ts
+if (body.googlePlaceId !== undefined && body.googlePlaceId !== business.googlePlaceId) {
+  const user = await getCurrentUser();
+  const plan = (user?.subscription || "free") as SubscriptionPlan;
+  if (!canUse(plan, "reviews.google_import")) {
+    throw paymentRequired("L'import des avis Google est réservé au plan Premium.", {...});
+  }
+}
+```
+
+Note : le check n'est fait que si le champ change effectivement (`body.googlePlaceId !== business.googlePlaceId`) — évite un `getCurrentUser()` inutile sur chaque PUT qui met à jour uniquement le nom/adresse.
+
+Réponse 402 avec `code: "PLAN_REQUIRED"` + metadata `{ feature, requiredPlan, currentPlan }` — le front peut déclencher un flow upgrade contextuel si besoin.
+
+### 4. Mention dans PricingSection
+
+Ajouté à la liste des features Premium sur la landing + `/tarifs` :
+> "Import automatique de vos avis Google (via Place ID)"
+
+Placée juste après "IA « Clients à recontacter »" pour rester dans la logique "features exclusives Premium".
+
+## Fichiers touchés
+
+- **Créés (1)** : `tests/unit/google-place-id-gate.test.ts` (7 tests)
+- **Modifiés (5)** :
+  - `src/lib/entitlements.ts` (nouveau feature key + définition Premium)
+  - `src/app/api/my-business/route.ts` (gate PUT + import canUse/paymentRequired)
+  - `src/app/dashboard/reviews/page.tsx` (wrap `<UpgradeGate>`)
+  - `src/components/public/PricingSection.tsx` (mention Premium)
+  - `tests/unit/entitlements.test.ts` (snapshot 23→24 features)
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **912 tests / 78 fichiers verts** (avant 905/77, **+7 tests**) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Levier upsell Premium** : la feature "vrais avis Google sur ma vitrine" est un argument commercial fort pour la démo (contraste avec les faux avis Trustpilot/Verified Reviews). Bien positionnée elle justifie l'upgrade.
+- **Coût maîtrisé** : Google Places API est **facturée** (Details request = $17/1000 après quota gratuit). Sans gate, un free abusait potentiellement de notre quota Google Cloud. Gate Premium = 100% des consos sont sur des clients qui paient.
+- **Cohérence marketing** : la promesse "avis Google vérifiés" est maintenant alignée avec le plan qui la débloque effectivement.
+
+## Actions post-déploiement
+
+Aucune. Les users Free/Pro qui auraient éventuellement setup un Place ID (impossible en pratique depuis Lot 58, mais théoriquement possible en curl) verront simplement leur config préservée en DB — la gate ne rétroactivement rien casser. Ils reverront le champ verrouillé au prochain accès `/dashboard/reviews` mais l'ancien Place ID reste stocké tant qu'ils ne le touchent pas.
+
+## Historique commits
+
+```
+a502930 lot 60 gate premium sur import avis Google (Place ID)
+9151a43 outils: sous-titre nettoyer 'automatisez votre activite'
+cbbdb76 lot 59 fix bugs mineurs + guide Place ID pédagogique
+7fd3a44 lot 58 fix bugs majeurs (XSS blog + signature devis + Google Place ID)
+d16aff1 lot 57 nettoyage post-audit
+a0205ae auto-appli coupons Stripe (ferme Lot 52)
+```
+
+---
+
 # 🟢 Lot 59 — Fix bugs MINEURS + guide Google Place ID intégré
 
 Ferme les 2 bugs MINEURS restants de l'audit post-Lot 57 (SEC1bis, SEC2) + enrichit le composant `GoogleReviewsCard` livré au Lot 58 avec un guide pédagogique 3 méthodes (l'artisan lambda ne sait pas ce qu'est un "Place ID").

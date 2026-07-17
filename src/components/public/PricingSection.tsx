@@ -68,6 +68,8 @@ const PLANS = [
       "20 QR codes trackables (campagnes A/B, saisonnières)",
       // Lot 49 : IA rédige les messages de réactivation clients dormants
       "IA « Clients à recontacter » (messages personnalisés)",
+      // Lot 60 : import avis Google via Place ID + lien direct "laisser un avis"
+      "Import automatique de vos avis Google (via Place ID)",
       "Programme de fidélité clients",
       "Marque blanche (sans logo Vitrix)",
       "7 templates dont 3 exclusifs",
