@@ -78,6 +78,12 @@ export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void
       const { creditReferrer, REFERRAL_MAX_CREDIT_MONTHS } = await import("@/lib/referral");
       await creditReferrer(freshUser.referredBy, 1);
 
+      // Auto-application du crédit sous forme de coupon Stripe sur la sub du parrain
+      // (si le parrain a déjà une sub active). Non-bloquant : catch en interne.
+      // Si le parrain est Free, on skip → le crédit reste en DB pour usage futur.
+      const { applyReferralCreditsAsync } = await import("@/lib/stripe-referral-coupon");
+      applyReferralCreditsAsync(freshUser.referredBy);
+
       // Lot 52 (F14) : notif in-app au parrain — feedback positif immédiat.
       // Fire-and-forget, ne peut jamais faire échouer le webhook.
       const filleulName = freshUser.firstName?.trim() || "Un nouvel utilisateur";

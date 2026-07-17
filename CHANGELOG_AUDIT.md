@@ -4,6 +4,92 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Tour 50 — Auto-application coupons Stripe pour crédits parrainage (ferme Lot 52)
+
+Depuis le Lot 52, les crédits parrainage sont trackés en DB (`users.referral_credit_months`, plafond 12) mais l'**application effective sur la facture Stripe restait manuelle** (support). Ce lot ferme la boucle : conversion filleul → coupon Stripe créé auto → attaché à la sub du parrain → réduction sur sa prochaine facture, 100% self-service.
+
+## Livré
+
+### Nouvelle lib `stripe-referral-coupon.ts` (200 lignes)
+
+`applyReferralCreditsAsStripeCoupon(referrerId)` :
+- Charge user + sub Stripe + plan actuel
+- Skip si pas de sub (crédit reste en DB pour usage futur au moment de l'upgrade)
+- Skip si 0 crédit
+- Skip si idempotence : coupon déjà appliqué < 60s (webhook rejoué)
+- Crée un `stripe.coupons.create({ amount_off, currency: "eur", duration: "once" })` = prix mensuel du plan (Pro 29€, Premium 79€)
+- Attache via `stripe.subscriptions.update({ discounts: [{ coupon }], metadata: {...} })` — nouveau format Stripe SDK v22+
+- Décrémente `referral_credit_months` en DB via `GREATEST(x-1, 0)` (défensif anti-négatif)
+- **Jamais throw** — toutes les erreurs Stripe catchées, crédit DB préservé pour retry manuel
+
+Wrapper fire-and-forget `applyReferralCreditsAsync()` pour usage webhook.
+
+### Hook dans `handleCheckoutCompleted` (stripe-events.ts)
+
+Après `creditReferrer(referrerId, 1)` + notif in-app parrain :
+
+```ts
+const { applyReferralCreditsAsync } = await import("@/lib/stripe-referral-coupon");
+applyReferralCreditsAsync(freshUser.referredBy);
+```
+
+Import dynamique (cohérent avec le pattern existant), fire-and-forget → le webhook Stripe **ne peut jamais être bloqué** par un souci coupon.
+
+### Idempotence via `subscription.metadata`
+
+- `referral_coupon_last_applied_at` — ISO timestamp du dernier coupon appliqué
+- `referral_coupon_last_id` — ID du dernier coupon (traçable côté Stripe Dashboard)
+- Fenêtre anti-doublon 60s (couvre les webhooks rejoués concurrents)
+
+### Séparation stricte 1 crédit = 1 coupon = 1 mois
+
+Volontairement pas de cumul multi-mois en un seul coupon. Raisons :
+- Simple à comprendre côté user ("je vois +1 mois sur ma prochaine facture")
+- Facile à débugger côté support (1 crédit consommé = 1 event Stripe)
+- Évite les cas edge : "et si le parrain change de plan entre 2 crédits ?"
+- Coût : 1 API call Stripe supplémentaire par filleul converti — négligeable
+
+## Tests
+
+`tests/unit/stripe-referral-coupon.test.ts` — **13 tests** :
+- **Skip cases (4)** : user introuvable, sans sub (Free), sans crédit, plan invalide (edge)
+- **Idempotence (3)** : coupon < 60s → skip, > 60s → OK, timestamp malformé → passe
+- **Happy path (2)** : Pro → coupon 29€, Premium → coupon 79€, DB décrémenté, metadata OK
+- **Erreurs Stripe (4)** : retrieve fail / create fail / update fail → crédit préservé DB pour retry, jamais throw
+
+## Fichiers touchés
+
+- **Créés** :
+  - `src/lib/stripe-referral-coupon.ts` (200 lignes)
+  - `tests/unit/stripe-referral-coupon.test.ts` (280 lignes, 13 tests)
+
+- **Modifiés** :
+  - `src/lib/stripe-events.ts` — appel `applyReferralCreditsAsync` après `creditReferrer`
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **863 tests / 75 fichiers** (avant 850/74) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Promesse marketing enfin tenue** : le Lot 52 promettait "1 mois offert par filleul Pro/Premium" mais l'application était manuelle = jamais faite. Maintenant 100% automatique.
+- **Support déchargé** : plus de tickets "où sont mes mois offerts ?" à traiter à la main
+- **Confiance parrain** : le crédit apparaît sur la prochaine facture Stripe visible depuis le portail Stripe du user, indéniable
+- **Boucle virale fermée** : parrain voit sa réduction Stripe → confiance → parraine plus → cycle vertueux
+
+## Historique commits
+
+```
+<hash>   auto-appli coupons Stripe pour crédits parrainage (ferme Lot 52)
+6fa8cc7  lot 56 export CSV analytics (multi-sections, séparateur FR, gate advanced Pro+)
+67343d7  lot 54 optimisation LCP landing
+a697936  lot 55 command palette Cmd+K
+```
+
+---
+
 # 🟢 Tour 49 — Lot 56 Export CSV analytics (comptable-friendly)
 
 Nouvelle route `/api/analytics/export` + bouton "Exporter CSV" sur `/dashboard/analytics`. Le pro peut télécharger ses stats en un clic pour reporting Excel / envoi comptable.
