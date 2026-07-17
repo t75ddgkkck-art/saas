@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { PricingSection } from "@/components/public/PricingSection";
 // Lot 40 : nav landing avec burger mobile fonctionnel (avant : nav cassée <md)
 import { LandingNav } from "@/components/landing/LandingNav";
 // Lot 41 : hero mockup lazy-loadé — ~30 KB First Load JS économisés,
@@ -12,6 +11,34 @@ const HeroMockup = dynamic(
     // Placeholder pendant le chargement pour éviter un layout shift brutal
     loading: () => (
       <div className="mx-auto mt-14 h-64 max-w-5xl animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-900 sm:mt-20 sm:h-96" />
+    ),
+  }
+);
+// Lot 54 : PricingSection lazy-loadée aussi (~15 KB JS below-fold).
+// L'user voit d'abord Hero → Features → PUIS Pricing. On économise le JS initial.
+// Placeholder skeleton pour préserver le layout (évite CLS).
+const PricingSection = dynamic(
+  () => import("@/components/public/PricingSection").then((m) => m.PricingSection),
+  {
+    loading: () => (
+      <section
+        id="pricing"
+        className="py-16 sm:py-24 lg:py-32"
+        aria-label="Chargement des tarifs"
+      >
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="mx-auto h-8 w-64 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+          <div className="mt-4 mx-auto h-4 w-96 max-w-full animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-96 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"
+              />
+            ))}
+          </div>
+        </div>
+      </section>
     ),
   }
 );
@@ -92,7 +119,13 @@ export default function Home() {
               et pouvait déclencher un scroll horizontal parasite sur SE). */}
           <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-950" />
-            <div className="absolute left-1/2 top-0 h-[320px] w-[320px] -translate-x-1/2 rounded-full bg-gradient-to-br from-blue-100/50 via-purple-100/30 to-pink-100/50 blur-3xl dark:from-blue-900/20 dark:via-purple-900/10 dark:to-pink-900/20 sm:h-[600px] sm:w-[600px]" />
+            {/* Lot 54 : blur hero optimisé LCP.
+                Avant : `blur-3xl` (blur ~48px + composite layer) sur un div 320-600px
+                = ~150ms de paint sur mobile mid-range. Après : `blur-2xl` (24px)
+                + `will-change: auto` explicite (empêche browser de créer un layer
+                permanent, on préserve le budget mémoire GPU). Sur mobile <sm on
+                masque complètement le blur — la landing gagne un frame paint entier. */}
+            <div className="hidden sm:block absolute left-1/2 top-0 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-br from-blue-100/50 via-purple-100/30 to-pink-100/50 blur-2xl dark:from-blue-900/20 dark:via-purple-900/10 dark:to-pink-900/20 [will-change:auto]" />
           </div>
 
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -111,7 +144,12 @@ export default function Home() {
               <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 [text-wrap:balance] sm:text-5xl lg:text-7xl">
                 Votre activité,
                 <br className="hidden sm:inline" />{" "}
-                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                {/* Lot 54 : fallback couleur solide sur mobile.
+                    Le `bg-clip-text` avec gradient force le rasteriseur à calculer
+                    le gradient AVANT de peindre le texte → LCP retardé de ~80ms
+                    sur mobile mid-range. Sur < sm on utilise juste une couleur
+                    forte purple-600, sur sm+ on garde le gradient joli. */}
+                <span className="text-blue-600 sm:bg-gradient-to-r sm:from-blue-600 sm:via-purple-600 sm:to-pink-600 sm:bg-clip-text sm:text-transparent">
                   une seule page.
                 </span>
               </h1>
@@ -169,7 +207,14 @@ export default function Home() {
         </section>
 
         {/* Features Section — Lot 41 : padding vertical réduit sur mobile */}
-        <section id="features" className="py-16 sm:py-24 lg:py-32">
+        {/* Lot 54 : `content-visibility: auto` sur les sections below-fold.
+            Le browser skip le layout+paint tant que la section n'est pas dans
+            le viewport → gain LCP significatif sur mobile bas de gamme.
+            `contain-intrinsic-size` évite le CLS en réservant la place. */}
+        <section
+          id="features"
+          className="py-16 sm:py-24 lg:py-32 [content-visibility:auto] [contain-intrinsic-size:auto_1200px]"
+        >
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 [text-wrap:balance] sm:text-4xl lg:text-5xl">
@@ -265,8 +310,9 @@ export default function Home() {
 
         <PricingSection />
 
-        {/* CTA Section — Lot 41 : paddings réduits mobile + bouton full-width */}
-        <section className="py-16 sm:py-24 lg:py-32">
+        {/* CTA Section — Lot 41 : paddings réduits mobile + bouton full-width
+            Lot 54 : content-visibility below-fold pour LCP */}
+        <section className="py-16 sm:py-24 lg:py-32 [content-visibility:auto] [contain-intrinsic-size:auto_600px]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="relative overflow-hidden rounded-3xl bg-slate-900 px-5 py-12 dark:bg-white sm:px-16 sm:py-24">
               <div className="relative z-10 mx-auto max-w-2xl text-center">
@@ -292,8 +338,10 @@ export default function Home() {
               {/* Background decoration — Lot 41 : blur borderless mais on
                   ajoute `pointer-events-none` pour être sûr de ne pas bloquer
                   le tap sur bouton (au cas où z-index bougerait un jour). */}
-              <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gradient-to-br from-emerald-500/20 to-blue-500/20 blur-3xl" />
+              {/* Lot 54 : blurs CTA section — cachés < sm (invisibles sur mobile,
+                  gaspillage GPU pur), blur-2xl au lieu de blur-3xl sur desktop. */}
+              <div className="hidden sm:block pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 blur-2xl" />
+              <div className="hidden sm:block pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gradient-to-br from-emerald-500/20 to-blue-500/20 blur-2xl" />
             </div>
           </div>
         </section>

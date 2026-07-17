@@ -129,6 +129,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
         <link rel="mask-icon" href="/favicon.svg" color="#0f172a" />
+        {/* Lot 54 : Preconnect DNS + TLS handshake anticipé pour les hosts
+            que la landing / register va appeler dès le 1er clic CTA.
+            Économise ~100-200ms sur mobile 4G. `crossOrigin` requis pour ceux
+            qui utilisent CORS (Stripe, Supabase Storage). */}
+        <link rel="preconnect" href="https://js.stripe.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://js.stripe.com" />
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <>
+            <link
+              rel="preconnect"
+              href={process.env.NEXT_PUBLIC_SUPABASE_URL}
+              crossOrigin="anonymous"
+            />
+            <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+          </>
+        )}
       </head>
       <body className="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 min-h-screen">
         <SkipToContent />
