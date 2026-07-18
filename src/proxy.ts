@@ -19,6 +19,16 @@ const PUBLIC_ROUTES = new Set([
   "/confidentialite",
   // Fix NAV1 (Lot 50) : nouvelle page /tarifs publique
   "/tarifs",
+  // Lot 65 fix : ces 2 pages sont linkées depuis le footer/landing mais étaient
+  // absentes ici → clic redirigeait vers /login au lieu d'afficher la page.
+  "/mentions-legales",
+  "/status",
+  // Autres pages publiques oubliées (existent dans src/app/ mais n'étaient pas
+  // whitelistées → redirect login sur clic depuis footer/autres)
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/design-system",
 ]);
 
 const PUBLIC_API_PREFIXES = [

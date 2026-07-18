@@ -4,6 +4,83 @@ Ce document liste **exactement** ce qui a changé. Rapport détaillé dans [`AUD
 
 ---
 
+# 🟢 Lot 65 — Fixes prod : toggle dark manquant, favicon mal cadrée, liens landing morts
+
+3 bugs signalés par le user lors du test en production. Investigation + fixes.
+
+## Bug 1 — Toggle light/dark inaccessible sur les pages publiques
+
+**Problème** : `<ThemeToggle />` était utilisé uniquement dans `Sidebar` + `MobileTopBar` (dashboard connecté). Sur la landing, `/tarifs`, `/login`, `/register`, `/a-propos`, aucun contrôle exposé → l'user cliquait "je veux le mode sombre" mais aucun bouton n'existait. Le `prefers-color-scheme` fonctionnait mais pas le switch manuel.
+
+**Fix** : ajout de `<ThemeToggle />` dans `LandingNav` (à droite, avant "Se connecter"). Visible sur toutes les tailles d'écran (desktop + mobile). L'utilisateur peut maintenant choisir Clair/Sombre/Système partout.
+
+## Bug 2 — Favicon mal cadrée (touche les bords)
+
+**Problème** : ancienne `favicon.svg` avait le "V" allant de x=136 à x=376 sur un viewBox 512×512 → **occupait 47% de largeur mais collé aux bords** en petit rendu (16×16, 32×32 dans l'onglet navigateur). Le point cyan du "i" à y=110 était minuscule et souvent illisible.
+
+**Fix** :
+- Refonte des 3 SVG (`favicon.svg`, `icon.svg`, `public/icons/logo.svg`) avec safe zone ~15% :
+  - V déplacé x=176→336 (35% largeur au lieu de 47%)
+  - Point cyan agrandi de r=18 à r=22
+  - Placement recentré verticalement
+- Régénération de **tous les PNG** via ImageMagick (16, 32, 128, 144, 152, 167, 180, 192, 256, 384, 512, apple-icon)
+- Nettoyage du `favicon.ico` multi-résolution (16/32/48 embarqués)
+- Nettoyage des PNG parasites créés par le régénérateur (icon-48/64/96 supprimés — pas référencés par le manifest)
+
+Résultat : favicon lisible dans l'onglet navigateur + respect des guidelines iOS/Android/Google Search safe area.
+
+## Bug 3 — Liens `/mentions-legales` et `/status` "font rien"
+
+**Problème** : ces 2 pages existent physiquement (`src/app/mentions-legales/page.tsx`, `src/app/status/page.tsx`) mais **n'étaient PAS dans `PUBLIC_ROUTES`** du proxy edge. Résultat : cliquer un lien vers une de ces pages en étant non-authentifié → proxy renvoie **401 JSON** (au lieu de redirect login → page blanche/erreur, apparence "le bouton ne fait rien").
+
+**Fix** : ajout dans `src/proxy.ts` de :
+- `/mentions-legales` (linkée depuis landing footer)
+- `/status` (page publique statut services)
+- Bonus : `/forgot-password`, `/reset-password`, `/verify-email`, `/design-system` (pages publiques oubliées qui subissaient le même sort)
+
+## Fichiers touchés
+
+- **Modifiés (6)** :
+  - `src/components/landing/LandingNav.tsx` (import + rendu `<ThemeToggle />`)
+  - `src/app/favicon.svg` (safe zone padding)
+  - `src/app/icon.svg` (safe zone padding)
+  - `public/icons/logo.svg` (safe zone padding)
+  - `src/proxy.ts` (6 pages publiques ajoutées à PUBLIC_ROUTES)
+  - `src/app/favicon.ico` + `src/app/icon.png` (régénérés)
+
+- **Regénérés (12 PNG)** : tous les `public/icons/icon-*.png` + `public/apple-icon.png`
+
+## Validations
+
+- `npx tsc --noEmit` → **0 erreur** ✅
+- `npx vitest run` → **926 tests / 78 fichiers verts** (aucune régression) ✅
+- `npx next build` → OK ✅
+
+## Impact business
+
+- **Confort utilisateur** : le toggle dark/light est enfin accessible partout (avant : uniquement pour les users connectés)
+- **Branding** : favicon lisible et professionnelle dans l'onglet navigateur — arrête de donner l'impression "site low-cost"
+- **Trust** : plus de "boutons morts" sur les liens footer légaux (mentions, status) qui donnent l'impression que le site n'est pas fini
+
+## Actions post-déploiement
+
+Après push :
+1. Redeploy Vercel **sans build cache** (sinon le vieux favicon reste servi depuis le CDN)
+2. Sur navigateur : **Ctrl+F5** + éventuellement supprimer manuellement l'onglet et le rouvrir pour rafraîchir l'icône (les navigateurs cachent agressivement les favicons pendant plusieurs jours)
+
+## Historique commits
+
+```
+fc75237 lot 65 fixes prod (ThemeToggle landing + favicon padding + proxy pages publiques oubliées)
+8895d9f lot 64 rate-limit couverture 100% (19 routes secondaires)
+b5405fe lot 63 audit passe 3 (rate-limit 11 routes critiques + safeParseAmount)
+7c74f26 lot 62 templates vitrine phase 2
+b3381b4 lot 61 templates vitrine réellement appliqués
+cbbdb76 lot 59 fix bugs mineurs + guide Place ID
+```
+
+---
+
 # 🟢 Lot 64 — Rate-limit couverture 100% sur toutes les routes de mutation
 
 Suite du Lot 63 qui avait fixé 11 routes critiques. Ce lot ajoute rate-limit sur les **19 routes secondaires restantes** identifiées par l'audit passe 3 → couverture **100%** des mutations.

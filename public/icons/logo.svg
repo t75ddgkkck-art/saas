@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Lot 65 : version logo (identique favicon) — utilisée par JSON-LD Organization. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Fond bleu marine (couleur brand primaryColor) -->
   <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="#0f172a"/>
-  <!-- Le "V" de Vitrix -->
-  <path d="M 136 148 L 256 372 L 376 148 L 336 148 L 256 296 L 176 148 Z"
+  <path d="M 176 188 L 256 340 L 336 188 L 300 188 L 256 272 L 212 188 Z"
         fill="#ffffff"/>
-  <!-- Point du "i" -->
-  <circle cx="256" cy="110" r="18" fill="#38bdf8"/>
+  <circle cx="256" cy="158" r="22" fill="#38bdf8"/>
 </svg>

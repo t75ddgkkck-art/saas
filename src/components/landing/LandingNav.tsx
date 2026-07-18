@@ -20,6 +20,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X, Store } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+// Lot 65 : ThemeToggle manquait sur la landing publique — l'user avait beau
+// avoir "prefers-color-scheme: dark" ou vouloir switcher manuellement, aucun
+// contrôle exposé sur les pages publiques. Ajouté à droite de la nav.
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export function LandingNav() {
   const [open, setOpen] = useState(false);
@@ -80,6 +84,9 @@ export function LandingNav() {
 
         {/* Actions droites : boutons + burger mobile */}
         <div className="flex items-center gap-2">
+          {/* Lot 65 : toggle light/dark/system sur toutes tailles d'écran */}
+          <ThemeToggle />
+
           {/* Se connecter — visible desktop uniquement */}
           <Link href="/login" className="hidden sm:block">
             <Button variant="ghost" size="sm">

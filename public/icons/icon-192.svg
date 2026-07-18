@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Lot 65 : refonte favicon avec padding safe zone.
+  Avant : viewBox 0 0 512 512 avec V allant de x=136 à x=376 → touchait presque
+  les bords en petit rendu (16x16, 32x32) → mal cadré dans l'onglet navigateur.
+  Après : safe zone ~15% (76px de chaque côté) — le V occupe une zone interne
+  plus petite mais est LISIBLE à toutes tailles + respecte les guidelines
+  iOS/Android/Google (rounded mask safe area).
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!-- Fond bleu marine (couleur brand primaryColor) -->
   <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="#0f172a"/>
-  <!-- Le "V" de Vitrix -->
-  <path d="M 136 148 L 256 372 L 376 148 L 336 148 L 256 296 L 176 148 Z"
+  <!-- Le "V" de Vitrix (safe zone : x 176->336 au lieu de 136->376) -->
+  <path d="M 176 188 L 256 340 L 336 188 L 300 188 L 256 272 L 212 188 Z"
         fill="#ffffff"/>
-  <!-- Point du "i" -->
-  <circle cx="256" cy="110" r="18" fill="#38bdf8"/>
+  <!-- Point du "i" (recentré, plus grand pour lisibilité 16px) -->
+  <circle cx="256" cy="158" r="22" fill="#38bdf8"/>
 </svg>
